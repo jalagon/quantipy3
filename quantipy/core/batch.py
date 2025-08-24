@@ -46,15 +46,15 @@ def meta_editor(self, dataset_func):
         var_edits = []
         # args/ kwargs for min_value_count
         if dataset_func.__name__ == 'min_value_count':
-            if len(args) < 3 and not 'weight' in kwargs:
+            if len(args) < 3 and 'weight' not in kwargs:
                 kwargs['weight'] = self.weights[0]
 
-            if len(args) < 4 and not 'condition' in kwargs:
+            if len(args) < 4 and 'condition' not in kwargs:
                 if self.filter:
                     kwargs['condition'] = list(self.filter.values())[0]
         # args/ kwargs for sorting
         elif dataset_func.__name__ == 'sorting':
-            if len(args) < 7 and not 'sort_by_weight' in kwargs:
+            if len(args) < 7 and 'sort_by_weight' not in kwargs:
                 kwargs['sort_by_weight'] = self.weights[0]
 
         for n in name:
@@ -122,7 +122,7 @@ class Batch(qp.DataSet):
         if '-' in name:
             raise ValueError("Batch 'name' must not contain '-'!")
         sets = dataset._meta['sets']
-        if not 'batches' in sets:
+        if 'batches' not in sets:
             sets['batches'] = OrderedDict()
         self.name = name
         meta, data = dataset.split()
@@ -405,9 +405,9 @@ class Batch(qp.DataSet):
         if not w:
             w = [None]
         elif any(we is None for we in w):
-            w = [None] + [we for we in w if not we is None]
+            w = [None] + [we for we in w if we is not None]
         self.weights = w
-        if any(weight not in self.columns() for weight in w if not weight is None):
+        if any(weight not in self.columns() for weight in w if weight is not None):
             raise ValueError('{} is not in DataSet.'.format(w))
         self._update()
         return None
@@ -539,7 +539,7 @@ class Batch(qp.DataSet):
         if '@1' in varlist:
             varlist.remove('@1')
         for v in varlist:
-            if not v in self._variables:
+            if v not in self._variables:
                 self._variables.append(v)
         self._update()
         return None
@@ -876,7 +876,7 @@ class Batch(qp.DataSet):
         else:
             self.add_filter_var(name, filter_logic, overwrite)
         self.filter = name
-        if not name in self.filter_names:
+        if name not in self.filter_names:
             self.filter_names.append(name)
         self._update()
         return None
@@ -1024,7 +1024,7 @@ class Batch(qp.DataSet):
         if not on:
             self.add_crossbreak(self.yks + ext_yks)
         else:
-            not_valid = [o for o in on if not o in self.xks]
+            not_valid = [o for o in on if o not in self.xks]
             if not_valid:
                 msg = '{} not defined as xks.'.format(not_valid)
                 raise ValueError(msg)
@@ -1053,12 +1053,12 @@ class Batch(qp.DataSet):
         -------
         None
         """
-        not_valid = [o for o in on if not o in self.xks]
+        not_valid = [o for o in on if o not in self.xks]
         if not_valid:
             msg = '{} not defined as xks.'.format(not_valid)
             raise ValueError(msg)
         on = self.unroll(on)
-        if not '@' in new_yks and self.total:
+        if '@' not in new_yks and self.total:
             new_yks = ['@'] + new_yks
         for x in on:
             self.exclusive_yks_per_x.update({x: new_yks})
@@ -1121,9 +1121,9 @@ class Batch(qp.DataSet):
         """
         if not isinstance(name, str):
             raise TypeError("'name' attribute for add_y_on_y must be a str!")
-        elif not main_filter in ['extend', 'replace'] or main_filter is None:
+        elif main_filter not in ['extend', 'replace'] or main_filter is None:
             raise ValueError("'main_filter' must be either 'extend' or 'replace'.")
-        if not name in self.y_on_y:
+        if name not in self.y_on_y:
             self.y_on_y.append(name)
         if isinstance(y_filter, str):
             if not self.is_filter(y_filter):
@@ -1151,9 +1151,9 @@ class Batch(qp.DataSet):
                         if not isinstance(var, list):
                             var = [var]
                         for v in var:
-                            if not v in y_keys:
+                            if v not in y_keys:
                                 y_keys.insert(y_keys.index(pos), v)
-                elif not y in y_keys:
+                elif y not in y_keys:
                     y_keys.append(y)
             return y_keys
 
@@ -1170,10 +1170,10 @@ class Batch(qp.DataSet):
         for x in self.xks:
             if self.is_array(x):
                 mapping.append((x, self.leveled.get(x, ['@'])))
-                if not x in self.skip_items:
+                if x not in self.skip_items:
                     try:
                         hiding = self.meta_edits[x]['rules']['x']['dropx']['values']
-                    except:
+                    except BaseException:
                         hiding = self._get_rules(x).get('dropx', {}).get('values', [])
                     for x2 in self.sources(x):
                         if x2 in hiding:
@@ -1220,7 +1220,7 @@ class Batch(qp.DataSet):
                 for x2 in self.sources(x):
                     if x2 in self.xks:
                         mapping[x2] = name
-            if name and not name in self.filter_names:
+            if name and name not in self.filter_names:
                 self.filter_names.append(name)
         self.x_filter_map = mapping
         return None
@@ -1391,7 +1391,7 @@ class Batch(qp.DataSet):
                     ds._meta['masks'][v] = b_meta[v]
                     try:
                         ds._meta['lib']['values'][v] = b_meta['lib'][v]
-                    except:
+                    except BaseException:
                         pass
                 elif b_meta.get(v):
                     ds._meta['columns'][v] = b_meta[v]
@@ -1417,9 +1417,9 @@ class Batch(qp.DataSet):
                                 ds.remove_items(v, item_no)
                             else:
                                 codes = ds.codes(v)
-                                n_codes = [c for c in slicer if not c in drops]
+                                n_codes = [c for c in slicer if c not in drops]
                                 if not len(n_codes) == len(codes):
-                                    remove = [c for c in codes if not c in n_codes]
+                                    remove = [c for c in codes if c not in n_codes]
                                     ds.remove_values(v, remove)
                                 ds.reorder_values(v, n_codes)
                                 if ds.is_array(v):

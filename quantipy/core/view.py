@@ -13,7 +13,7 @@ class View(object):
         kwargs = None if kwargs is None else kwargs.copy()
         self._kwargs = kwargs
         self.name = name
-        if not link is None:
+        if link is not None:
             self._link_meta(link)
         self.dataframe = pd.DataFrame()
         self._notation = None
@@ -139,7 +139,7 @@ class View(object):
         logic = self._kwargs['logic']
         global_expand = self._kwargs.get('expand', None)
         block_ref = OrderedDict()
-        if not logic is None:
+        if logic is not None:
             for item in logic:
                 if isinstance(item, dict):
                     expand = item.get('expand', None)
@@ -149,14 +149,14 @@ class View(object):
                         block_ref[list(item.keys())[0]] = 'normal'
                     elif expand in ['before', 'after']:
                         for key in list(item.keys()):
-                            if not key in ['text', 'expand', 'complete']:
+                            if key not in ['text', 'expand', 'complete']:
                                 net = key
                                 break
                         block_ref[net] = 'net'
                         for expanded in item[net]:
                             block_ref[expanded] = 'expanded'
             for idx in df.index.levels[1]:
-                if not idx in block_ref:
+                if idx not in block_ref:
                     block_ref[idx] = 'normal'
 
         return block_ref
@@ -188,7 +188,7 @@ class View(object):
         elif condition in ['x:', ':']:
             condition = condition
         else:
-            if not 't.' in method:
+            if 't.' not in method:
                 complete = self._kwargs.get('complete', False)
                 colon_form = '*:' if complete else ':'
                 if axis == 'x':
@@ -235,7 +235,7 @@ class View(object):
         ):
             logic = [{self.name: logic}]
         self.grp_text_map = self._grp_text_map(logic, calc)
-        if not grp_text_map_copy is None:
+        if grp_text_map_copy is not None:
             self.grp_text_map = grp_text_map_copy
         return (
             logic,
@@ -271,7 +271,7 @@ class View(object):
                     'Unweighted gross base',
                     '',
                 ]
-                if not text in invalid:
+                if text not in invalid:
                     self._custom_txt = text
                     add_custom_text = True
                 else:
@@ -355,17 +355,17 @@ class View(object):
                     values = link.get_meta()['lib']['values'][vals]
             x_values = [int(x['value']) for x in values]
             if self.missing():
-                x_values = [x for x in x_values if not x in self.missing()]
+                x_values = [x for x in x_values if x not in self.missing()]
             if self.rescaling():
                 x_values = [
-                    x if not x in self.rescaling() else self.rescaling()[x]
+                    x if x not in self.rescaling() else self.rescaling()[x]
                     for x in x_values
                 ]
             if self.missing() or self.rescaling():
                 condition = 'x[{}]'.format('{' + ','.join(map(str, x_values)) + '}')
             else:
                 condition = 'x' if self._kwargs.get('axis', 'x') == 'x' else 'y'
-        except:
+        except BaseException:
             if self.missing():
                 code_excl = '{' + ','.join([str(m) for m in self.missing()]) + '}'
                 condition = 'x~{}'.format(code_excl)
@@ -383,7 +383,7 @@ class View(object):
             cond_names = []
             for l in logic:
                 cond_names.extend(
-                    [key for key in list(l.keys()) if not key in ['expand', 'text']]
+                    [key for key in list(l.keys()) if key not in ['expand', 'text']]
                 )
             name_cond_pairs = list(zip(cond_names, conditions))
             cond_map = {name: cond for name, cond in name_cond_pairs}
