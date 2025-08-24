@@ -1,27 +1,22 @@
-import pandas as pd
-import numpy as np
-import json
-import re
-import copy
-import itertools
+"""Aggregation functions for quantipy survey data analysis.
+
+This module provides statistical aggregation functions for categorical and numeric
+survey data, including weighted calculations, descriptive statistics, and
+crosstabulation functionality.
+"""
 import math
-import re, string
+from collections import defaultdict
+from itertools import combinations
 
-from collections import OrderedDict, defaultdict
-from quantipy.core.helpers.constants import DTYPE_MAP
-from quantipy.core.helpers.constants import MAPPED_PATTERN
-from itertools import product, combinations
+import numpy as np
+import pandas as pd
 from scipy.stats.stats import _ttest_finish as get_pval
-from operator import add, sub, mul, truediv
 
-from quantipy.core.view import View
-from quantipy.core.view_generators.view_mapper import ViewMapper
-from quantipy.core.helpers import functions
 from quantipy.core.tools.view import struct
-import quantipy.core.tools.dp.prep
+
 
 def describe(data, x, weights=None):
-    ''' Replacment of (wrapper around) the df.describe() method that can deal with
+    '''Replacment of (wrapper around) the df.describe() method that can deal with
     weighted data. Weight vectors are allowed to be non-normalized, i.e.
     sum of weights <> number of cases in sample. Quartile information currently
     dropped from output, variance is unbiased variance.
@@ -34,25 +29,29 @@ def describe(data, x, weights=None):
             'std': 'stdDev',
             '25%': 'lower quartile',
             '50%': 'median',
-            '75%': 'upper quartile'
+            '75%': 'upper quartile',
         },
-        inplace=True
+        inplace=True,
     )
     # percentile information (incorrect for weighted data!) excluded for now...
     # desc_df.drop(['Lower quartile', 'Median', 'Upper quartile'], inplace=True)
     if not len(data.index) == 0:
         if not weights == '@1':
             count = data[weights].sum()
-            norm_wvector_coef = 1 if len(data.index) == count else len(data.index)/count
-            w_squared_sum = (data[weights]**2).sum()
-            eff_count = count**2/w_squared_sum
+            norm_wvector_coef = (
+                1 if len(data.index) == count else len(data.index) / count
+            )
+            w_squared_sum = (data[weights] ** 2).sum()
+            eff_count = count ** 2 / w_squared_sum
             mean = data[x].mul(data[weights].mul(norm_wvector_coef)).mean()
-            var = data[weights].mul((data[x].sub(mean))**2).sum()/(data[weights].sum()-1)
+            var = data[weights].mul((data[x].sub(mean)) ** 2).sum() / (
+                data[weights].sum() - 1
+            )
             try:
                 stddev = math.sqrt(var)
                 if abs(stddev) == 0.00:
                     stddev = np.NaN
-            except:
+            except (ValueError, TypeError, ZeroDivisionError):
                 stddev = np.NaN
             desc_df['count'] = count
             desc_df['eff. count'] = eff_count
@@ -63,9 +62,23 @@ def describe(data, x, weights=None):
             desc_df['eff. count'] = desc_df['count']
             desc_df['weights squared sum'] = 1.00
 
-        desc_df['efficiency'] = desc_df['eff. count']/desc_df['count']*100
+        desc_df['efficiency'] = desc_df['eff. count'] / desc_df['count'] * 100
 
-    return pd.DataFrame(desc_df[['count', 'eff. count', 'min', 'max', 'mean', 'stdDev', 'weights squared sum', 'efficiency']])
+    return pd.DataFrame(
+        desc_df[
+            [
+                'count',
+                'eff. count',
+                'min',
+                'max',
+                'mean',
+                'stdDev',
+                'weights squared sum',
+                'efficiency',
+            ]
+        ]
+    )
+
 
 def make_default_cat_view(link, weights=None):
     '''
@@ -107,8 +120,9 @@ def make_default_str_view(data, x, y=None):
     return df
 
 
-
-def make_default_num_view(data, x, y=None, weights=None, drop=None, rescale=None, get_only=None):
+def make_default_num_view(
+    data, x, y=None, weights=None, drop=None, rescale=None, get_only=None
+):
     '''
     This function is creates Quantipy's default numeric aggregations:
     The x axis has to be a numeric variable of type int or float, the y axis
@@ -132,11 +146,11 @@ def make_default_num_view(data, x, y=None, weights=None, drop=None, rescale=None
     -------
     view_df : pd.Dataframe (multiindexed)
     '''
-    if not drop is None:
+    if drop is not None:
         _exclude_codes(data[x], drop)
-    if not rescale is None:
+    if rescale is not None:
         _rescale_codes(data[x], rescale)
-    weight = weights if not weights is None else '@1'
+    weight = weights if weights is not None else '@1'
     if y is None or y == '@':
         df = describe(data, x, weight)
         df.columns = ['@']
@@ -148,7 +162,7 @@ def make_default_num_view(data, x, y=None, weights=None, drop=None, rescale=None
         else:
             # changing column naming for x==y aggregations
             if not data.columns.is_unique:
-                data.columns = [x, y+'_', weight]
+                data.columns = [x, y + '_', weight]
             if data[y].dtype == 'object':
                 # for Quantipy multicoded data on the y axis
                 dummy_y = _cat_to_dummies(data[y], as_df=True)
@@ -158,17 +172,17 @@ def make_default_num_view(data, x, y=None, weights=None, drop=None, rescale=None
                         describe(dummy_y_data[dummy_y_data[y_code] == 1], x, weight)
                         for y_code in dummy_y.columns
                     ],
-                    axis=1
+                    axis=1,
                 )
                 df.columns = dummy_y.columns
             else:
-                y_codes =  sorted(data[y].unique())
+                y_codes = sorted(data[y].unique())
                 df = pd.concat(
                     [
                         describe(data[data[y] == y_code], x, weight)
                         for y_code in y_codes
                     ],
-                    axis=1
+                    axis=1,
                 )
                 df.columns = [
                     str(int(y_code)) if float(y_code).is_integer() else str(y_code)
@@ -187,8 +201,10 @@ def make_default_num_view(data, x, y=None, weights=None, drop=None, rescale=None
     else:
         return df.T[get_only].T
 
-def calc_nets(casedata, link, source_view, combine_codes,
-              use_logic=False, force_raw_sum=False):
+
+def calc_nets(
+    casedata, link, source_view, combine_codes, use_logic=False, force_raw_sum=False
+):
     '''
     Used to compute (categorical) net code figures from a given Quantipy link
     definition, a reference view dataframe and a list of codes to build from.
@@ -221,38 +237,36 @@ def calc_nets(casedata, link, source_view, combine_codes,
     net_values : np.array
         Stores the calculated net values
     '''
-    if not use_logic and (not source_view.meta['x']['is_multi']
-                          or force_raw_sum):
+    if not use_logic and (not source_view.meta['x']['is_multi'] or force_raw_sum):
         boolmask = [
             int(index_val[1]) in combine_codes
             for index_val in source_view.index
-            if not (
-                isinstance(index_val[1], str)
-                and index_val[1] == 'None'
-            )
+            if not (isinstance(index_val[1], str) and index_val[1] == 'None')
         ]
         if any(boolmask):
             net_values = np.array(source_view[boolmask].values.sum(axis=0))
         else:
-            net_values = np.zeros(link['default'].dataframe.shape[1]-1)
+            net_values = np.zeros(link['default'].dataframe.shape[1] - 1)
     else:
         if not link.y == '@':
             matrix, xdef, ydef = get_matrix(
-                link, weights=source_view.meta['agg']['weights'], data=casedata)
+                link, weights=source_view.meta['agg']['weights'], data=casedata
+            )
             matrix = weight_matrix(matrix, xdef)
             matrix = missingfy_matrix(matrix, xdef, combine_codes, keep=True)
-            ycodes = reversed(range(1, len(ydef)+1))
-            net_values = np.array([np.nansum(
-                matrix[:, [0]]*matrix[:, [-ycode]])
-                for ycode in ycodes])
+            ycodes = reversed(range(1, len(ydef) + 1))
+            net_values = np.array(
+                [np.nansum(matrix[:, [0]] * matrix[:, [-ycode]]) for ycode in ycodes]
+            )
         else:
             matrix, xdef, ydef = get_matrix(
-                link, weights=source_view.meta['agg']['weights'], data=casedata)
+                link, weights=source_view.meta['agg']['weights'], data=casedata
+            )
             matrix = weight_matrix(matrix, xdef)
             matrix = missingfy_matrix(matrix, xdef, combine_codes, keep=True)
             net_values = np.nansum(matrix[:, [0]])
         if net_values.size == 0:
-            net_values = np.zeros(link['default'].dataframe.shape[1]-1)
+            net_values = np.zeros(link['default'].dataframe.shape[1] - 1)
 
     return net_values
 
@@ -282,6 +296,7 @@ def _exclude_codes(matrix, dropped):
 
     return matrix.drop(dropped, axis=1, inplace=True)
 
+
 def _rescale_codes(matrix, scaling):
     '''
     Used to orient statistical figures produced by numerical aggregation
@@ -303,8 +318,10 @@ def _rescale_codes(matrix, scaling):
 
     return matrix.rename(columns=scaling, inplace=True)
 
+
 def calc_pct(source, base):
-    return pd.DataFrame(np.divide(source.values, base.values)*100)
+    return pd.DataFrame(np.divide(source.values, base.values) * 100)
+
 
 def get_default_num_stat(default_num_view, stat, drop_bases=True, as_df=True):
     '''
@@ -341,6 +358,7 @@ def get_default_num_stat(default_num_view, stat, drop_bases=True, as_df=True):
     else:
         df.values
 
+
 def _aggregate_matrix(value_matrix, x_def, y_def, calc_bases=True, as_df=True):
     '''
     Uses a np.array containing dichotomous values and lists of column codes
@@ -374,24 +392,26 @@ def _aggregate_matrix(value_matrix, x_def, y_def, calc_bases=True, as_df=True):
         freq, cb, rb, tb = np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1)
     else:
         empty = False
-        xcodes = len(x_def)+1
-        if not y_def is None:
+        xcodes = len(x_def) + 1
+        if y_def is not None:
             # bivariate calculation (cross-tabulation)
-            ycodes = reversed(range(1, len(y_def)+1))
-            freq = np.array([
-                np.sum(
-                    value_matrix[value_matrix[:, -ycode] == 1][:, 1:xcodes],
-                    axis=0
-                )
-                for ycode in ycodes
-            ])
-            if calc_bases:
-                ycodes = reversed(range(1, len(y_def)+1))
-                cb = np.array([
+            ycodes = reversed(range(1, len(y_def) + 1))
+            freq = np.array(
+                [
                     np.sum(
-                        value_matrix[value_matrix[:, -ycode] == 1][:, [0]])
+                        value_matrix[value_matrix[:, -ycode] == 1][:, 1:xcodes], axis=0
+                    )
+                    for ycode in ycodes
+                ]
+            )
+            if calc_bases:
+                ycodes = reversed(range(1, len(y_def) + 1))
+                cb = np.array(
+                    [
+                        np.sum(value_matrix[value_matrix[:, -ycode] == 1][:, [0]])
                         for ycode in ycodes
-                ])
+                    ]
+                )
                 rb = np.sum(value_matrix[:, 1:xcodes], axis=0)
                 tb = np.sum(value_matrix[:, [0]], axis=0)
         else:
@@ -409,7 +429,7 @@ def _aggregate_matrix(value_matrix, x_def, y_def, calc_bases=True, as_df=True):
         else:
             ixnames = ['None']
             colnames = ['None']
-        freq_df = pd.DataFrame(data=freq.T, index = ixnames, columns=colnames)
+        freq_df = pd.DataFrame(data=freq.T, index=ixnames, columns=colnames)
         if calc_bases:
             cb_df = pd.DataFrame(data=[cb], index=['All'], columns=colnames)
             agg_df = pd.concat([freq_df, cb_df], axis=0)
@@ -423,6 +443,7 @@ def _aggregate_matrix(value_matrix, x_def, y_def, calc_bases=True, as_df=True):
             return freq, [cb, rb, tb]
         else:
             return freq
+
 
 def aggregate_matrix(mat, xdef, ydef, get='full'):
     if np.size(mat) == 0:
@@ -441,8 +462,12 @@ def aggregate_matrix(mat, xdef, ydef, get='full'):
         return _effective_n(mat, ydef) if not empty else np.zeros(1)
     if get == 'full':
         if not empty:
-            return (_cell_n(mat, xdef, ydef), _col_n(mat, xdef, ydef),
-                    _row_n(mat, xdef), _total_n(mat))
+            return (
+                _cell_n(mat, xdef, ydef),
+                _col_n(mat, xdef, ydef),
+                _row_n(mat, xdef),
+                _total_n(mat),
+            )
         else:
             return np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1)
 
@@ -494,28 +519,28 @@ def _df_to_value_matrix(data, x, y=None, limit_x=None, limit_y=None, weights=Non
     tuple : value_matrix as np.array, list of x codes, list of y codes
     '''
     values = weights if weights else '@1'
-    if not y is None:
+    if y is not None:
         # two variable case, x and y specified
         data.replace('', np.NaN, inplace=True)
         data.dropna(subset=[x, y], inplace=True)
-        #data = data.copy().replace('', np.NaN).dropna(subset=[x, y])
+        # data = data.copy().replace('', np.NaN).dropna(subset=[x, y])
         wg_vec = data[values].values.reshape(len(data.index), 1)
-        x_matrix, x_codes = _cat_to_dummies(data = data[x], limit_to=limit_x)
-        y_matrix, y_codes = _cat_to_dummies(data = data[y], limit_to=limit_y)
+        x_matrix, x_codes = _cat_to_dummies(data=data[x], limit_to=limit_x)
+        y_matrix, y_codes = _cat_to_dummies(data=data[y], limit_to=limit_y)
         if weights:
-            value_matrix = np.concatenate((wg_vec, x_matrix*wg_vec, y_matrix), axis=1)
+            value_matrix = np.concatenate((wg_vec, x_matrix * wg_vec, y_matrix), axis=1)
         else:
             value_matrix = np.concatenate((wg_vec, x_matrix, y_matrix), axis=1)
     else:
         # single variable case, only x specified
-        #data = data.copy().replace('', np.NaN).dropna(subset=[x])
+        # data = data.copy().replace('', np.NaN).dropna(subset=[x])
         data.replace('', np.NaN, inplace=True)
         data.dropna(subset=[x], inplace=True)
         wg_vec = data[values].values.reshape(len(data.index), 1)
         x_matrix, x_codes = _cat_to_dummies(data[x], limit_to=limit_x)
         y_codes = None
         if weights:
-            value_matrix = np.concatenate((wg_vec, x_matrix*wg_vec), axis=1)
+            value_matrix = np.concatenate((wg_vec, x_matrix * wg_vec), axis=1)
         else:
             value_matrix = np.concatenate((wg_vec, x_matrix), axis=1)
 
@@ -558,9 +583,8 @@ def _cat_to_dummies(data, limit_to=None, style='freq', as_df=False):
         if style == 'freq':
             dummy_df.sort_index(axis=1, inplace=True)
             dummy_df.rename(
-                columns={col: str(col) for col in dummy_df.columns},
-                inplace=True
-                )
+                columns={col: str(col) for col in dummy_df.columns}, inplace=True
+            )
         else:
             dummy_df.sort_index(axis=1, inplace=True)
     else:
@@ -569,12 +593,10 @@ def _cat_to_dummies(data, limit_to=None, style='freq', as_df=False):
         if style == 'freq':
             dummy_df.rename(
                 columns={
-                    col: str(int(col))
-                    if float(col).is_integer()
-                    else str(col)
+                    col: str(int(col)) if float(col).is_integer() else str(col)
                     for col in dummy_df.columns
                 },
-                inplace=True
+                inplace=True,
             )
 
     if limit_to:
@@ -583,6 +605,7 @@ def _cat_to_dummies(data, limit_to=None, style='freq', as_df=False):
         return dummy_df
     else:
         return dummy_df.values, dummy_df.columns.tolist()
+
 
 def _limit_dummy_df(dummy_df, codes):
     '''
@@ -608,29 +631,30 @@ def _limit_dummy_df(dummy_df, codes):
     else:
         return dummy_df
 
+
 def _df_to_num_matrix(data, x, y=None, exclude=None, rescale=None, weights=None):
     values = weights if weights else '@1'
     data.replace('', np.NaN, inplace=True)
     if y == '@':
         y = None
-    x_matrix = _cat_to_dummies(data = data[x], style='num', as_df=True)
+    x_matrix = _cat_to_dummies(data=data[x], style='num', as_df=True)
     if exclude:
         _exclude_codes(x_matrix, exclude)
     if rescale:
         _rescale_codes(x_matrix, rescale)
     x_codes = x_matrix.columns.tolist()
-    if not y is None:
-        data.dropna(subset=[x,y], inplace=True)
-        y_matrix = _cat_to_dummies(data = data[y], style='num', as_df=True)
+    if y is not None:
+        data.dropna(subset=[x, y], inplace=True)
+        y_matrix = _cat_to_dummies(data=data[y], style='num', as_df=True)
         y_codes = y_matrix.columns.tolist()
         num_matrix = pd.concat(
             [
                 data[[values]].T,
                 x_matrix.T.mul(x_codes, axis=0).mul(data[values], axis=1),
                 x_matrix.T.mul(data[values], axis=1),
-                y_matrix.T
+                y_matrix.T,
             ],
-            axis=0
+            axis=0,
         ).T.values
 
     else:
@@ -640,33 +664,40 @@ def _df_to_num_matrix(data, x, y=None, exclude=None, rescale=None, weights=None)
             [
                 data[[values]].T,
                 x_matrix.T.mul(x_codes, axis=0).mul(data[values], axis=1),
-                x_matrix.T.mul(data[values], axis=1)
+                x_matrix.T.mul(data[values], axis=1),
             ],
-            axis=0
+            axis=0,
         ).T.values
 
     return num_matrix, x_codes, y_codes
 
+
 def _mean_from_mat(num_matrix, x_def, y_def):
     if y_def is not None:
-        ycodes = reversed(range(1, len(y_def)+1))
-        means = np.array([
-            np.true_divide(
-                np.nansum(
-                    num_matrix[num_matrix[:, -ycode] == 1][:, 1:len(x_def)+1]),
-                np.nansum(
-                    num_matrix[num_matrix[:, -ycode] == 1][:, 1 +
-                                                         len(x_def):1 +
-                                                         len(x_def)*2])
-            ) for ycode in ycodes
-        ])
+        ycodes = reversed(range(1, len(y_def) + 1))
+        means = np.array(
+            [
+                np.true_divide(
+                    np.nansum(
+                        num_matrix[num_matrix[:, -ycode] == 1][:, 1 : len(x_def) + 1]
+                    ),
+                    np.nansum(
+                        num_matrix[num_matrix[:, -ycode] == 1][
+                            :, 1 + len(x_def) : 1 + len(x_def) * 2
+                        ]
+                    ),
+                )
+                for ycode in ycodes
+            ]
+        )
     else:
         means = np.true_divide(
-            np.nansum(num_matrix[:, 1:len(x_def)+1]),
-            np.nansum(num_matrix[:, 1+len(x_def):1+len(x_def)*2])
+            np.nansum(num_matrix[:, 1 : len(x_def) + 1]),
+            np.nansum(num_matrix[:, 1 + len(x_def) : 1 + len(x_def) * 2]),
         )
 
     return means
+
 
 def _dispersion_from_mat(num_matrix, x_def, y_def, measure='stddev', return_mean=False):
     '''
@@ -701,32 +732,48 @@ def _dispersion_from_mat(num_matrix, x_def, y_def, measure='stddev', return_mean
     '''
     means = _mean_from_mat(num_matrix, x_def, y_def)
     num_matrix_no_w = num_matrix
-    num_matrix_no_w[:, 1: 1+len(x_def)*2] = (
-        num_matrix[:, 1:1+len(x_def)*2] /
-        num_matrix[:, [0]])
-    wv_mask = np.nansum(num_matrix_no_w[:, 1:len(x_def)+1], axis=1) > 0
+    num_matrix_no_w[:, 1 : 1 + len(x_def) * 2] = (
+        num_matrix[:, 1 : 1 + len(x_def) * 2] / num_matrix[:, [0]]
+    )
+    wv_mask = np.nansum(num_matrix_no_w[:, 1 : len(x_def) + 1], axis=1) > 0
 
-    num_matrix[num_matrix == 0.] = np.NaN
-    num_matrix_no_w[num_matrix_no_w == 0.] = np.NaN
+    num_matrix[num_matrix == 0.0] = np.NaN
+    num_matrix_no_w[num_matrix_no_w == 0.0] = np.NaN
 
     if y_def is not None:
-        ycodes = reversed(range(1, len(y_def)+1))
+        ycodes = reversed(range(1, len(y_def) + 1))
 
-        var = [np.true_divide(
-            np.nansum(
-                (num_matrix[num_matrix[:, -ycode] == 1][:, [0]] *
-                 (num_matrix_no_w[num_matrix_no_w[:, -ycode] == 1][:, 1:len(x_def)+1] -
-                 means[-ycode + (len(y_def))]) ** 2)),
-            np.nansum(num_matrix[(num_matrix_no_w[:, -ycode] == 1) &
-                                 (wv_mask)][:, [0]]) - 1)
-               for ycode in ycodes]
+        var = [
+            np.true_divide(
+                np.nansum(
+                    (
+                        num_matrix[num_matrix[:, -ycode] == 1][:, [0]]
+                        * (
+                            num_matrix_no_w[num_matrix_no_w[:, -ycode] == 1][
+                                :, 1 : len(x_def) + 1
+                            ]
+                            - means[-ycode + (len(y_def))]
+                        )
+                        ** 2
+                    )
+                ),
+                np.nansum(
+                    num_matrix[(num_matrix_no_w[:, -ycode] == 1) & (wv_mask)][:, [0]]
+                )
+                - 1,
+            )
+            for ycode in ycodes
+        ]
     else:
         var = np.true_divide(
             np.nansum(
-                (num_matrix[wv_mask][:, [0]] *
-                 (num_matrix_no_w[wv_mask][:, 1:len(x_def)+1] - means) ** 2)),
-            np.nansum(
-                num_matrix[wv_mask][:, [0]]) - 1)
+                (
+                    num_matrix[wv_mask][:, [0]]
+                    * (num_matrix_no_w[wv_mask][:, 1 : len(x_def) + 1] - means) ** 2
+                )
+            ),
+            np.nansum(num_matrix[wv_mask][:, [0]]) - 1,
+        )
 
     var = np.array(var)
     var[var < 0] = 0
@@ -760,27 +807,30 @@ def _effbase_from_mat(num_matrix, x_def, y_def):
     effbases : np.array
         A Numpy array of effective column base sizes.
     '''
-    wv_mask = np.nansum(num_matrix[:, 1:len(x_def)+1], axis=1) > 0
+    wv_mask = np.nansum(num_matrix[:, 1 : len(x_def) + 1], axis=1) > 0
     if y_def is not None:
-        ycodes = reversed(range(1, len(y_def)+1))
+        ycodes = reversed(range(1, len(y_def) + 1))
         effbases = np.array(
             [
                 np.true_divide(
+                    np.sum(num_matrix[(num_matrix[:, -ycode] == 1) & (wv_mask)][:, [0]])
+                    ** 2,
                     np.sum(
-                        num_matrix[(num_matrix[:, -ycode] == 1)&(wv_mask)][:, [0]]) ** 2,
-                    np.sum(
-                        num_matrix[(num_matrix[:, -ycode] == 1)&(wv_mask)][:, [0]] ** 2)
+                        num_matrix[(num_matrix[:, -ycode] == 1) & (wv_mask)][:, [0]]
+                        ** 2
+                    ),
                 )
                 for ycode in ycodes
             ]
         )
     else:
         effbases = np.true_divide(
-            np.sum(num_matrix[wv_mask][:, [0]])**2,
-            np.sum(num_matrix[wv_mask][:, [0]]**2)
+            np.sum(num_matrix[wv_mask][:, [0]]) ** 2,
+            np.sum(num_matrix[wv_mask][:, [0]] ** 2),
         )
 
     return effbases
+
 
 def _sum_w_squared_from_mat(num_matrix, x_def, y_def, base_ratio=True):
     '''
@@ -805,20 +855,22 @@ def _sum_w_squared_from_mat(num_matrix, x_def, y_def, base_ratio=True):
     sws : np.array
         A Numpy array of sws/bases or raw sws.
     '''
-    wv_mask = np.nansum(num_matrix[:, 1:len(x_def)+1], axis=1) > 0
+    wv_mask = np.nansum(num_matrix[:, 1 : len(x_def) + 1], axis=1) > 0
     if y_def is not None:
-        ycodes = reversed(range(1, len(y_def)+1))
+        ycodes = reversed(range(1, len(y_def) + 1))
         sws = np.array(
-            [ np.sum(
-                    num_matrix[(num_matrix[:, -ycode] == 1)&(wv_mask)][:, [0]]**2)
+            [
+                np.sum(
+                    num_matrix[(num_matrix[:, -ycode] == 1) & (wv_mask)][:, [0]] ** 2
+                )
                 for ycode in ycodes
             ]
         )
     else:
-        sws = np.sum(num_matrix[wv_mask][:, [0]]**2)
+        sws = np.sum(num_matrix[wv_mask][:, [0]] ** 2)
 
     if base_ratio:
-        bases =  _base_from_mat(num_matrix, x_def, y_def, effbase=False)
+        bases = _base_from_mat(num_matrix, x_def, y_def, effbase=False)
         return sws / bases
     else:
         return sws
@@ -848,12 +900,12 @@ def _base_from_mat(num_matrix, x_def, y_def, effbase=True):
         Numpy array(s) of unweighted/weighted base sizes and
         effective base meassures.
     '''
-    wv_mask = np.nansum(num_matrix[:, 1:len(x_def)+1], axis=1) > 0
+    wv_mask = np.nansum(num_matrix[:, 1 : len(x_def) + 1], axis=1) > 0
     if y_def is not None:
-        ycodes = reversed(range(1, len(y_def)+1))
+        ycodes = reversed(range(1, len(y_def) + 1))
         bases = np.array(
-            [ np.sum(
-                    num_matrix[(num_matrix[:, -ycode] == 1)&(wv_mask)][:, [0]])
+            [
+                np.sum(num_matrix[(num_matrix[:, -ycode] == 1) & (wv_mask)][:, [0]])
                 for ycode in ycodes
             ]
         )
@@ -861,7 +913,7 @@ def _base_from_mat(num_matrix, x_def, y_def, effbase=True):
         bases = np.sum(num_matrix[wv_mask][:, [0]])
 
     if effbase:
-        effbases =  _effbase_from_mat(num_matrix, x_def, y_def)
+        effbases = _effbase_from_mat(num_matrix, x_def, y_def)
         return bases, effbases
     else:
         return bases
@@ -917,25 +969,20 @@ def calc_stat_from_mat(mat, xdef, ydef, stat):
     elif stat == 'stddev':
         stats = _dispersion(mat, xdef, ydef)
     elif stat == 'var':
-        stats = _dispersion(mat, xdef, ydef,
-                                     measure='var')
+        stats = _dispersion(mat, xdef, ydef, measure='var')
     elif stat == 'mean_stddev':
-        stats = _dispersion(mat, xdef, ydef,
-                                     return_mean=True)
+        stats = _dispersion(mat, xdef, ydef, return_mean=True)
     elif stat == 'varcoeff':
-        stats = _dispersion(mat, xdef, ydef,
-                                     measure='vcoef')
+        stats = _dispersion(mat, xdef, ydef, measure='vcoef')
     # elif stat == 'effbase':
     #     stats = _effbase_from_mat(matrix, x_def, y_def)
     # elif stat == 'base':
     #     stats = _base_from_mat(matrix, x_def, y_def,
     #                            effbase=True)
     elif stat == 'ssw':
-        stats = _sum_sq_w(mat, xdef, ydef,
-                    base_ratio=True)
+        stats = _sum_sq_w(mat, xdef, ydef, base_ratio=True)
 
     return stats
-
 
 
 def _get_mv_matrices(data, x, y, weights):
@@ -975,11 +1022,11 @@ def _get_mv_matrices(data, x, y, weights):
     for var in x:
         xmat = _make_dummies(data[var], style='num', as_df=False)
         xfactors = xmat[0] * xmat[1]
-        xmats += ((np.hstack((wv, xfactors*wv, xmat[0])), xmat[1], None), )
+        xmats += ((np.hstack((wv, xfactors * wv, xmat[0])), xmat[1], None),)
     for var in y:
         ymat = _make_dummies(data[var], style='num', as_df=False)
         yfactors = ymat[0] * ymat[1]
-        ymats += ((np.hstack((wv, yfactors*wv, ymat[0])), ymat[1], None), )
+        ymats += ((np.hstack((wv, yfactors * wv, ymat[0])), ymat[1], None),)
 
     return xmats, ymats
 
@@ -1002,17 +1049,19 @@ def _deviations_from_mean(matrix, x_def, y_def, known_mean=None):
     mean-centered matrix : np.array
     '''
     if known_mean is None:
-        mean = qp.v.agg._mean_from_mat(matrix, x_def, y_def)
+        mean = _mean_from_mat(matrix, x_def, y_def)
     else:
         mean = known_mean
 
     matrix_no_w = matrix
-    matrix_no_w[:, 1: 1+len(x_def)*2] = (matrix[:, 1:1+len(x_def)*2] /
-                                         matrix[:, [0]])
+    matrix_no_w[:, 1 : 1 + len(x_def) * 2] = (
+        matrix[:, 1 : 1 + len(x_def) * 2] / matrix[:, [0]]
+    )
 
-    matrix_no_w[matrix_no_w == 0.] = np.NaN
+    matrix_no_w[matrix_no_w == 0.0] = np.NaN
 
-    return np.nansum(matrix_no_w[:, 1:len(x_def)+1] - mean, axis=1)
+    return np.nansum(matrix_no_w[:, 1 : len(x_def) + 1] - mean, axis=1)
+
 
 def _xproduct_of_deviations(xmat, ymat, known_means=None):
     '''
@@ -1041,7 +1090,7 @@ def _xproduct_of_deviations(xmat, ymat, known_means=None):
     x_devi = _deviations_from_mean(x_mat, xx_def, xy_def, known_mean=xmean)
     y_devi = _deviations_from_mean(y_mat, yx_def, yy_def, known_mean=ymean)
 
-    return np.nansum(np.transpose(x_mat[:, [0]])*x_devi*y_devi)
+    return np.nansum(np.transpose(x_mat[:, [0]]) * x_devi * y_devi)
 
 
 def _calc_mv_n(xdata, ydata):
@@ -1049,6 +1098,7 @@ def _calc_mv_n(xdata, ydata):
     PLAEHOLDER: WILL COMPUTE PAIRWISE N FOR ANALYTICS.
     '''
     return np.nansum(xdata[:, [0]])
+
 
 def _covariance(x_inputs, y_inputs, known_means=None):
     '''
@@ -1075,10 +1125,11 @@ def _covariance(x_inputs, y_inputs, known_means=None):
         for y in y_inputs:
             ymean = _mean_from_mat(y[0].copy(), y[1], y[2])
             means = (xmean, ymean)
-            xprod = _xproduct_of_deviations(x, y, known_means = means)
-            xres.append(round(xprod / (np.sum(x[0][:, [0]])-1), 6))
+            xprod = _xproduct_of_deviations(x, y, known_means=means)
+            xres.append(round(xprod / (np.sum(x[0][:, [0]]) - 1), 6))
         res.append(xres)
     return res
+
 
 def _corr(x_inputs, y_inputs):
     '''
@@ -1099,14 +1150,19 @@ def _corr(x_inputs, y_inputs):
         xres = []
         xmean, xstddev = _dispersion_from_mat(x[0].copy(), x[1], x[2], return_mean=True)
         for y in y_inputs:
-            ymean, ystddev = _dispersion_from_mat(y[0].copy(), y[1], y[2], return_mean=True)
+            ymean, ystddev = _dispersion_from_mat(
+                y[0].copy(), y[1], y[2], return_mean=True
+            )
             means = (xmean, ymean)
-            xres.append(round((_covariance(x, y, known_means=means)/(xstddev*ystddev))[0][0], 6))
+            xres.append(
+                round(
+                    (_covariance(x, y, known_means=means) / (xstddev * ystddev))[0][0],
+                    6,
+                )
+            )
         res.append(xres)
 
     return res
-
-
 
 
 # def _mask_misvals(matrix, x_def, mis_def):
@@ -1153,9 +1209,7 @@ def _get_paired_columns_df(df):
     -------
     paired_columns_df : pd.DataFrame
     '''
-    return pd.concat([df[list(pair)]
-                     for pair in combinations(df.columns, 2)], axis=1)
-
+    return pd.concat([df[list(pair)] for pair in combinations(df.columns, 2)], axis=1)
 
 
 def _calc_column_operation(df, operator):
@@ -1181,16 +1235,19 @@ def _calc_column_operation(df, operator):
     cols = df.columns.tolist()
 
     return pd.concat(
-        [operator(
-            df[pair[0]].T.drop_duplicates().T,
-            df[pair[1]].T.drop_duplicates().T.values)
-            for pair in np.array_split(cols, len(cols)/2)],
-        axis=1)
+        [
+            operator(
+                df[pair[0]].T.drop_duplicates().T,
+                df[pair[1]].T.drop_duplicates().T.values,
+            )
+            for pair in np.array_split(cols, len(cols) / 2)
+        ],
+        axis=1,
+    )
 
 
-def _convert_test_statistic(test_statistic,
-                            overlaps, effbases, package='Dim'):
-    if package =='Dim':
+def _convert_test_statistic(test_statistic, overlaps, effbases, package='Dim'):
+    if package == 'Dim':
         effbases = _calc_paired_effbase_correctors(effbases)[0]
         dof = effbases - overlaps - 2
         t_stat = _get_pvals(test_statistic, dof)
@@ -1278,33 +1335,39 @@ def _z_score(counts, bases, return_diffs=True):
     unp_sd_pairs = _props_unpooled_sd_pairs(counts, bases)
 
     if return_diffs:
-        return prop_diff_pairs/unp_sd_pairs, prop_diff_pairs
+        return prop_diff_pairs / unp_sd_pairs, prop_diff_pairs
     else:
-        return prop_diff_pairs/unp_sd_pairs
+        return prop_diff_pairs / unp_sd_pairs
 
 
 def _calc_sd_unpooled_props_pairs(counts, bases):
-    props = counts.values/bases.values[0]
-    unp_sd = (props*(1-props))/bases.values
+    props = counts.values / bases.values[0]
+    unp_sd = (props * (1 - props)) / bases.values
 
-    return np.hstack([np.sqrt(unp_sd[:,[cat1]]+unp_sd[:,[cat2]])
-                           for cat1, cat2
-                           in combinations(range(0,unp_sd.shape[1]), 2)])
+    return np.hstack(
+        [
+            np.sqrt(unp_sd[:, [cat1]] + unp_sd[:, [cat2]])
+            for cat1, cat2 in combinations(range(0, unp_sd.shape[1]), 2)
+        ]
+    )
+
 
 def _props_unpooled_sd_pairs(counts, bases):
-        props = counts / bases
-        var = (props * (1 - props) / bases).T
+    props = counts / bases
+    var = (props * (1 - props) / bases).T
 
-        return np.array([np.sqrt(var1 + var2)
-                         for var1, var2 in combinations(var, 2)]).T
+    return np.array([np.sqrt(var1 + var2) for var1, var2 in combinations(var, 2)]).T
+
 
 def _means_unpooled_sd_pairs(means, stddevs, bases):
     sd_base_ratio = stddevs / bases
 
-    return np.array([np.sqrt(sd_b_r1 + sd_b_r2)
-                     for sd_b_r1, sd_b_r2 in combinations(sd_base_ratio, 2)])
-
-
+    return np.array(
+        [
+            np.sqrt(sd_b_r1 + sd_b_r2)
+            for sd_b_r1, sd_b_r2 in combinations(sd_base_ratio, 2)
+        ]
+    )
 
 
 def _calc_se_pooled_props_pairs(counts, bases, effbases, overlap_bases):
@@ -1331,7 +1394,10 @@ def _calc_se_pooled_props_pairs(counts, bases, effbases, overlap_bases):
 
     pooled_props = _calc_pooled_props_pairs(counts, bases)
 
-    return np.sqrt(pooled_props*(1-pooled_props)*(np.array(paired_effb_c - paired_ovlp_c)))
+    return np.sqrt(
+        pooled_props * (1 - pooled_props) * (np.array(paired_effb_c - paired_ovlp_c))
+    )
+
 
 def _calc_se_pooled_means_pairs(stddevs, bases, effbases, overlap_bases, ratios):
     '''
@@ -1388,7 +1454,8 @@ def _cwi(default, threshold=5):
     '''
 
     freqs, idx_names, col_names = struct._partition_view_df(
-        default, values=True, data_only=False)
+        default, values=True, data_only=False
+    )
 
     t_col_n = freqs[-1, -1]
     t_cell_n = freqs[:-1, [-1]]
@@ -1403,8 +1470,9 @@ def _cwi(default, threshold=5):
     cwi = (t_cell_n * c_col_n) / t_col_n
     cwi[cwi < threshold] = np.NaN
 
-    return pd.DataFrame(c_cell_n + cwi - cwi,
-                        index=idx_names[:-1], columns=col_names[:-1])
+    return pd.DataFrame(
+        c_cell_n + cwi - cwi, index=idx_names[:-1], columns=col_names[:-1]
+    )
 
 
 def _calc_paired_overlap_correctors(overlap_bases, eff_bases):
@@ -1425,7 +1493,7 @@ def _calc_paired_overlap_correctors(overlap_bases, eff_bases):
         Numpy array of correction factors per column pair.
     '''
 
-    return (2*overlap_bases)/[x*y for x, y in combinations(eff_bases, 2)]
+    return (2 * overlap_bases) / [x * y for x, y in combinations(eff_bases, 2)]
 
 
 def _calc_paired_effbase_correctors(eff_bases):
@@ -1450,11 +1518,9 @@ def _calc_paired_effbase_correctors(eff_bases):
     '''
     eff_ssize = [x + y for x, y in combinations(eff_bases, 2)]
 
-    eff_base_correction = [1/x + 1/y
-                           for x, y in combinations(eff_bases, 2)]
+    eff_base_correction = [1 / x + 1 / y for x, y in combinations(eff_bases, 2)]
 
     return np.array(eff_ssize), np.array(eff_base_correction)
-
 
 
 def _filter_for_sigs(diff, test_df, level, package='Dim'):
@@ -1482,9 +1548,9 @@ def _filter_for_sigs(diff, test_df, level, package='Dim'):
     masked_diff : pd.DataFrame
     '''
     if package == 'Dim':
-        return diff[(diff != 0)&(test_df < level)]
+        return diff[(diff != 0) & (test_df < level)]
     elif package == 'askia':
-        return diff[(diff != 0)&(test_df > level)]
+        return diff[(diff != 0) & (test_df > level)]
 
 
 def _make_sigtest_df(sig_res):
@@ -1505,8 +1571,10 @@ def _make_sigtest_df(sig_res):
             else:
                 col_res[int(colpair[1])].append(-1)
                 col_res[int(colpair[0])].append(-1)
-        row_res = {int(col): str(sorted(list(set(res)))).replace('-1, ', '')
-                   for col, res in list(col_res.items())}
+        row_res = {
+            int(col): str(sorted(list(set(res)))).replace('-1, ', '')
+            for col, res in list(col_res.items())
+        }
         res_collec.append(pd.DataFrame(row_res, index=[int(row)]))
 
     sigtest = pd.concat(res_collec).replace('[-1]', np.NaN).sort_index()
@@ -1515,20 +1583,24 @@ def _make_sigtest_df(sig_res):
 
 
 def _overlap(mat, xdef, ydef):
-    '''
-
-    '''
-    mat = mat[:, [0]] * mat[:, len(xdef)+1:]
+    ''' '''
+    mat = mat[:, [0]] * mat[:, len(xdef) + 1 :]
     mat[mat == 0] = np.NaN
 
     w_sum_sq_paired = np.hstack(
-        [np.nansum(mat[:, [col1]] + mat[:, [col2]], axis=0)**2
-         for col1, col2 in combinations(range(0, mat.shape[1]), 2)])
+        [
+            np.nansum(mat[:, [col1]] + mat[:, [col2]], axis=0) ** 2
+            for col1, col2 in combinations(range(0, mat.shape[1]), 2)
+        ]
+    )
     w_sq_sum_paired = np.hstack(
-        [np.nansum(mat[:, [col1]]**2 + mat[:, [col2]]**2)
-         for col1, col2 in combinations(range(0, mat.shape[1]), 2)])
+        [
+            np.nansum(mat[:, [col1]] ** 2 + mat[:, [col2]] ** 2)
+            for col1, col2 in combinations(range(0, mat.shape[1]), 2)
+        ]
+    )
 
-    return np.nan_to_num((w_sum_sq_paired/w_sq_sum_paired)/2)
+    return np.nan_to_num((w_sum_sq_paired / w_sq_sum_paired) / 2)
 
 
 def _props_diff_pairs(counts, bases):
@@ -1548,6 +1620,7 @@ def _props_diff_pairs(counts, bases):
     '''
     props = (counts / bases).T
     return np.array([p1 - p2 for p1, p2 in combinations(props, 2)]).T
+
 
 def _means_diff_pairs(means):
     '''
@@ -1584,11 +1657,12 @@ def _calc_pooled_props_pairs(counts, bases):
     pooled_pct : np.array
         Numpy array of pooled column percentages.
     '''
-    #return np.array([p1 - p2 for p1, p2 in combinations(props, 2)]).T
+    # return np.array([p1 - p2 for p1, p2 in combinations(props, 2)]).T
 
     counts_sum_pairs = np.array([x + y for x, y in combinations(counts.T, 2)])
     bases_sum_pairs = np.array([x + y for x, y in combinations(bases, 2)])
-    return (counts_sum_pairs/bases_sum_pairs.reshape(bases_sum_pairs.shape[0],1)).T
+    return (counts_sum_pairs / bases_sum_pairs.reshape(bases_sum_pairs.shape[0], 1)).T
+
 
 # def get_matrix(link, weights=None, style='freq',
 #                limit_to=None, exclude=None, rescale=None, data=None):
@@ -1635,8 +1709,10 @@ def _calc_pooled_props_pairs(counts, bases):
 #                     xmat[1], ymat[1])
 #     print _effective_n(matrix, ydef)
 
+
 ''' Basic matrix creation, retrievel and manipulation functions:
 '''
+
 
 def get_matrix(link, weights, data=None):
     '''
@@ -1663,7 +1739,7 @@ def get_matrix(link, weights, data=None):
     if link.x == '@' or link.y == '@':
         var = link.x if not link.x == '@' else link.y
         data = data[[weight, var]].replace('', np.NaN)
-        #data.dropna(inplace=True)
+        # data.dropna(inplace=True)
         wv = data[[weight]].values
         xm, xdef = _make_dummies(data[var])
         ydef = None
@@ -1673,7 +1749,7 @@ def get_matrix(link, weights, data=None):
 
     else:
         data = data[[weight, link.x, link.y]].replace('', np.NaN)
-        #data.dropna(inplace=True)
+        # data.dropna(inplace=True)
         wv = data[[weight]].values
         if not data.columns.is_unique:
             data.columns = [weight, link.x, link.y + '_']
@@ -1685,7 +1761,10 @@ def get_matrix(link, weights, data=None):
 
     return mat, xdef, ydef
 
-def _make_dummies(data, limit_to=None, exclude=None, rescale=None, style='freq', as_df=False):
+
+def _make_dummies(
+    data, limit_to=None, exclude=None, rescale=None, style='freq', as_df=False
+):
     '''
     Creates a dichotomously 1/0-coded version of the incoming pd.Series with the answer codes
     found in the data being transformend into column names. This representation of the data situationally
@@ -1727,17 +1806,15 @@ def _make_dummies(data, limit_to=None, exclude=None, rescale=None, style='freq',
         # else:
         dummy_df.sort_index(axis=1, inplace=True)
     else:
-        #data.dropna(inplace=True)
+        # data.dropna(inplace=True)
         dummy_df = pd.get_dummies(data)
         if style == 'freq':
             dummy_df.rename(
                 columns={
-                    col: int(col)
-                    if float(col).is_integer()
-                    else col
+                    col: int(col) if float(col).is_integer() else col
                     for col in dummy_df.columns
                 },
-                inplace=True
+                inplace=True,
             )
 
     if limit_to:
@@ -1750,6 +1827,7 @@ def _make_dummies(data, limit_to=None, exclude=None, rescale=None, style='freq',
         return dummy_df
     else:
         return dummy_df.values, dummy_df.columns.tolist()
+
 
 def _clean_matrix(mat, xdef, ydef):
     '''
@@ -1773,10 +1851,10 @@ def _clean_matrix(mat, xdef, ydef):
         x and y section rows.
     '''
     mat = mat.copy()
-    xmask = (np.sum(mat[:, 1:len(xdef)+1], axis=1) > 0)
+    xmask = np.sum(mat[:, 1 : len(xdef) + 1], axis=1) > 0
     if ydef is not None:
-        ymask = (np.sum(mat[:, len(xdef)+1:], axis=1) > 0)
-        return mat[xmask&ymask]
+        ymask = np.sum(mat[:, len(xdef) + 1 :], axis=1) > 0
+        return mat[xmask & ymask]
     else:
         return mat[xmask]
 
@@ -1801,7 +1879,7 @@ def weight_matrix(mat, xdef):
         Weighted copy of the input matrix with regard to the x section.
     '''
     mat = mat.copy()
-    mat[:, 1:len(xdef)+1] = mat[:, 1:len(xdef)+1]*mat[:, [0]]
+    mat[:, 1 : len(xdef) + 1] = mat[:, 1 : len(xdef) + 1] * mat[:, [0]]
 
     return mat
 
@@ -1826,7 +1904,7 @@ def _unweight_matrix(mat, xdef):
         Unweighted copy of the input matrix with regard to the x section.
     '''
     mat = mat.copy()
-    mat[:, 1: len(xdef)+1] = (mat[:, 1:len(xdef)+1] / mat[:, [0]])
+    mat[:, 1 : len(xdef) + 1] = mat[:, 1 : len(xdef) + 1] / mat[:, [0]]
 
     return mat
 
@@ -1860,90 +1938,107 @@ def _get_drop_idx(xdef, codes, keep):
     else:
         return [xdef.index(code) for code in codes if code in xdef]
 
+
 def missingfy_matrix(mat, xdef, codes, keep=False):
-    '''
-    '''
+    ''' '''
     mis_ix = _get_drop_idx(xdef, codes, keep)
     if mis_ix is not None:
         mat = mat.copy()
         for ix in mis_ix:
-            np.place(mat[:, ix+1], mat[:, ix+1] > 0, np.NaN)
+            np.place(mat[:, ix + 1], mat[:, ix + 1] > 0, np.NaN)
         if not keep:
-            wv_mask = (np.sum(mat[:, 1:len(xdef)+1], axis=1) > 0)
+            wv_mask = np.sum(mat[:, 1 : len(xdef) + 1], axis=1) > 0
         else:
-            wv_mask = (np.nansum(mat[:, 1:len(xdef)+1], axis=1) > 0)
+            wv_mask = np.nansum(mat[:, 1 : len(xdef) + 1], axis=1) > 0
         mat[~wv_mask, [0]] = np.NaN
 
     return mat
 
+
 def _factorize_matrix(mat, xdef, scaling=None):
     mat = mat.copy()
-    mat[:, 1:len(xdef)+1] = mat[:, 1:len(xdef)+1]*xdef
+    mat[:, 1 : len(xdef) + 1] = mat[:, 1 : len(xdef) + 1] * xdef
 
     return mat
 
-def _refactor_xdef(xdef, scaling):
-    clean_scaling = {old_code: new_code for old_code, new_code
-                     in list(scaling.items())
-                     if old_code in xdef}
 
-    return [clean_scaling[code] if code in list(clean_scaling.keys())
-            else code for code in xdef]
+def _refactor_xdef(xdef, scaling):
+    clean_scaling = {
+        old_code: new_code
+        for old_code, new_code in list(scaling.items())
+        if old_code in xdef
+    }
+
+    return [
+        clean_scaling[code] if code in list(clean_scaling.keys()) else code
+        for code in xdef
+    ]
+
 
 def _reduce_xsect(mat, xdef):
     mat = mat.copy()
-    redx = np.nansum(mat[:, 1:len(xdef)+1], axis=1).reshape(mat.shape[0], 1)
+    redx = np.nansum(mat[:, 1 : len(xdef) + 1], axis=1).reshape(mat.shape[0], 1)
 
-    return np.concatenate((mat[:, [0]], redx, mat[:, 1+len(xdef):]), axis=1)
+    return np.concatenate((mat[:, [0]], redx, mat[:, 1 + len(xdef) :]), axis=1)
+
 
 def _get_ysect(mat, ydef):
     mat = mat.copy()
     if ydef is not None:
-        ysec = reversed(range(1, len(ydef)+1))
+        ysec = reversed(range(1, len(ydef) + 1))
         return [mat[mat[:, -y] == 1] for y in ysec]
     else:
         return [mat]
+
 
 ''' Aggregation functions that produce raw frequencies from a
     prepared input matrix and code defintiton:
 '''
 
+
 def _cell_n(mat, xdef, ydef):
     if ydef is not None:
-        xcodes = range(1, len(xdef)+1)
+        xcodes = range(1, len(xdef) + 1)
         return np.vstack(
-            [np.sum(
-                mat[:, len(xdef)+1:]*mat[:, [xcode]], axis=0)
-                for xcode in xcodes])
+            [
+                np.sum(mat[:, len(xdef) + 1 :] * mat[:, [xcode]], axis=0)
+                for xcode in xcodes
+            ]
+        )
 
     else:
-        return np.sum(mat[:, 1:len(xdef)+1], axis=0)
+        return np.sum(mat[:, 1 : len(xdef) + 1], axis=0)
+
 
 def _col_n(mat, xdef, ydef):
     if ydef is not None:
-        ycodes = reversed(range(1, len(ydef)+1))
-        return np.array([np.nansum(mat[:, [0]]*mat[:, [-ycode]])
-                        for ycode in ycodes])
+        ycodes = reversed(range(1, len(ydef) + 1))
+        return np.array([np.nansum(mat[:, [0]] * mat[:, [-ycode]]) for ycode in ycodes])
     else:
         return np.nansum(mat[:, [0]])
 
+
 def _row_n(mat, xdef):
-    return np.sum(mat[:, 1:len(xdef)+1], axis=0)
+    return np.sum(mat[:, 1 : len(xdef) + 1], axis=0)
 
 
 def _total_n(mat):
     return np.nansum(mat[:, [0]], axis=0)
 
+
 def _effective_n(mat, ydef):
     if ydef is not None:
-        ycodes = reversed(range(1, len(ydef)+1))
+        ycodes = reversed(range(1, len(ydef) + 1))
 
-        return np.array([np.nansum(mat[:,[0]]*mat[:,[-ycode]])**2 /
-                         np.nansum((mat[:,[0]]*mat[:,[-ycode]])**2)
-                         for ycode in ycodes])
+        return np.array(
+            [
+                np.nansum(mat[:, [0]] * mat[:, [-ycode]]) ** 2
+                / np.nansum((mat[:, [0]] * mat[:, [-ycode]]) ** 2)
+                for ycode in ycodes
+            ]
+        )
     else:
-        return np.array(np.nansum(mat[:,[0]])**2 /
-                        np.nansum(mat[:,[0]]**2))
+        return np.array(np.nansum(mat[:, [0]]) ** 2 / np.nansum(mat[:, [0]] ** 2))
 
 
 ''' Functions to generate statistical summary information / descriptives
@@ -1962,6 +2057,7 @@ def _effective_n(mat, ydef):
 #         return np.array(np.nansum(f_mat[:, 1:len(xdef)+1]) /
 #                         np.nansum(mat[:, 1:len(xdef)+1]))
 
+
 def _mean(mat, xdef, ydef):
     '''
     Computes the arithmetic mean from the incoming distribution given as per
@@ -1971,9 +2067,7 @@ def _mean(mat, xdef, ydef):
     mat = _reduce_xsect(mat, xdef)
     ysects = _get_ysect(mat, ydef)
 
-    return np.array([np.nansum(mat[:, 1] /
-                     np.nansum(mat[:, 0]))
-                    for mat in ysects])
+    return np.array([np.nansum(mat[:, 1] / np.nansum(mat[:, 0])) for mat in ysects])
 
 
 def _percentile(mat, xdef, ydef, perc=0.5):
@@ -2006,9 +2100,9 @@ def _percentile(mat, xdef, ydef, perc=0.5):
     for mat in ysects:
         sortidx = np.argsort(mat[:, 1])
         mat = np.take(mat, sortidx, axis=0)
-        wsum = np.sum(mat[:,0], axis=0)
+        wsum = np.sum(mat[:, 0], axis=0)
         wcsum = np.cumsum(mat[:, 0], axis=0)
-        k = (wsum+1)*perc
+        k = (wsum + 1) * perc
 
         if wcsum[0] > k:
             wcsum_k = wcsum[0]
@@ -2016,39 +2110,41 @@ def _percentile(mat, xdef, ydef, perc=0.5):
         elif wcsum[-1] < k:
             percs.append(mat[-1, 1])
         else:
-            wcsum_k  = wcsum[wcsum <= k][-1]
+            wcsum_k = wcsum[wcsum <= k][-1]
             p_k_idx = np.searchsorted(np.ndarray.flatten(wcsum), wcsum_k)
             p_k = mat[p_k_idx, 1]
-            p_k1 = mat[p_k_idx+1, 1]
-            w_k1 = mat[p_k_idx+1, 0]
+            p_k1 = mat[p_k_idx + 1, 1]
+            w_k1 = mat[p_k_idx + 1, 0]
             excess = k - wcsum_k
             if excess >= 1.0:
                 percs.append(p_k1)
             else:
                 if w_k1 >= 1.0:
-                    percs.append((1.0-excess)*p_k + excess*p_k1)
+                    percs.append((1.0 - excess) * p_k + excess * p_k1)
                 else:
-                    percs.append((1.0-excess/w_k1)*p_k + (excess/w_k1)*p_k1)
+                    percs.append((1.0 - excess / w_k1) * p_k + (excess / w_k1) * p_k1)
 
     return np.array(percs)
+
 
 def _dispersion(mat, xdef, ydef, measure='sd', return_mean=False):
     means = _mean(mat, xdef, ydef)
     unbiased_n = _col_n(mat, xdef, ydef) - 1
-    if type(unbiased_n) == np.float64:
+    if isinstance(unbiased_n, np.float64):
         print('THIS IS A STUPID CHECK: FIX COL_N')
         unbiased_n = [unbiased_n]
     mat = _unweight_matrix(mat, xdef)
     mat = _factorize_matrix(mat, xdef)
     mat = _reduce_xsect(mat, xdef)
-    np.place(mat[:, 1],
-             mat[:, 1] == 0, np.NaN)
+    np.place(mat[:, 1], mat[:, 1] == 0, np.NaN)
     ysects = _get_ysect(mat, ydef)
 
-    var = np.array([(np.nansum(mat[:, 0] *
-                              (mat[:, 1] - means[idx]) ** 2)) /
-                              unbiased_n[idx]
-                    for idx, mat in enumerate(ysects)])
+    var = np.array(
+        [
+            (np.nansum(mat[:, 0] * (mat[:, 1] - means[idx]) ** 2)) / unbiased_n[idx]
+            for idx, mat in enumerate(ysects)
+        ]
+    )
 
     var[var < 0] = 0
 
@@ -2059,33 +2155,34 @@ def _dispersion(mat, xdef, ydef, measure='sd', return_mean=False):
             return np.array(np.sqrt(var))
     elif measure == 'vcoef':
         if return_mean:
-            return means, np.array(np.sqrt(var)/means)
+            return means, np.array(np.sqrt(var) / means)
         else:
-            return np.array(np.sqrt(var)/means)
+            return np.array(np.sqrt(var) / means)
     else:
         if return_mean:
             return means, var
         else:
             return var
 
+
 def _sum_sq_w(mat, xdef, ydef, base_ratio=True):
     if ydef is not None:
-        ycodes = reversed(range(1, len(ydef)+1))
-        ssw = np.array([np.nansum((mat[:, [0]]*mat[:, [-ycode]])**2)
-                        for ycode in ycodes])
+        ycodes = reversed(range(1, len(ydef) + 1))
+        ssw = np.array(
+            [np.nansum((mat[:, [0]] * mat[:, [-ycode]]) ** 2) for ycode in ycodes]
+        )
     else:
-        ssw =  np.array(np.nansum((mat[:, [0]])**2))
+        ssw = np.array(np.nansum((mat[:, [0]]) ** 2))
 
     if base_ratio:
         cb = _col_n(mat, xdef, ydef)
-        return np.array(ssw/cb)
+        return np.array(ssw / cb)
     else:
         return np.array(ssw)
 
 
-
 def verify_logic_values(values, func_name):
-    """ Verifies that the values given are a list of ints.
+    """Verifies that the values given are a list of ints.
 
     Parameters
     ----------
@@ -2104,23 +2201,18 @@ def verify_logic_values(values, func_name):
             if not isinstance(value, int):
                 raise TypeError(
                     "The values given to has_%s() are not correctly "
-                    "typed. Expected list of <int>, found a %s." % (
-                        func_name,
-                        type(value)
-                    )
+                    "typed. Expected list of <int>, found a %s."
+                    % (func_name, type(value))
                 )
     else:
         raise TypeError(
             "The values given to has_%s() must be given as a list. "
-            "Expected a <list>, found a %s" % (
-                func_name,
-                type(values)
-            )
+            "Expected a <list>, found a %s" % (func_name, type(values))
         )
 
 
 def verify_logic_series(series, func_name):
-    """ Verifies that the series given is a compatible type (object,
+    """Verifies that the series given is a compatible type (object,
     int64 or float64).
 
     Parameters
@@ -2135,18 +2227,16 @@ def verify_logic_series(series, func_name):
     -------
     None
     """
-    if not series.dtype in ['object', 'int64', 'float64']:
+    if series.dtype not in ['object', 'int64', 'float64']:
         raise TypeError(
             "The series given to has_%s() must be a supported dtype. "
-            "Expected 'object', 'int64' or 'float64', found a '%s'." % (
-                func_name,
-                series.dtype
-            )
+            "Expected 'object', 'int64' or 'float64', found a '%s'."
+            % (func_name, series.dtype)
         )
 
 
 def verify_count_responses(responses):
-    """ Verifies that the responses given are well formed.
+    """Verifies that the responses given are well formed.
 
     Parameters
     ----------
@@ -2166,7 +2256,7 @@ def verify_count_responses(responses):
         responses = [responses]
     elif isinstance(responses, (list, tuple)):
         if not len(responses) in [2, 3]:
-            raise IndexError (
+            raise IndexError(
                 "The responses list given to has_count() is must have "
                 "either 2 or 3 items in the form: "
                 "[min, max, [values subset]]. Found %s." % (responses)
@@ -2174,16 +2264,16 @@ def verify_count_responses(responses):
         valid_types = [int, int, (list, tuple)]
         for r, response in enumerate(responses):
             if not isinstance(response, valid_types[r]):
-                raise TypeError (
+                raise TypeError(
                     "The responses list given to has_count() has "
                     "incorrectly typed items. It must be either 2 or 3 "
                     "items in the form: [int, int, list/tuple]. "
                     "Found %s." % (responses)
                 )
-            if r==3:
+            if r == 3:
                 for value in response:
                     if not isinstance(value, int):
-                        raise TypeError (
+                        raise TypeError(
                             "The values subset given as the third item "
                             "in has_count(responses) is not correctly "
                             "typed. Each value must be int. "
@@ -2192,8 +2282,9 @@ def verify_count_responses(responses):
 
     return responses
 
+
 def _any_all_none(series, values, func_name):
-    """ Returns the index of rows from series containing any/all of the
+    """Returns the index of rows from series containing any/all of the
     given values as requested by func_name.
 
     Parameters
@@ -2213,7 +2304,7 @@ def _any_all_none(series, values, func_name):
         The index of series for rows containing any/all of the given values.
 
     """
-    if series.dtype=='object':
+    if series.dtype == 'object':
         # Get the dichotomous version of series
         dummies = series.str.get_dummies(';')
         # Slice the dummies column-wise for only the targeted values
@@ -2226,15 +2317,15 @@ def _any_all_none(series, values, func_name):
             dummies = dummies[cols]
         # Slice the dummies row-wise for only rows with any/all/none of
         # the targeted responses
-        if func_name=='any':
+        if func_name == 'any':
             # Apply 'any' logic
-            dummies = dummies[(dummies.T!=0).any()]
-        elif func_name=='all':
+            dummies = dummies[(dummies.T != 0).any()]
+        elif func_name == 'all':
             # Apply 'all' logic
-            dummies = dummies[(dummies.T!=0).all()]
+            dummies = dummies[(dummies.T != 0).all()]
         else:
             # Apply 'none' logic
-            dummies = dummies[(dummies.T==0).all()]
+            dummies = dummies[(dummies.T == 0).all()]
 
         # Return the index
         return dummies.index
@@ -2242,9 +2333,9 @@ def _any_all_none(series, values, func_name):
     elif series.dtype in ['int64', 'float64']:
         # Slice the series row-wise for only rows with any/all of the
         # targets responses
-        if func_name=='any' or (func_name=='all' and len(values)==1):
+        if func_name == 'any' or (func_name == 'all' and len(values) == 1):
             series = series[series.isin(values)].dropna()
-        elif func_name=='none':
+        elif func_name == 'none':
             series = series[~series.isin(values)]
         else:
             # has_all() for multiple values is being requested on a
@@ -2256,14 +2347,13 @@ def _any_all_none(series, values, func_name):
 
     else:
         raise TypeError(
-            "The dtype '%s' of series is incompatible with has_%s()" %
-                series.dtype,
-                func_name
+            "The dtype '%s' of series is incompatible with has_%s()" % series.dtype,
+            func_name,
         )
 
 
 def has_any(values):
-    """ Convenience for managing 'any' part of the 'logic' instructions
+    """Convenience for managing 'any' part of the 'logic' instructions
     provided in a freq method's kwargs.
 
     Parameters
@@ -2284,7 +2374,7 @@ def has_any(values):
 
 
 def _any(series, values):
-    """ Returns the index of rows from series containing any of the
+    """Returns the index of rows from series containing any of the
     given values.
 
     Parameters
@@ -2306,7 +2396,7 @@ def _any(series, values):
 
 
 def has_all(values):
-    """ Convenience for managing 'all' part of the 'logic' instructions
+    """Convenience for managing 'all' part of the 'logic' instructions
     provided in a freq method's kwargs.
 
     Parameters
@@ -2327,7 +2417,7 @@ def has_all(values):
 
 
 def _all(series, values):
-    """ Returns the index of rows from series containing all of the given
+    """Returns the index of rows from series containing all of the given
     values.
 
     Parameters
@@ -2348,7 +2438,7 @@ def _all(series, values):
 
 
 def has_none(values):
-    """ Convenience for managing 'none' part of the 'logic' instructions
+    """Convenience for managing 'none' part of the 'logic' instructions
     provided in a freq method's kwargs.
 
     Parameters
@@ -2369,7 +2459,7 @@ def has_none(values):
 
 
 def _none(series, values):
-    """ Returns the index of rows from series containing none of the given
+    """Returns the index of rows from series containing none of the given
     values.
 
     Parameters
@@ -2390,7 +2480,7 @@ def _none(series, values):
 
 
 def has_count(responses):
-    """ Convenience for managing the 'count of responses' part of the
+    """Convenience for managing the 'count of responses' part of the
     'logic' instructions provided in a freq method's kwargs.
 
     Parameters
@@ -2417,7 +2507,7 @@ def has_count(responses):
 
 
 def _count(series, responses):
-    """ Returns the index of rows from series containing the targeted number
+    """Returns the index of rows from series containing the targeted number
     or range of responses.
 
     Parameters
@@ -2453,7 +2543,7 @@ def _count(series, responses):
                 return []
             else:
                 dummies = dummies[cols]
-        except:
+        except BaseException:
             pass
 
         # Get a count of the number of responses
@@ -2463,14 +2553,14 @@ def _count(series, responses):
         min_responses = responses[0]
         try:
             max_responses = responses[1]
-        except:
+        except BaseException:
             max_responses = None
 
         # Get a boolean slicing mask for use on dummies
         if max_responses is None:
-            mask = count==min_responses
+            mask = count == min_responses
         else:
-            mask = (count>=min_responses) & (count<=min_responses)
+            mask = (count >= min_responses) & (count <= min_responses)
 
         # Slice the dummies row-wise for only rows with the targeted
         # count of responses
@@ -2481,13 +2571,14 @@ def _count(series, responses):
 
     else:
         raise TypeError(
-            "The dtype '%s' of series is incompatible with has_%s()" %
-                series.dtype,
-                func_name
+            "The dtype '{}' of series is incompatible with has_count()".format(
+                series.dtype
+            )
         )
 
+
 def get_logic_key_chunk(has_func, values):
-    """ Derives the relationship view key chunk describing the combination
+    """Derives the relationship view key chunk describing the combination
     of the given function and values.
 
     Parameters
@@ -2522,16 +2613,16 @@ def get_logic_key_chunk(has_func, values):
         min_responses = values[0]
         try:
             max_responses = values[1]
-        except:
+        except BaseException:
             max_responses = None
         try:
             values = values[2]
             values = [str(v) for v in values]
-        except:
+        except BaseException:
             values = None
 
-        if not max_responses is None:
-            if min_responses==max_responses:
+        if max_responses is not None:
+            if min_responses == max_responses:
                 min_max = min_responses
             else:
                 min_max = '%s-%s' % (min_responses, max_responses)
@@ -2548,7 +2639,7 @@ def get_logic_key_chunk(has_func, values):
 
 
 def get_logic_index(series, logic):
-    """ Uses the given complex logic block to return a slice of series.
+    """Uses the given complex logic block to return a slice of series.
 
     Parameters
     ----------
@@ -2573,11 +2664,9 @@ def get_logic_index(series, logic):
 
     elif isinstance(logic, tuple):
 
-        has_func, values = (logic)
+        has_func, values = logic
         idx = has_func(series, values)
 
-        vkey = 'x[%s]:y' % (
-            get_logic_key_chunk(has_func, values)
-        )
+        vkey = 'x[%s]:y' % (get_logic_key_chunk(has_func, values))
 
     return idx, vkey
