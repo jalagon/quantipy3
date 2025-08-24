@@ -17,6 +17,7 @@ import pandas as pd
 import quantipy as qp
 from quantipy.core.helpers.functions import emulate_meta, filtered_set
 from quantipy.core.metadata import MetadataManager
+from quantipy.core.io_manager import IOManager
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -119,6 +120,7 @@ class DataSet(object):
         
         # Modern SOLID-compliant components
         self._metadata_manager = MetadataManager(self)
+        self._io_manager = IOManager(self)
         
         return None
 
@@ -155,6 +157,44 @@ class DataSet(object):
     def metadata_manager(self):
         """Access to the modern MetadataManager for advanced operations."""
         return self._metadata_manager
+
+    # =========================================================================
+    # I/O DELEGATION METHODS (Phase 2 SOLID Refactoring)
+    # Delegate to IOManager for improved maintainability and testing
+    # =========================================================================
+    
+    def read_data_modern(self, format_name, *args, reset=True, **kwargs):
+        """Modern type-safe data reading (delegates to IOManager)."""
+        return self._io_manager.read_data(format_name, *args, reset=reset, **kwargs)
+    
+    def write_data_modern(self, format_name, *args, **kwargs):
+        """Modern type-safe data writing (delegates to IOManager)."""
+        return self._io_manager.write_data(format_name, *args, **kwargs)
+    
+    def from_components_modern(self, data_df, meta_dict=None, reset=True, text_key=None):
+        """Modern type-safe component loading (delegates to IOManager)."""
+        return self._io_manager.from_components(data_df, meta_dict, reset, text_key)
+    
+    def get_supported_formats_modern(self):
+        """Get list of supported file formats (delegates to IOManager)."""
+        return self._io_manager.get_supported_formats()
+    
+    def detect_format_from_path_modern(self, path):
+        """Detect file format from path (delegates to IOManager)."""
+        return self._io_manager.detect_format_from_path(path)
+    
+    def validate_paths_modern(self, *paths):
+        """Validate file paths (delegates to IOManager)."""
+        return self._io_manager.validate_paths(*paths)
+    
+    def get_file_info_modern(self):
+        """Get file information (delegates to IOManager)."""
+        return self._io_manager.get_file_info()
+        
+    @property
+    def io_manager(self):
+        """Access to the modern IOManager for advanced operations."""
+        return self._io_manager
 
     def __contains__(self, name):
         return self.var_exists(name)
