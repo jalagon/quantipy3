@@ -20,6 +20,7 @@ from quantipy.core.metadata import MetadataManager
 from quantipy.core.io_manager import IOManager
 from quantipy.core.data_validator import DataValidator
 from quantipy.core.data_transformer import DataTransformer
+from quantipy.core.filtering_engine import FilteringEngine
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -125,6 +126,7 @@ class DataSet(object):
         self._io_manager = IOManager(self)
         self._data_validator = DataValidator(self)
         self._data_transformer = DataTransformer(self)
+        self._filtering_engine = FilteringEngine(self)
         
         return None
 
@@ -282,6 +284,76 @@ class DataSet(object):
     def data_transformer(self):
         """Access to the modern DataTransformer for advanced operations."""
         return self._data_transformer
+
+    # =========================================================================
+    # DATA FILTERING DELEGATION METHODS (Phase 5 SOLID Refactoring)
+    # Delegate to FilteringEngine for improved maintainability and testing
+    # =========================================================================
+    
+    def filter_modern(self, alias, condition, inplace=False):
+        """Modern logical expression filtering (delegates to FilteringEngine)."""
+        return self._filtering_engine.filter(alias, condition, inplace)
+    
+    def take_modern(self, condition):
+        """Modern index slicer creation (delegates to FilteringEngine)."""
+        return self._filtering_engine.take(condition)
+    
+    def subset_modern(self, variables=None, from_set=None, inplace=False):
+        """Modern variable subsetting (delegates to FilteringEngine)."""
+        return self._filtering_engine.subset(variables, from_set, inplace)
+    
+    def crosstab_modern(self, x, y=None, w=None, f=None, ci='counts', base='auto',
+                       stats=False, sig_level=None, rules=False, decimals=1,
+                       xtotal=False, painted=True, text_key=None):
+        """Modern cross-tabulation analysis (delegates to FilteringEngine)."""
+        return self._filtering_engine.crosstab(
+            x, y, w, f, ci, base, stats, sig_level, rules, decimals, xtotal, painted, text_key
+        )
+    
+    def add_filter_var_modern(self, name, logic, overwrite=False):
+        """Modern filter variable creation (delegates to FilteringEngine)."""
+        return self._filtering_engine.add_filter_var(name, logic, overwrite)
+    
+    def extend_filter_var_modern(self, name, logic, extend_as=None):
+        """Modern filter variable extension (delegates to FilteringEngine)."""
+        return self._filtering_engine.extend_filter_var(name, logic, extend_as)
+    
+    def reduce_filter_var_modern(self, name, values):
+        """Modern filter variable reduction (delegates to FilteringEngine)."""
+        return self._filtering_engine.reduce_filter_var(name, values)
+    
+    def manifest_filter_modern(self, name):
+        """Modern filter manifestation (delegates to FilteringEngine)."""
+        return self._filtering_engine.manifest_filter(name)
+    
+    def merge_filter_modern(self, name, filters):
+        """Modern filter merging (delegates to FilteringEngine)."""
+        return self._filtering_engine.merge_filter(name, filters)
+    
+    def compare_filter_modern(self, name1, name2):
+        """Modern filter comparison (delegates to FilteringEngine)."""
+        return self._filtering_engine.compare_filter(name1, name2)
+    
+    def clone_modern(self):
+        """Modern dataset cloning (delegates to FilteringEngine)."""
+        return self._filtering_engine.clone_dataset()
+    
+    def filter_custom_modern(self, strategy_name, *args, **kwargs):
+        """Modern custom filtering dispatch (delegates to FilteringEngine)."""
+        return self._filtering_engine.filter_custom(strategy_name, *args, **kwargs)
+    
+    def get_filtering_info_modern(self):
+        """Get filtering capabilities info (delegates to FilteringEngine)."""
+        return self._filtering_engine.get_filtering_info()
+    
+    def get_filter_statistics_modern(self):
+        """Get filter statistics (delegates to FilteringEngine)."""
+        return self._filtering_engine.get_filter_statistics()
+        
+    @property
+    def filtering_engine(self):
+        """Access to the modern FilteringEngine for advanced operations."""
+        return self._filtering_engine
 
     def __contains__(self, name):
         return self.var_exists(name)
