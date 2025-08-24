@@ -1,5 +1,11 @@
-#-*- coding: utf-8 -*-
+"""
+Link module for quantipy data processing.
+
+This module provides the Link class for managing relationships between variables
+in survey data analysis workflows, generating views and statistical computations.
+"""
 import numpy as np
+
 from .view_generators.view_maps import QuantipyViews as View
 
 
@@ -8,15 +14,18 @@ class Link(dict):
     The Link object is a subclassed dictionary that generates an instance of
     Pandas.DataFrame for every view method applied
     """
-    def __init__(self,
-                 the_filter,
-                 y,
-                 x,
-                 data_key,
-                 stack,
-                 views=None,
-                 store_view=False,
-                 create_views=True):
+
+    def __init__(
+        self,
+        the_filter,
+        y,
+        x,
+        data_key,
+        stack,
+        views=None,
+        store_view=False,
+        create_views=True,
+    ):
 
         self.filter = the_filter
         self.y = y
@@ -66,16 +75,16 @@ class Link(dict):
             views = list(link.keys())
 
         for vk in views:
-            if overwrite or not vk in self:
+            if overwrite or vk not in self:
                 self[vk] = link.pop(vk)
 
     def __getitem__(self, key):
-        """ The 'get' method for the Link(dict)
+        """The 'get' method for the Link(dict)
 
-            If the 'transpose' variable is set to True THEN this method tries
-            to transpose the result.
+        If the 'transpose' variable is set to True THEN this method tries
+        to transpose the result.
 
-            Note: Only the numpy.T method has been implemented.
+        Note: Only the numpy.T method has been implemented.
         """
         val = dict.__getitem__(self, key)
 
