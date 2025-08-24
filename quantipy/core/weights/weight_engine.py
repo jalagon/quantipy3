@@ -1,27 +1,43 @@
-import io
-import sys
-import numpy as np
-import pandas as pd
-from .rim import Rim
-from collections import OrderedDict
+"""Weight Engine module for quantipy survey data processing.
+
+This module provides the WeightEngine class for coordinating and managing
+various weighting schemes and algorithms for survey data adjustment.
+"""
 import re
+
+import pandas as pd
 
 from quantipy.core.dataset import DataSet
 
 
 class WeightEngine:
+    """
+    Coordination class for managing survey data weighting schemes.
 
-    def __init__(self,
-                 data=None,
-                 dropna=True,
-                 meta=None
-                 ):
+    The WeightEngine provides a high-level interface for applying various
+    weighting algorithms to survey data, managing multiple weighting schemes,
+    and coordinating the weighting process.
+    """
+
+    def __init__(self, data=None, dropna=True, meta=None):
+        """
+        Initialize a WeightEngine instance.
+
+        Parameters
+        ----------
+        data : pandas.DataFrame
+            Survey data to be weighted.
+        dropna : bool, default True
+            Whether to drop rows with missing values.
+        meta : dict, optional
+            Metadata describing the survey data structure.
+        """
 
         if not isinstance(data, pd.DataFrame):
             raise ValueError(
                 "\n You must pass a pandas.DataFrame to the 'data' argument of the WeightEngine"
                 "\n constructor. If your DataFrame is serialized please load it first."
-                )
+            )
 
         self.dataset = None
         self._df = data.copy()
@@ -31,7 +47,8 @@ class WeightEngine:
         self.original_columns = None
 
         # Detect missing value markers (empty strings and the value of na_values)
-        # In data without any NAs, passing dropna=False can improve the performance of reading a large file
+        # In data without any NAs, passing dropna=False can improve the
+        # performance of reading a large file
         self.dropna = dropna
 
         # Constants
@@ -43,11 +60,10 @@ class WeightEngine:
                 raise ValueError(
                     "\n You must pass a dict or list to the 'meta' argument of the WeightEngine"
                     "\n constructor. If your meta is serialized please load it first."
-                    )
+                )
             self._meta = meta
             self.dataset = DataSet('__weights__', False)
             self.dataset.from_components(self._df.copy(), self._meta)
-
 
     def get_report(self):
         """
@@ -121,9 +137,8 @@ class WeightEngine:
                 # weighting efficiency for schemes with controlled
                 # bases will be incorrect.
                 efficiency = (
-                    (weight_sum / weight_count) * (
-                        weight_sum / weight_factors.pow(2).sum()
-                    )
+                    (weight_sum / weight_count)
+                    * (weight_sum / weight_factors.pow(2).sum())
                 ) * 100
                 mean = filtered_data[weight_col].mean()
                 minimum = filtered_data[weight_col].min()
@@ -140,11 +155,11 @@ class WeightEngine:
 
                 reports.append(report)
 
-        report_df = pd.DataFrame(reports).set_index([
-            'Weight variable',
-            'Weight group',
-            'Weight filter'
-        ]).T
+        report_df = (
+            pd.DataFrame(reports)
+            .set_index(['Weight variable', 'Weight group', 'Weight filter'])
+            .T
+        )
         return report_df
 
     def run(self, schemes=[]):
@@ -165,14 +180,18 @@ class WeightEngine:
                 else:
                     raise Exception(("Scheme '%s' not found." % scheme))
         else:
-            raise ValueError(('schemes must be of type %s NOT %s ') % (type([]), type(scheme)))
+            raise ValueError(
+                ('schemes must be of type %s NOT %s ') % (type([]), type(scheme))
+            )
 
     def report(self, scheme, group=None):
         report = self.schemes[scheme][self._SCHEME].report(group)
         group_names = sorted(report.keys())
         summary_df = pd.DataFrame([report[gn]['summary'] for gn in group_names]).T
         idx_tuples = list(zip(*[summary_df.columns, group_names]))
-        summary_df.columns = pd.MultiIndex.from_tuples(idx_tuples, names=['Weight variable', 'Weight group'])
+        summary_df.columns = pd.MultiIndex.from_tuples(
+            idx_tuples, names=['Weight variable', 'Weight group']
+        )
         report['summary'] = summary_df
         return report
 
@@ -189,14 +208,13 @@ class WeightEngine:
                 raise Exception("Scheme not found.")
         else:
             raise ValueError(
-                (
-                    'scheme must be of type %s, %s or %s NOT %s '
-                ) % (type(str), type(str), type(None), type(scheme))
+                ('scheme must be of type %s, %s or %s NOT %s ')
+                % (type(str), type(str), type(None), type(scheme))
             )
 
     def add_scheme(self, scheme, key, verbose=True):
         if scheme.name in self.schemes:
-            print("Overwriting existing scheme '%s'.").format(scheme.name) 
+            print("Overwriting existing scheme '%s'.").format(scheme.name)
         self._resolve_filters(scheme, key)
         self.schemes[scheme.name] = {self._SCHEME: scheme, self._KEY: key}
         scheme._minimize_columns(self._df, key, verbose)
@@ -231,11 +249,10 @@ class WeightEngine:
         return None
 
     def _find_filter_variables(self, filter_expression):
-        """
-        """
+        """ """
         filter_variables = []
         for col in self._df.columns:
-            if re.search(r"\b"+col+r"\b", str(filter_expression)):
+            if re.search(r"\b" + col + r"\b", str(filter_expression)):
                 filter_variables.append(col)
         return filter_variables
 

@@ -1,9 +1,15 @@
+"""
+Chain module for quantipy data processing.
+
+This module provides the Chain class for managing ordered Link definitions and
+associated Views, enabling systematic data analysis workflows through structured
+View aggregations.
+"""
 import pickle
 from collections import defaultdict
-from .helpers import functions as helpers
-from .view import View
+
 import pandas as pd
-import copy
+
 
 class Chain(defaultdict):
     """
@@ -16,6 +22,14 @@ class Chain(defaultdict):
     """
 
     def __init__(self, name=None):
+        """
+        Initialize a Chain instance.
+
+        Parameters
+        ----------
+        name : str, optional
+            Name identifier for the Chain instance.
+        """
         super(Chain, self).__init__(Chain)
         self.name = name
         self.orientation = None
@@ -48,15 +62,25 @@ class Chain(defaultdict):
         self.annotations = None
 
     def __repr__(self):
-        return ('%s:\norientation-axis: %s - %s,\ncontent-axis: %s, \nviews: %s'
-                %(Chain, self.orientation, self.source_name,
-                  self.content_of_axis, len(self.views)))
+        return '%s:\norientation-axis: %s - %s,\ncontent-axis: %s, \nviews: %s' % (
+            Chain,
+            self.orientation,
+            self.source_name,
+            self.content_of_axis,
+            len(self.views),
+        )
 
     def __setstate__(self, attr_dict):
         self.__dict__.update(attr_dict)
 
     def __reduce__(self):
-        return self.__class__, (self.name, ), self.__dict__, None, iter(list(self.items()))
+        return (
+            self.__class__,
+            (self.name,),
+            self.__dict__,
+            None,
+            iter(list(self.items())),
+        )
 
     def save(self, path=None):
         """
@@ -80,8 +104,7 @@ class Chain(defaultdict):
         Create a copy of self by serializing to/from a bytestring using
         cPickle.
         """
-        new_chain = pickle.loads(
-            pickle.dumps(self, pickle.HIGHEST_PROTOCOL))
+        new_chain = pickle.loads(pickle.dumps(self, pickle.HIGHEST_PROTOCOL))
         return new_chain
 
     def _lazy_name(self):
@@ -89,9 +112,16 @@ class Chain(defaultdict):
         Apply lazy-name logic to chains created without an explicit name.
          - This method does not take any responsibilty for uniquley naming chains
         """
-        self.name = '%s.%s.%s.%s' % (self.orientation, self.source_name, '.'.join(self.content_of_axis), '.'.join(self.views).replace(' ', '_'))
+        self.name = '%s.%s.%s.%s' % (
+            self.orientation,
+            self.source_name,
+            '.'.join(self.content_of_axis),
+            '.'.join(self.views).replace(' ', '_'),
+        )
 
-    def _derive_attributes(self, data_key, filter, x_def, y_def, views, source_type=None, orientation=None):
+    def _derive_attributes(
+        self, data_key, filter, x_def, y_def, views, source_type=None, orientation=None
+    ):
         """
         A simple method that is deriving attributes of the chain from its specification:
         (some attributes are only updated when chains get post-processed,
@@ -108,7 +138,7 @@ class Chain(defaultdict):
         """
         if x_def is not None or y_def is not None:
             self.orientation = orientation
-            if self.orientation=='x':
+            if self.orientation == 'x':
                 self.source_name = ''.join(x_def)
                 self.len_of_axis = len(y_def)
                 self.content_of_axis = y_def
@@ -130,37 +160,37 @@ class Chain(defaultdict):
         views_on_var = []
         contents = []
         full_chain = []
-        all_chains = []
+        # all_chains = []  # unused variable removed
         chain_query = self[self.data_key][self.filter]
         if self.orientation == 'y':
             for var in self.content_of_axis:
                 contents = []
                 for view in self.views:
                     try:
-                        res = (chain_query[var][self.source_name]
-                               [view].dataframe.copy())
+                        res = chain_query[var][self.source_name][view].dataframe.copy()
                         if self.source_name == '@':
                             res.columns = pd.MultiIndex.from_product(
-                                ['@', '-'], names=['Question', 'Values'])
+                                ['@', '-'], names=['Question', 'Values']
+                            )
                         views_on_var.append(res)
-                    except:
+                    except (KeyError, AttributeError):
                         pass
                 contents.append(views_on_var)
             for c in contents:
                 full_chain.append(pd.concat(c, axis=0))
-            concat_chain =  pd.concat(full_chain, axis=0)
+            concat_chain = pd.concat(full_chain, axis=0)
         else:
             for var in self.content_of_axis:
                 views_on_var = []
                 for view in self.views:
                     try:
-                        res = (chain_query[self.source_name][var]
-                               [view].dataframe.copy())
+                        res = chain_query[self.source_name][var][view].dataframe.copy()
                         if var == '@':
                             res.columns = pd.MultiIndex.from_product(
-                                ['@', '-'], names=['Question', 'Values'])
+                                ['@', '-'], names=['Question', 'Values']
+                            )
                         views_on_var.append(res)
-                    except:
+                    except (KeyError, AttributeError):
                         pass
                 contents.append(pd.concat(views_on_var, axis=0))
             concat_chain = pd.concat(contents, axis=1)
@@ -184,13 +214,13 @@ class Chain(defaultdict):
 
         lengths = [
             next(zip(*view_size))
-            for view_size in [y_size for y_size in self.view_sizes()]]
+            for view_size in [y_size for y_size in self.view_sizes()]
+        ]
 
         return lengths
 
     def describe(self, index=None, columns=None, query=None):
-        """ Generates a list of all link defining stack keys.
-        """
+        """Generates a list of all link defining stack keys."""
         stack_tree = []
         for dk in list(self.keys()):
             path_dk = [dk]
@@ -215,10 +245,12 @@ class Chain(defaultdict):
         column_names = ['data', 'filter', 'x', 'y', 'view', '#']
         df = pd.DataFrame.from_records(stack_tree, columns=column_names)
 
-        if not query is None:
+        if query is not None:
             df = df.query(query)
-        if not index is None or not columns is None:
-            df = df.pivot_table(values='#', index=index, columns=columns, aggfunc='count')
+        if index is not None or columns is not None:
+            df = df.pivot_table(
+                values='#', index=index, columns=columns, aggfunc='count'
+            )
         return df
 
     # STATIC METHODS
