@@ -22,6 +22,7 @@ from quantipy.core.data_validator import DataValidator
 from quantipy.core.data_transformer import DataTransformer
 from quantipy.core.filtering_engine import FilteringEngine
 from quantipy.core.statistical_processor import StatisticalProcessor
+from quantipy.core.array_manager import ArrayManager
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -129,6 +130,7 @@ class DataSet(object):
         self._data_transformer = DataTransformer(self)
         self._filtering_engine = FilteringEngine(self)
         self._statistical_processor = StatisticalProcessor(self)
+        self._array_manager = ArrayManager(self)
         
         return None
 
@@ -427,6 +429,95 @@ class DataSet(object):
     def lowest_code_modern(self, codes):
         """Modern lowest code extraction (delegates to StatisticalProcessor)."""
         return self._statistical_processor.lowest_code(codes)
+    
+    # =========================================================================
+    # ARRAY DELEGATION METHODS (Phase 7 SOLID Refactoring)
+    # Delegate to ArrayManager for array and mask operations
+    # =========================================================================
+    
+    def create_array_modern(self, name, qtype, label, items, categories=None, text_key=None):
+        """Modern array creation (delegates to ArrayManager)."""
+        return self._array_manager.create_array(name, qtype, label, items, categories, text_key)
+    
+    def to_array_modern(self, name, variables, label, safe=True):
+        """Modern variable combination to array (delegates to ArrayManager)."""
+        return self._array_manager.to_array(name, variables, label, safe)
+    
+    def copy_array_data_modern(self, source, target, source_items=None, target_items=None, slicer=None):
+        """Modern array data copying (delegates to ArrayManager)."""
+        return self._array_manager.copy_array_data(source, target, source_items, target_items, slicer)
+    
+    def remove_items_modern(self, name, remove):
+        """Modern array item removal (delegates to ArrayManager)."""
+        return self._array_manager.remove_items(name, remove)
+    
+    def extend_items_modern(self, name, ext_items, text_key=None):
+        """Modern array item extension (delegates to ArrayManager)."""
+        return self._array_manager.extend_items(name, ext_items, text_key)
+    
+    def reorder_items_modern(self, name, new_order):
+        """Modern array item reordering (delegates to ArrayManager)."""
+        return self._array_manager.reorder_items(name, new_order)
+    
+    def set_item_texts_modern(self, name, renamed_items, text_key=None, axis_edit=None):
+        """Modern item text setting (delegates to ArrayManager)."""
+        return self._array_manager.set_item_texts(name, renamed_items, text_key, axis_edit)
+    
+    def items_modern(self, name, text_key=None, axis_edit=None):
+        """Modern array items inspection (delegates to ArrayManager)."""
+        return self._array_manager.items(name, text_key, axis_edit)
+    
+    def item_texts_modern(self, name, text_key=None, axis_edit=None):
+        """Modern item text retrieval (delegates to ArrayManager)."""
+        return self._array_manager.item_texts(name, text_key, axis_edit)
+    
+    def item_no_modern(self, name):
+        """Modern item position lookup (delegates to ArrayManager)."""
+        return self._array_manager.item_no(name)
+    
+    def sources_modern(self, name):
+        """Modern array sources inspection (delegates to ArrayManager)."""
+        return self._array_manager.sources(name)
+    
+    def is_array_modern(self, name):
+        """Modern array type checking (delegates to ArrayManager)."""
+        return self._array_manager.is_array(name)
+    
+    def is_array_item_modern(self, name):
+        """Modern array item checking (delegates to ArrayManager)."""
+        return self._array_manager.is_array_item(name)
+    
+    def maskname_from_item_modern(self, item_name):
+        """Modern mask name extraction from item (delegates to ArrayManager)."""
+        return self._array_manager.maskname_from_item(item_name)
+    
+    def restore_item_texts_modern(self, arrays=None):
+        """Modern item text restoration (delegates to ArrayManager)."""
+        return self._array_manager.restore_item_texts(arrays)
+    
+    def cut_item_texts_modern(self, arrays=None):
+        """Modern item text cutting (delegates to ArrayManager)."""
+        return self._array_manager.cut_item_texts(arrays)
+    
+    def fix_array_meta_modern(self):
+        """Modern array metadata fixing (delegates to ArrayManager)."""
+        return self._array_manager.fix_array_meta()
+    
+    def fix_array_item_vals_modern(self):
+        """Modern array item value fixing (delegates to ArrayManager)."""
+        return self._array_manager.fix_array_item_vals()
+    
+    def empty_items_modern(self, name, condition=None, by_name=True):
+        """Modern empty item detection (delegates to ArrayManager)."""
+        return self._array_manager.empty_items(name, condition, by_name)
+    
+    def hide_empty_items_modern(self, condition=None, arrays=None):
+        """Modern empty item hiding (delegates to ArrayManager)."""
+        return self._array_manager.hide_empty_items(condition, arrays)
+    
+    def fully_hidden_arrays_modern(self):
+        """Modern fully hidden array detection (delegates to ArrayManager)."""
+        return self._array_manager.fully_hidden_arrays()
     
     def statistics_custom_modern(self, strategy_name, *args, **kwargs):
         """Modern custom statistical analysis dispatch (delegates to StatisticalProcessor)."""
