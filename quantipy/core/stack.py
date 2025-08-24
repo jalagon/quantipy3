@@ -1,4 +1,19 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""
+Core stack management module for quantipy data processing.
+
+This module provides the Stack class for managing collections of Views
+and organizing data analysis workflows systematically. Stack acts as a
+container for quantipy.Link objects and their associated View objects,
+implementing a nested dictionary structure for data relationships.
+
+Key Components:
+- Stack: Main container class for Link and View collections
+- Data management: Handles survey data and metadata operations
+- View organization: Systematic analysis workflow management
+- Cache management: Optimized data access and storage
+"""
 import copy
 
 # Compression methods
@@ -21,23 +36,11 @@ from quantipy.core.tools.dp.prep import frange, frequency, verify_test_results
 from quantipy.core.tools.dp.spss.reader import parse_sav_file
 from quantipy.core.tools.qp_decorators import modify
 from quantipy.core.tools.view.logic import (
-    get_logic_index,
-    has_all,
-    has_any,
     has_count,
     intersection,
-    is_eq,
-    is_ge,
-    is_gt,
-    is_le,
-    is_lt,
-    is_ne,
-    not_all,
     not_any,
     not_count,
-    union,
 )
-from quantipy.sandbox.sandbox import Chain as NewChain
 from quantipy.sandbox.sandbox import ChainManager
 
 from .cache import Cache
@@ -51,13 +54,33 @@ from .view_generators.view_maps import QuantipyViews
 
 class Stack(defaultdict):
     """
-    Container of quantipy.Link objects holding View objects.
+    Container for quantipy Link objects and View collections.
 
-    A Stack is nested dictionary that structures the data and variable
-    relationships storing all View aggregations performed.
+    A Stack is a nested dictionary structure that organizes data and variable
+    relationships, storing all View aggregations performed during analysis.
+    It provides systematic management of survey data analysis workflows.
+
+    The Stack implements a hierarchical organization:
+    - stack_root: Top level containing data keys
+    - data_root: Individual dataset containers  
+    - filter: Filtered data subsets
+    - x/y: Cross-tabulation variable levels
+
+    Attributes:
+        name (str): Identifier for the Stack instance
+        stack_pos (str): Position in the stack hierarchy
+        x_variables (list): Cross-break variables
+        y_variables (list): Banner variables
     """
 
     def __init__(self, name="", add_data=None):
+        """
+        Initialize a new Stack instance.
+
+        Args:
+            name (str, optional): Name identifier for the stack. Defaults to "".
+            add_data (DataSet, optional): Initial dataset to add. Defaults to None.
+        """
 
         super(Stack, self).__init__(Stack)
 
@@ -893,7 +916,7 @@ class Stack(defaultdict):
                                         logic
                                     )
                                     self[dk][filter_def].meta = self[dk].meta
-                                except Exception as ex:
+                                except Exception:
                                     raise UserWarning(
                                         'A filter definition is invalid and will be skipped: {filter_def}'.format(
                                             filter_def=filter_def
@@ -919,7 +942,7 @@ class Stack(defaultdict):
                             try:
                                 self[dk][filter_def].data = self[dk].data.query(logic)
                                 self[dk][filter_def].meta = self[dk].meta
-                            except Exception as ex:
+                            except Exception:
                                 raise UserWarning(
                                     'A filter definition is invalid and will be skipped: {filter_def}'.format(
                                         filter_def=filter_def

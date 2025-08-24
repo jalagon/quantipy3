@@ -1,4 +1,18 @@
 # -*- coding: utf-8 -*-
+"""
+View objects for statistical analysis results in quantipy.
+
+This module provides the View class for containing and manipulating
+statistical analysis results. Views represent the output of data
+analysis operations, storing both the computed results and metadata
+about the analysis performed.
+
+Key Components:
+- View: Main container for analysis results and metadata
+- Result formatting: Data presentation and transformation methods
+- Statistical operations: Calculation and aggregation functionality
+- Text management: Label and formatting utilities
+"""
 import copy
 from collections import OrderedDict
 from operator import add, mul, sub
@@ -9,7 +23,31 @@ pd.set_option('display.encoding', 'utf-8')
 
 
 class View(object):
+    """
+    Container for statistical analysis results and metadata.
+
+    A View represents the output of data analysis operations, storing
+    both the computed statistical results and associated metadata.
+    Views are typically created through Link aggregations and contain
+    formatted data ready for presentation or further analysis.
+
+    Attributes:
+        name (str): Identifier for the view
+        dataframe (pd.DataFrame): Statistical results data
+        rbases (dict): Row base information
+        cbases (dict): Column base information
+        grp_text_map (dict): Text mapping for groups
+    """
+
     def __init__(self, link=None, name=None, kwargs=None):
+        """
+        Initialize a new View instance.
+
+        Args:
+            link (Link, optional): Associated Link object. Defaults to None.
+            name (str, optional): View identifier. Defaults to None.
+            kwargs (dict, optional): Analysis parameters. Defaults to None.
+        """
         kwargs = None if kwargs is None else kwargs.copy()
         self._kwargs = kwargs
         self.name = name
