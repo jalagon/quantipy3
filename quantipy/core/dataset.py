@@ -19,6 +19,7 @@ from quantipy.core.helpers.functions import emulate_meta, filtered_set
 from quantipy.core.metadata import MetadataManager
 from quantipy.core.io_manager import IOManager
 from quantipy.core.data_validator import DataValidator
+from quantipy.core.data_transformer import DataTransformer
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -123,6 +124,7 @@ class DataSet(object):
         self._metadata_manager = MetadataManager(self)
         self._io_manager = IOManager(self)
         self._data_validator = DataValidator(self)
+        self._data_transformer = DataTransformer(self)
         
         return None
 
@@ -239,6 +241,47 @@ class DataSet(object):
     def data_validator(self):
         """Access to the modern DataValidator for advanced operations."""
         return self._data_validator
+
+    # =========================================================================
+    # DATA TRANSFORMATION DELEGATION METHODS (Phase 4 SOLID Refactoring)  
+    # Delegate to DataTransformer for improved maintainability and testing
+    # =========================================================================
+    
+    def recode_modern(self, target, mapper, default=None, append=False, 
+                     intersect=None, initialize=None, fillna=None, inplace=True):
+        """Modern data recoding operations (delegates to DataTransformer)."""
+        return self._data_transformer.recode(
+            target, mapper, default, append, intersect, initialize, fillna, inplace
+        )
+    
+    def derive_modern(self, name, qtype, label, cond_map, text_key=None):
+        """Modern derived variable creation (delegates to DataTransformer)."""
+        return self._data_transformer.derive(name, qtype, label, cond_map, text_key)
+    
+    def convert_modern(self, name, to):
+        """Modern variable type conversion (delegates to DataTransformer)."""
+        return self._data_transformer.convert(name, to)
+    
+    def band_modern(self, name, bands, new_name=None, label=None, text_key=None):
+        """Modern numeric data banding (delegates to DataTransformer)."""
+        return self._data_transformer.band(name, bands, new_name, label, text_key)
+    
+    def uncode_modern(self, target, mapper, default=None, intersect=None, inplace=True):
+        """Modern data uncoding operations (delegates to DataTransformer)."""
+        return self._data_transformer.uncode(target, mapper, default, intersect, inplace)
+    
+    def transform_custom_modern(self, strategy_name, target, *args, **kwargs):
+        """Modern custom transformation dispatch (delegates to DataTransformer)."""
+        return self._data_transformer.transform_custom(strategy_name, target, *args, **kwargs)
+    
+    def get_transformation_info_modern(self):
+        """Get transformation capabilities info (delegates to DataTransformer)."""
+        return self._data_transformer.get_transformation_info()
+        
+    @property
+    def data_transformer(self):
+        """Access to the modern DataTransformer for advanced operations."""
+        return self._data_transformer
 
     def __contains__(self, name):
         return self.var_exists(name)
