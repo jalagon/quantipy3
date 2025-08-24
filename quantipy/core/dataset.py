@@ -24,6 +24,7 @@ from quantipy.core.filtering_engine import FilteringEngine
 from quantipy.core.statistical_processor import StatisticalProcessor
 from quantipy.core.array_manager import ArrayManager
 from quantipy.core.export_manager import ExportManager
+from quantipy.core.cache_manager import CacheManager
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -133,6 +134,7 @@ class DataSet(object):
         self._statistical_processor = StatisticalProcessor(self)
         self._array_manager = ArrayManager(self)
         self._export_manager = ExportManager(self)
+        self._cache_manager = CacheManager(self)
         
         return None
 
@@ -598,6 +600,115 @@ class DataSet(object):
     def export_codebook_modern(self, output_path, format_type='html'):
         """Modern codebook export (delegates to ExportManager)."""
         return self._export_manager.export_codebook(output_path, format_type)
+    
+    # =========================================================================
+    # CACHE DELEGATION METHODS (Phase 9 SOLID Refactoring) - FINAL PHASE!
+    # Delegate to CacheManager for caching and performance optimization
+    # =========================================================================
+    
+    def save_session_cache_modern(self, savepoint_name='savepoint'):
+        """Modern session caching (delegates to CacheManager)."""
+        return self._cache_manager.save_session(savepoint_name)
+    
+    def revert_session_cache_modern(self):
+        """Modern session reversion (delegates to CacheManager)."""
+        return self._cache_manager.revert_session()
+    
+    def clear_session_modern(self):
+        """Modern session clearing (delegates to CacheManager)."""
+        return self._cache_manager.clear_session()
+    
+    def get_savepoints_modern(self):
+        """Modern savepoint listing (delegates to CacheManager)."""
+        return self._cache_manager.get_savepoints()
+    
+    def create_savepoint_modern(self, name, description=""):
+        """Modern savepoint creation (delegates to CacheManager)."""
+        return self._cache_manager.create_savepoint(name, description)
+    
+    def set_resource_modern(self, collection, key, obj):
+        """Modern resource caching (delegates to CacheManager)."""
+        return self._cache_manager.set_resource(collection, key, obj)
+    
+    def get_resource_modern(self, collection, key):
+        """Modern resource retrieval (delegates to CacheManager)."""
+        return self._cache_manager.get_resource(collection, key)
+    
+    def clear_resources_modern(self, collection=None):
+        """Modern resource clearing (delegates to CacheManager)."""
+        return self._cache_manager.clear_resources(collection)
+    
+    def list_resources_modern(self, collection=None):
+        """Modern resource listing (delegates to CacheManager)."""
+        return self._cache_manager.list_resources(collection)
+    
+    def cache_matrix_modern(self, key, matrix, metadata=None):
+        """Modern matrix caching (delegates to CacheManager)."""
+        return self._cache_manager.cache_matrix(key, matrix, metadata)
+    
+    def cache_weights_modern(self, key, weights, weight_info=None):
+        """Modern weights caching (delegates to CacheManager)."""
+        return self._cache_manager.cache_weights(key, weights, weight_info)
+    
+    def optimize_memory_modern(self, aggressive=False):
+        """Modern memory optimization (delegates to CacheManager)."""
+        return self._cache_manager.optimize_memory(aggressive)
+    
+    def get_memory_usage_modern(self):
+        """Modern memory usage analysis (delegates to CacheManager)."""
+        return self._cache_manager.get_memory_usage()
+    
+    def cleanup_unused_modern(self):
+        """Modern unused object cleanup (delegates to CacheManager)."""
+        return self._cache_manager.cleanup_unused()
+    
+    def compress_data_modern(self, columns=None):
+        """Modern data compression (delegates to CacheManager)."""
+        return self._cache_manager.compress_data(columns)
+    
+    def memory_report_modern(self):
+        """Modern memory reporting (delegates to CacheManager)."""
+        return self._cache_manager.memory_report()
+    
+    def start_profiling_modern(self, profile_name='default'):
+        """Modern performance profiling start (delegates to CacheManager)."""
+        return self._cache_manager.start_profiling(profile_name)
+    
+    def stop_profiling_modern(self, profile_name='default'):
+        """Modern performance profiling stop (delegates to CacheManager)."""
+        return self._cache_manager.stop_profiling(profile_name)
+    
+    def get_performance_stats_modern(self):
+        """Modern performance statistics (delegates to CacheManager)."""
+        return self._cache_manager.get_performance_stats()
+    
+    def benchmark_operation_modern(self, operation_func, operation_name='benchmark', iterations=1):
+        """Modern operation benchmarking (delegates to CacheManager)."""
+        return self._cache_manager.benchmark_operation(operation_func, operation_name, iterations)
+    
+    def invalidate_cache_modern(self):
+        """Modern cache invalidation (delegates to CacheManager)."""
+        return self._cache_manager.invalidate_all()
+    
+    def invalidate_pattern_modern(self, pattern, collection=None):
+        """Modern pattern-based cache invalidation (delegates to CacheManager)."""
+        return self._cache_manager.invalidate_pattern(pattern, collection)
+    
+    def clear_old_entries_modern(self, max_age_hours=24.0):
+        """Modern old entry cleanup (delegates to CacheManager)."""
+        return self._cache_manager.clear_old_entries(max_age_hours)
+    
+    def validate_cache_modern(self):
+        """Modern cache validation (delegates to CacheManager)."""
+        return self._cache_manager.validate_cache()
+    
+    def get_cache_modern(self):
+        """Modern cache access (delegates to CacheManager)."""
+        return self._cache_manager.get_cache()
+    
+    def clear_cache_modern(self):
+        """Modern cache clearing (delegates to CacheManager)."""
+        return self._cache_manager.clear_cache()
     
     def statistics_custom_modern(self, strategy_name, *args, **kwargs):
         """Modern custom statistical analysis dispatch (delegates to StatisticalProcessor)."""
