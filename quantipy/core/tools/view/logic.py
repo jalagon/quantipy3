@@ -4,7 +4,8 @@ import pandas as pd
 
 __op_symbol__ = {lt: '<', le: '<=', eq: '', ne: '!=', ge: '>=', gt: '>'}
 
-from pandas.core.index import Index
+# Use modern pandas Index import
+Index = pd.Index
 
 __index_symbol__ = {
     Index.union: ',',

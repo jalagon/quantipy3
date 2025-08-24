@@ -10,7 +10,7 @@ from itertools import combinations
 
 import numpy as np
 import pandas as pd
-from scipy.stats.stats import _ttest_finish as get_pval
+from scipy.stats import t
 
 from quantipy.core.tools.view import struct
 
@@ -1306,7 +1306,9 @@ def _get_pvals(test_statistic, dof):
     -------
     pvals : np.array
     '''
-    return get_pval(dof, test_statistic)[1]
+    # Modern replacement for deprecated _ttest_finish function
+    # Calculate two-tailed p-values using t-distribution
+    return 2 * (1 - t.cdf(np.abs(test_statistic), dof))
 
 
 def _z_score(counts, bases, return_diffs=True):

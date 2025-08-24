@@ -36,7 +36,7 @@ MDD_TYPES_MAP = {
     '6': 'float',
     '7': 'boolean'
 }
-RE_GRID_SLICES = "[^{.]+(?=[}]|$|\[)"
+RE_GRID_SLICES = r"[^{.]+(?=[}]|$|\[)"
 XPATH_DEFINITION = '//definition'
 XPATH_VARIABLES = '//design//fields//variable'
 XPATH_LOOPS = '//design//fields//loop'
