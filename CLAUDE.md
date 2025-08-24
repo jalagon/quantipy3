@@ -19,16 +19,24 @@ quantipy3 is a Python 3 port of the Quantipy library - a data processing, analys
 ## Development Commands
 - `check-gates.md`: run enhanced linting and code formatting (flake8 + autopep8 + Black + isort + pytest)
 - `KISS-SOLID-check.md`: check design principles
-- `code-review.md`: design principles, CI+Lint+types, Python 3.10–3.12, enable pytest and ruff
+- `code-review.md`: **MODERNIZATION STANDARDS** - SOLID/DRY/KISS/YAGNI + CI/lint/types + Python 3.10-3.12 + pytest/coverage/ruff/mypy
 - `document_feature.md`: generate documentation for new feature both developer and user-facing
 - `document_feature_advanced.md`: generate intelligent, multi-dimensional documentation with AI-powered analysis, accessibility compliance, and automated quality assurance
 
+### Review Standards (code-review.md)
+**TARGET ARCHITECTURE**:
+- **Code Quality**: SOLID, DRY, KISS, YAGNI principles
+- **CI Pipeline**: lint + types + coverage gates  
+- **Python Version**: 3.10-3.12 compatibility
+- **Tooling Stack**: pytest + coverage + ruff (incl. pyupgrade) + mypy (non-strict)
+
 ### Quality Assurance Tools
-- **flake8**: Enhanced with docstring checking (D-series rules)
-- **autopep8**: Automatic PEP8 compliance fixes
-- **Black**: Code formatting consistency
-- **isort**: Import organization
-- **pytest-cov**: Test coverage analysis
+- **Legacy Tools** (current): flake8 + autopep8 + Black + isort + pytest-cov
+- **Modern Tooling** (target): ruff + mypy + pytest + coverage
+- **ruff**: Modern linter replacing flake8/pyflakes/isort with pyupgrade rules
+- **mypy**: Type checker (starting non-strict, progressing to strict)
+- **pytest**: Modern test framework with fixtures and coverage integration
+- **coverage**: Branch coverage analysis with 80% minimum gate
 
 ### Testing
 - Run all tests: `/Users/jorgealagon/miniforge3_x86/envs/qp_legacy36/bin/python -m pytest tests`
@@ -95,10 +103,38 @@ A pre-configured virtual environment is available in `/Users/jorgealagon/minifor
 - **Filters**: Logic-based data filtering system
 
 ## Dependencies
-- Core: pandas (0.25.3), numpy (1.14.5), scipy (1.2.1)
-- I/O: pyreadstat (1.1.2) for SPSS files
-- Reporting: xlsxwriter, python-pptx
-- Testing: pytest, pytest-cov, pytest-xdist
+
+### Current Dependencies (Legacy - Python 3.6+)
+- **Core**: pandas==0.25.3, numpy==1.14.5, scipy==1.2.1
+- **I/O**: pyreadstat==1.1.2 for SPSS files  
+- **Reporting**: xlsxwriter, python-pptx
+- **Testing**: pytest, pytest-cov, pytest-xdist
+
+### Target Dependencies (Python 3.10-3.12 Compatible)
+**CRITICAL**: All pinned versions are from 2018-2019 and INCOMPATIBLE with Python 3.10+
+
+**Required Updates for Modernization**:
+- **numpy**: 1.14.5 → 1.24.0+ (first Python 3.10 compatible version)
+- **pandas**: 0.25.3 → 1.5.3+ (avoid 2.0+ initially for stability)  
+- **scipy**: 1.2.1 → 1.9.0+ (stable scientific functions)
+- **pyreadstat**: 1.1.2 → 1.3.0+ (Python 3.10-3.12 wheels available)
+
+**External Dependency Elimination**:
+- **savReaderWriter**: REMOVE (381+ flake8 violations) → Replace with modern pyreadstat
+
+### Dependency Modernization Strategy
+**Risk Level**: HIGH - Core scientific stack requires major version updates
+**Timeline**: 3-4 weeks alongside Python modernization
+**Approach**: Staged updates (baseline versions first, then gradual upgrade to latest)
+
+#### Phase 1: Foundation Dependencies
+1. Update numpy/pandas/scipy to baseline Python 3.10+ compatible versions
+2. Comprehensive mathematical/statistical operation testing
+3. Replace savReaderWriter with modern pyreadstat
+
+#### Phase 2: Modern Versions  
+4. Gradual upgrade to latest stable versions after core verification
+5. Integration testing with new Python 3.10+ features
 
 ## Development Notes
 - Package uses exact dependency pinning for reproducible builds
@@ -231,53 +267,158 @@ These reports provide detailed SOLID principle analysis, refactoring recommendat
 
 **CURRENT STATUS**: **PRODUCTION-READY CORE** with clear Python 3.10-3.12 modernization path
 
-## Python 3.10-3.12 Modernization Strategy
+## 🚀 **Comprehensive Modernization Plan** 
+*Python 3.10-3.12 + Modern Tooling + Review Standards*
 
-### 🎯 **Modernization Readiness: HIGH**
-**Foundation**: 92% flake8 violation reduction provides ideal starting point  
+### 🎯 **Strategic Approach: Integrated 5-Week Modernization**
+**Foundation**: 92% flake8 violation reduction + 7 perfect score files provides ideal starting point  
 **Compatibility**: All enhanced files fully compatible with Python 3.10-3.12  
 **Risk Level**: LOW - Clean codebase enables safe systematic modernization
+**Dependencies**: MAJOR updates required (numpy/pandas/scipy from 2018-2019 → current)
 
-### 📋 **4-Phase Migration Plan** (110-160 hours estimated)
+### 📋 **5-Phase Integrated Migration Plan** 
+*Aligned with Review Standards: SOLID + CI/lint/types + Python 3.10-3.12 + pytest/coverage/ruff/mypy*
 
-#### **Phase 1: Type Safety Foundation** (1-2 weeks) - **HIGH PRIORITY**
-**Target**: Add comprehensive type hints across all enhanced files
-**Benefits**: Immediate IDE support, early error detection, better documentation
-**Priority Files**: 
-1. `weight_engine.py` - Coordination layer (CRITICAL)
-2. `query.py` - Complex utility functions (HIGH) 
-3. `rules.py` - Business logic processing (HIGH)
+#### **Week 1: Foundation Cleanup & Dependencies**
+**Goal**: Establish clean codebase + baseline dependency updates
 
-#### **Phase 2: Pattern Matching Implementation** (2-3 weeks) - **MEDIUM PRIORITY** 
-**Target**: Replace complex conditionals with Python 3.10+ pattern matching
-**Focus Files**: `query.py`, `rules.py`, `rim.py`
-**Benefits**: Clearer business logic, reduced cognitive complexity
+**Core File Enhancement** (2-3 days):
+- `agg.py` (180+ violations) → CRITICAL for aggregation functionality
+- `logic.py` (43 violations) → Core view processing logic
+- SOLID compliance: Break down monolithic functions
 
-#### **Phase 3: Advanced OOP Patterns** (1-2 weeks) - **MEDIUM PRIORITY**
-**Target**: Implement dataclasses, enums, and modern patterns
-**Focus Areas**: Configuration management, data structures, error hierarchies
+**Dependency Foundation** (2-3 days):
+- Update numpy (1.14.5 → 1.24.0+), pandas (0.25.3 → 1.5.3+), scipy (1.2.1 → 1.9.0+)
+- Python 3.10-3.12 compatibility verification
+- Eliminate savReaderWriter → Replace with modern pyreadstat
 
-#### **Phase 4: Performance & Advanced Features** (1-2 weeks) - **LOW PRIORITY**
-**Target**: Leverage Python 3.10+ performance and syntax improvements
-**Features**: Union operator syntax (X | Y), generic type parameters, async support
+#### **Week 2: Modern Tooling Implementation**
+**Goal**: Establish CI + lint + types infrastructure
 
-### 🔧 **Implementation Approach**
-- **Incremental**: One file at a time to minimize risk
-- **Backward Compatible**: Maintain Python 3.6+ support during transition
-- **Test-Driven**: Comprehensive testing before/after each change
-- **Documentation**: Update docstrings with modern type information
+**Tooling Stack Setup**:
+```toml
+# pyproject.toml - Modern configuration
+[tool.ruff]
+select = ["E", "W", "F", "UP"]  # Include pyupgrade rules
+target-version = "py310"
 
-### 📊 **Success Metrics**
-- **Type Coverage**: 90%+ of functions have type hints
-- **mypy Compliance**: Zero type checking errors  
-- **Performance**: No regression in benchmarks
-- **Code Quality**: Reduced cyclomatic complexity in target functions
+[tool.mypy]
+python_version = "3.10"
+# Start non-strict as specified
+disallow_untyped_defs = false
+warn_return_any = true
 
-### 🛠️ **Tools Required**
-- **Python 3.10+**: Target runtime environment
-- **mypy**: Static type checker
-- **Type Checker Integration**: IDE support (PyCharm, VS Code)
-- **Enhanced Testing**: Expanded test suite for migration validation
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=quantipy --cov-fail-under=80"
+
+[tool.coverage.run]
+branch = true
+source = ["quantipy"]
+```
+
+**Implementation**:
+1. **ruff integration**: Replace flake8/pyflakes/isort with pyupgrade rules
+2. **mypy setup**: Type checking (non-strict initially)
+3. **pytest modernization**: Replace unittest patterns 
+4. **coverage gates**: 80% minimum requirement
+
+#### **Week 3: Type System Implementation** 
+**Goal**: Add comprehensive type hints supporting mypy
+
+**Type Hints for Enhanced Files**:
+```python
+# Modern type annotations
+from typing import Generator, Dict, Any, Optional
+import pandas as pd
+
+def get_views(qp_structure: Dict[str, Any]) -> Generator[View, None, None]:
+def uniquify_list(lst: list[str]) -> list[str]:  # Python 3.10+ syntax
+def shake(lst: list[str]) -> pd.DataFrame:
+```
+
+**Priority Files**: weight_engine.py, query.py, rules.py, cache.py, options.py
+
+#### **Week 4: Python 3.10-3.12 Feature Integration**
+**Goal**: Leverage modern Python features + pattern matching
+
+**Modern Language Features**:
+```python
+# Pattern matching for complex logic (Python 3.10+)
+match (agg1, agg2, relation1 == relation2):
+    case (_, agg2, True) if 't.means.Dim' in agg2:
+        new_order.append(vk2)
+    case (agg1, _, _) if agg1 in ['d.stddev', 'd.sem', 'nps']:
+        new_order.append(vk1)
+
+# Union operator syntax (Python 3.10+)
+def process_data(data: pd.DataFrame | None) -> dict[str, Any] | None:
+```
+
+**Focus**: Complex logic in query.py, rules.py, rim.py
+
+#### **Week 5: CI Pipeline & Quality Gates**
+**Goal**: Full automation of review standards
+
+**CI/CD Implementation**:
+```yaml
+# Automated quality pipeline
+jobs:
+  quality-gates:
+    steps:
+      - name: Lint with ruff (pyupgrade rules)
+        run: ruff check --select=E,W,F,UP quantipy/
+      - name: Type check with mypy (non-strict)
+        run: mypy quantipy/ --non-strict  
+      - name: Test with coverage gate
+        run: pytest --cov=quantipy --cov-fail-under=80
+```
+
+### 🔧 **Strategic Implementation Decisions**
+
+#### **Selective Pre-Modernization Cleanup**: 
+**RECOMMENDED** - Target 2-3 high-impact core files only:
+- ✅ **agg.py** (180+ violations) - Essential for aggregation  
+- ✅ **logic.py** (43 violations) - Core view processing
+- ❌ **Skip**: sandbox/ (5-10 violations), savReaderWriter/ (external), most test files
+
+#### **Dependency Update Strategy**:
+**STAGED APPROACH** - Baseline versions first, then gradual upgrades:
+- **Phase 1**: Minimum Python 3.10+ compatible versions
+- **Phase 2**: Latest stable versions after core verification
+- **Critical**: All current dependencies incompatible with Python 3.10+
+
+#### **Tooling Migration Path**:
+- **Legacy**: flake8 + autopep8 + Black + isort → **Modern**: ruff + pyupgrade
+- **Type Safety**: Add mypy (start non-strict, progress to strict)
+- **Testing**: unittest patterns → pytest with fixtures
+- **Coverage**: Current 17% → Target 80%
+
+### 📊 **Success Metrics & Review Standards Compliance**
+
+#### **Measurable Outcomes**:
+- ✅ **SOLID/DRY/KISS/YAGNI**: Monolithic code refactored
+- ✅ **CI + lint + types**: ruff + mypy operational  
+- ✅ **Python 3.10-3.12**: Full compatibility verified
+- ✅ **pytest + coverage**: 80%+ coverage gate
+- ✅ **Type Coverage**: 90%+ functions with hints
+- ✅ **mypy Compliance**: Zero type checking errors
+
+### 🛠️ **Tools & Infrastructure**
+
+**Required for Modernization**:
+- **Python 3.10+**: Target runtime (replace qp_legacy36)
+- **ruff**: Modern linter with pyupgrade rules  
+- **mypy**: Type checker (non-strict → strict progression)
+- **pytest**: Modern test framework with fixtures
+- **coverage**: Branch coverage analysis
+- **Updated dependencies**: numpy/pandas/scipy compatible versions
+
+### ⚡ **Timeline & Resource Allocation**
+**Total**: 5 weeks integrated modernization
+**Effort**: 120-180 hours (3-4 weeks with dedicated developer)
+**Risk**: LOW (clean foundation) + MEDIUM (dependency updates)
+**ROI**: HIGH - Modern Python library with professional tooling
 
 ## Achievement Summary
 
@@ -304,9 +445,26 @@ The feature-chain-weights-enhancements branch represents a **systematic transfor
 - **Quality Benchmark**: Model for remaining file improvements
 
 ### 🎯 **Next Development Priorities**
-1. **IMMEDIATE**: Begin Python 3.10-3.12 type hint implementation (Phase 1)
-2. **SHORT-TERM**: Address remaining large files (`dataset.py`, `io.py`, `prep.py`)
-3. **MEDIUM-TERM**: Complete modernization phases (pattern matching, dataclasses)
-4. **LONG-TERM**: Full test coverage expansion to 80% target
+*Following 5-Week Comprehensive Modernization Plan*
 
-**Status**: quantipy3 transformed from technical debt to **modern Python excellence**
+#### **IMMEDIATE (Week 1)**: Foundation + Dependencies
+1. **Pre-modernization cleanup**: agg.py (180+ violations), logic.py (43 violations)
+2. **Dependency updates**: numpy/pandas/scipy → Python 3.10+ compatible versions
+3. **savReaderWriter elimination**: Replace with modern pyreadstat
+
+#### **SHORT-TERM (Weeks 2-3)**: Modern Tooling + Types  
+4. **Tooling migration**: flake8 → ruff, mypy integration, pytest modernization
+5. **Type system**: Comprehensive type hints across enhanced files
+6. **Quality gates**: 80% coverage requirement, CI pipeline setup
+
+#### **MEDIUM-TERM (Weeks 4-5)**: Python Features + Automation
+7. **Modern Python**: Pattern matching, union operators, dataclasses
+8. **CI/CD implementation**: Automated quality gates and review standards
+9. **Remaining files**: Address dataset.py, io.py, prep.py if needed
+
+#### **LONG-TERM (Post-Modernization)**: Excellence Maintenance
+10. **mypy strictness**: Progress from non-strict to strict type checking
+11. **Performance optimization**: Leverage Python 3.10+ performance features  
+12. **Documentation**: Comprehensive API documentation with modern examples
+
+**Status**: quantipy3 positioned for **systematic transformation** to **modern Python excellence** with comprehensive tooling
