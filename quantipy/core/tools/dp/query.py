@@ -6,13 +6,15 @@ quantipy data structures, including view extraction, DataFrame operations,
 and data transformation workflows.
 """
 import re
+from collections.abc import Generator
+from typing import Any
 
 import pandas as pd
 
 import quantipy as qp
 
 
-def get_views(qp_structure):
+def get_views(qp_structure: dict[str, Any]) -> Generator['qp.View', None, None]:
     '''Generator replacement for nested loops to return all view objects
     stored in a given qp container structure.
     Currently supports chain-classed shapes and cluster objects natively.
@@ -28,19 +30,20 @@ def get_views(qp_structure):
             yield v
 
 
-def get_variable_types(data, meta):
+def get_variable_types(data: pd.DataFrame, meta: dict[str, Any]) -> dict[str, list[str]]:
     """Returns a dict of variable types to lists of variable names.
 
     Parameters
     ----------
-    data : Pandas.DataFrame
-
-    meta : Quantipy meta object pared to data
+    data : pd.DataFrame
+        The survey data DataFrame
+    meta : Dict[str, Any]
+        Quantipy meta object paired to data
 
     Returns
-    ----------
-    Dict in the form {type_name: [variable_names], ...}
-
+    -------
+    Dict[str, List[str]]
+        Dict in the form {type_name: [variable_names], ...}
     """
     types = {
         'int': [],
@@ -69,7 +72,7 @@ def get_variable_types(data, meta):
     return types
 
 
-def uniquify_list(lst):
+def uniquify_list(lst: list[str]) -> list[str]:
     # De-dupe keys so far:
     # Credit: Dave Kirby's order preserving uniqueifying list function
     # http://www.peterbe.com/plog/uniqifiers-benchmark
@@ -79,7 +82,7 @@ def uniquify_list(lst):
     return result
 
 
-def get_tests_slicer(s, reverse=False):
+def get_tests_slicer(s: pd.Series, reverse: bool = False) -> list[str]:
     """
     Returns the slicer needed to get tests in order from high to low.
     """
@@ -91,7 +94,7 @@ def get_tests_slicer(s, reverse=False):
     return tests_slicer
 
 
-def shake(lst):
+def shake(lst: list[str]) -> pd.DataFrame:
     """
     De-dupe and reorder view keys in lst for request_views.
     """
@@ -106,7 +109,7 @@ def shake(lst):
     return df
 
 
-def shake_nets(lst):
+def shake_nets(lst: list[str]) -> list[str]:
     """
     De-dupe and reorder net view keys in lst for request_views.
     """
@@ -115,7 +118,7 @@ def shake_nets(lst):
     return result
 
 
-def shake_descriptives(lst, descriptives):
+def shake_descriptives(lst: list[str], descriptives: list[str]) -> list[str]:
     """
     De-dupe and reorder descriptives view keys in lst for request_views.
     """
@@ -132,7 +135,7 @@ def shake_descriptives(lst, descriptives):
             mean_found = False
             tests_done = False
             for idx in s.index:
-                if s[idx] == 'd.{}'.format(desc):
+                if s[idx] == f'd.{desc}':
                     slicer.append(idx)
                     if desc == 'mean':
                         mean_found = True
@@ -148,22 +151,22 @@ def shake_descriptives(lst, descriptives):
 
 
 def request_views(
-    stack,
-    data_key=None,
-    filter_key=None,
-    weight=None,
-    frequencies=True,
-    default=False,
-    nets=True,
-    descriptives=["mean"],
-    sums=None,
-    coltests=True,
-    mimic='Dim',
-    sig_levels=[".05"],
-    x=None,
-    y=None,
-    by_x=False,
-):
+    stack: 'qp.Stack',
+    data_key: str | list[str] | tuple[str, ...] | None = None,
+    filter_key: str | list[str] | tuple[str, ...] | None = None,
+    weight: str | None = None,
+    frequencies: bool = True,
+    default: bool = False,
+    nets: bool = True,
+    descriptives: list[str] | None = None,
+    sums: str | None = None,
+    coltests: bool = True,
+    mimic: str = 'Dim',
+    sig_levels: list[str] | list[float] | None = None,
+    x: str | list[str] | tuple[str, ...] | None = None,
+    y: str | list[str] | tuple[str, ...] | None = None,
+    by_x: bool = False,
+) -> dict[str, Any]:
     """
     Get structured, request-ready views from the stack.
 
@@ -239,6 +242,12 @@ def request_views(
         }
 
     """
+
+    # Handle None default values
+    if descriptives is None:
+        descriptives = ["mean"]
+    if sig_levels is None:
+        sig_levels = [".05"]
 
     described = stack.describe()
 
@@ -326,13 +335,13 @@ def request_views(
             level = level[1:]
         if level in list(levels_ref.keys()):
             lvls.append(levels_ref[level])
-        elif not re.match('\\.[0-9]$', level) is None:
-            lvls.append('{}0'.format(level))
+        elif re.match('\\.[0-9]$', level) is not None:
+            lvls.append(f'{level}0')
         else:
             lvls.append(level)
     sig_levels = [str(i)[-3:] for i in sorted([float(s) for s in lvls])]
     sig_levels = [
-        s if s.startswith('.') else '{}{}'.format(s[1:], 0) for s in sig_levels
+        s if s.startswith('.') else f'{s[1:]}{0}' for s in sig_levels
     ]
 
     # Column tests for main views
@@ -342,7 +351,7 @@ def request_views(
             props_test_views = [
                 v
                 for v in all_views
-                if 't.props.{}{}'.format(mimic, level) in v
+                if f't.props.{mimic}{level}' in v
                 and v.split('|')[2] == ':'
                 and v.split('|')[4] == weight
             ]
@@ -355,7 +364,7 @@ def request_views(
             props_test_views = [
                 v
                 for v in all_views
-                if 't.props.{}{}'.format(mimic, level) in v
+                if f't.props.{mimic}{level}' in v
                 and v.split('|')[2] == 'x++:'
                 and v.split('|')[4] == weight
             ]
@@ -399,7 +408,7 @@ def request_views(
                         [
                             v
                             for v in all_views
-                            if v.split('|')[1] == 't.props.{}{}'.format(mimic, level)
+                            if v.split('|')[1] == f't.props.{mimic}{level}'
                             and v.split('|')[2].startswith('x[')
                             and v.split('|')[4] == weight
                         ]
@@ -455,7 +464,7 @@ def request_views(
             views[descriptive] = [
                 [v]
                 for v in all_views
-                if v.split('|')[1] == 'd.{}'.format(descriptive)
+                if v.split('|')[1] == f'd.{descriptive}'
                 and v.split('|')[4] == weight
             ]
 
@@ -469,7 +478,7 @@ def request_views(
                         [
                             v
                             for v in all_views
-                            if v.split('|')[1] == 't.means.{}{}'.format(mimic, level)
+                            if v.split('|')[1] == f't.means.{mimic}{level}'
                             and v.split('|')[4] == weight
                         ]
                     )
@@ -545,9 +554,9 @@ def request_views(
         requested_views['grouped_views']['cp'].extend(net_cps)
 
     if sums == 'mid':
-        for ci, sum_chain in zip(['c', 'p', 'cp'], sum_chains):
+        for ci, sum_chain in zip(['c', 'p', 'cp'], sum_chains, strict=False):
             requested_views['get_chain'][ci].extend(sum_chain)
-        for ci, sum_gv in zip(['c', 'p', 'cp'], sum_gvs):
+        for ci, sum_gv in zip(['c', 'p', 'cp'], sum_gvs, strict=False):
             requested_views['grouped_views'][ci].extend(sum_gv)
 
     if descriptives and desc:
@@ -575,9 +584,9 @@ def request_views(
         requested_views['grouped_views']['cp'].extend(desc)
 
     if sums == 'bottom':
-        for ci, sum_chain in zip(['c', 'p', 'cp'], sum_chains):
+        for ci, sum_chain in zip(['c', 'p', 'cp'], sum_chains, strict=False):
             requested_views['get_chain'][ci].extend(sum_chain)
-        for ci, sum_gv in zip(['c', 'p', 'cp'], sum_gvs):
+        for ci, sum_gv in zip(['c', 'p', 'cp'], sum_gvs, strict=False):
             requested_views['grouped_views'][ci].extend(sum_gv)
 
     # Remove bases and lists with one element
@@ -596,7 +605,7 @@ def request_views(
     return requested_views
 
 
-def reorder_set_keys(view_set):
+def reorder_set_keys(view_set: dict[str, Any]) -> dict[str, Any]:
     """
     Enforces an ordered convention of view keys in given keyed lists.
 
@@ -622,7 +631,7 @@ def reorder_set_keys(view_set):
     return view_set
 
 
-def reorder_test_keys(views):
+def reorder_test_keys(views: list[str]) -> list[str]:
     """
     Enforces an ordered convention of view keys in given keyed lists.
 

@@ -6,8 +6,9 @@ This module provides global configuration options for quantipy behavior,
 allowing users to customize processing, rule application, and performance
 optimizations throughout the library.
 """
+from typing import Dict
 
-OPTIONS = {
+OPTIONS: Dict[str, bool] = {
     'new_rules': False,
     'new_chains': False,
     'short_item_texts': False,
@@ -16,7 +17,7 @@ OPTIONS = {
 }
 
 
-def set_option(option, val):
+def set_option(option: str, val: bool) -> None:
     """
     Set a quantipy configuration option.
 

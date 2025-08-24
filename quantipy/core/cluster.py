@@ -6,6 +6,7 @@ computation orchestration.
 """
 import pickle
 from collections import OrderedDict
+from typing import Any
 
 import pandas as pd
 
@@ -24,14 +25,14 @@ class Cluster(OrderedDict):
     build, e.g. MS Excel Workbooks.
     """
 
-    def __init__(self, name=""):
+    def __init__(self, name: str = "") -> None:
         super(Cluster, self).__init__()
         self.name = name
 
-    def __setstate__(self, attr_dict):
+    def __setstate__(self, attr_dict: dict[str, Any]) -> None:
         self.__dict__.update(attr_dict)
 
-    def __reduce__(self):
+    def __reduce__(self) -> tuple:
         return (
             self.__class__,
             (self.name,),
@@ -40,7 +41,7 @@ class Cluster(OrderedDict):
             iter(list(self.items())),
         )
 
-    def _verify_banked_chain_spec(self, spec):
+    def _verify_banked_chain_spec(self, spec: dict[str, Any]) -> bool:
         """
         Verify chain conforms to the expected banked chain structure.
         """
@@ -87,7 +88,7 @@ class Cluster(OrderedDict):
                 if not isinstance(value, str):
                     return False
 
-        cview = spec.get('view', None)
+        cview = spec.get('view')
         if cview is None:
             for c in citems:
                 if 'view' in c:
@@ -101,7 +102,7 @@ class Cluster(OrderedDict):
 
         return True
 
-    def add_chain(self, chains=None):
+    def add_chain(self, chains: Chain | list[Chain] | None = None) -> None:
         """Adds chains to a cluster"""
         # If a single item was supplied, change it to a list of items
         is_banked_spec = False
@@ -111,7 +112,7 @@ class Cluster(OrderedDict):
                 " banked chain definition (as a dict) into"
                 " Cluster.add_chain()."
             )
-        elif isinstance(chains, dict):
+        if isinstance(chains, dict):
             if chains.get('type', None) == 'banked-chain':
                 is_banked_spec = True
                 if not self._verify_banked_chain_spec(chains):
@@ -164,7 +165,7 @@ class Cluster(OrderedDict):
                 "One or more of the supplied chains has an inappropriate type."
             )
 
-    def bank_chains(self, spec, text_key):
+    def bank_chains(self, spec: dict[str, Any], text_key: str) -> None:
         """
         Return a banked chain as defined by spec.
 
@@ -199,7 +200,7 @@ class Cluster(OrderedDict):
         xk = bchain.source_name
         yks = bchain.content_of_axis
 
-        vk = spec.get('view', None)
+        vk = spec.get('view')
         if vk is None:
             vk = spec['items'][0]['view']
         else:
@@ -253,7 +254,7 @@ class Cluster(OrderedDict):
                 if isinstance(idx_banked, list):
                     idx_banked.extend(
                         [
-                            (spec['name'], '{}:{}'.format(xk, value[1]))
+                            (spec['name'], f'{xk}:{value[1]}')
                             for value in df.index.values
                         ]
                     )
@@ -301,7 +302,7 @@ class Cluster(OrderedDict):
             bchain[dk][fk][xk][yk][bvk]._x['name'] = spec['name']
             bchain[dk][fk][xk][yk][bvk]._x['size'] = banked[yk].shape[0]
 
-        bchain.name = 'banked-{}'.format(bchain.name)
+        bchain.name = f'banked-{bchain.name}'
         for yk in yks:
             for vk in list(bchain[dk][fk][xk][yk].keys()):
                 if vk in bchain.views:
@@ -331,11 +332,10 @@ class Cluster(OrderedDict):
 
         return bchain
 
-    def _build(self, type):
+    def _build(self, type: str) -> pd.DataFrame:
         """The Build exports the chains using methods supplied with 'type'."""
-        pass
 
-    def merge(self):
+    def merge(self) -> pd.DataFrame:
         """
         Merges all Chains found in the Cluster into a new pandas.DataFrame.
         """
@@ -345,12 +345,11 @@ class Cluster(OrderedDict):
             return pd.concat(
                 [self[chainname].concat() for chainname in chainnames], axis=1
             )
-        else:
-            return pd.concat(
-                [self[chainname].concat() for chainname in chainnames], axis=0
-            )
+        return pd.concat(
+            [self[chainname].concat() for chainname in chainnames], axis=0
+        )
 
-    def save(self, path_cluster):
+    def save(self, path_cluster: str) -> None:
         """
         Load Stack instance from .stack file.
 
@@ -378,7 +377,7 @@ class Cluster(OrderedDict):
     # STATIC METHODS
 
     @staticmethod
-    def load(path_cluster):
+    def load(path_cluster: str) -> 'Cluster':
         """
         Load Stack instance from .stack file.
 

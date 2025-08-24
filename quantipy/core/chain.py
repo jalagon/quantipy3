@@ -7,6 +7,7 @@ View aggregations.
 """
 import pickle
 from collections import defaultdict
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -21,7 +22,7 @@ class Chain(defaultdict):
     through the Chain or through the related Cluster object.
     """
 
-    def __init__(self, name=None):
+    def __init__(self, name: Optional[str] = None) -> None:
         """
         Initialize a Chain instance.
 
@@ -61,7 +62,7 @@ class Chain(defaultdict):
         self.base_text = None
         self.annotations = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '%s:\norientation-axis: %s - %s,\ncontent-axis: %s, \nviews: %s' % (
             Chain,
             self.orientation,
@@ -70,10 +71,10 @@ class Chain(defaultdict):
             len(self.views),
         )
 
-    def __setstate__(self, attr_dict):
+    def __setstate__(self, attr_dict: dict[str, Any]) -> None:
         self.__dict__.update(attr_dict)
 
-    def __reduce__(self):
+    def __reduce__(self) -> tuple:
         return (
             self.__class__,
             (self.name,),
@@ -82,7 +83,7 @@ class Chain(defaultdict):
             iter(list(self.items())),
         )
 
-    def save(self, path=None):
+    def save(self, path: Optional[str] = None) -> None:
         """
         This method saves the current chain instance (self) to file (.chain) using cPickle.
 
@@ -99,7 +100,7 @@ class Chain(defaultdict):
         pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
         f.close()
 
-    def copy(self):
+    def copy(self) -> 'Chain':
         """
         Create a copy of self by serializing to/from a bytestring using
         cPickle.
@@ -107,7 +108,7 @@ class Chain(defaultdict):
         new_chain = pickle.loads(pickle.dumps(self, pickle.HIGHEST_PROTOCOL))
         return new_chain
 
-    def _lazy_name(self):
+    def _lazy_name(self) -> str:
         """
         Apply lazy-name logic to chains created without an explicit name.
          - This method does not take any responsibilty for uniquley naming chains
@@ -152,7 +153,7 @@ class Chain(defaultdict):
             self.filter = filter
             self.source_type = source_type
 
-    def concat(self):
+    def concat(self) -> pd.DataFrame:
         """
         Concatenates all Views found for the Chain definition along its
         orientations axis.

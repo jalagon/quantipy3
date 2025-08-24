@@ -9,6 +9,7 @@ import copy
 import re
 import warnings
 from collections import OrderedDict
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -16,12 +17,14 @@ import pandas as pd
 import quantipy as qp
 
 
-class Rules(object):
+class Rules:
 
     # ------------------------------------------------------------------------
     # init
     # ------------------------------------------------------------------------
-    def __init__(self, link, view_name, axes=['x', 'y'], rweight=None):
+    def __init__(self, link: 'qp.Link', view_name: str, axes: list[str] | None = None, rweight: str | None = None) -> None:
+        if axes is None:
+            axes = ['x', 'y']
         self.link = link
         self.view_name = view_name
         self.stack_base = link.stack[link.data_key]
@@ -43,16 +46,14 @@ class Rules(object):
         self.y_slicer = None
         self.rules_view_df = None
 
-    def _is_array_summary(self):
+    def _is_array_summary(self) -> bool:
         return self.link.x in self.meta['masks']
 
-    def _is_transposed_summary(self):
+    def _is_transposed_summary(self) -> bool:
         return self.link.x == '@' and self.link.y in self.meta['masks']
 
-    def _set_rules_params(self, all_rules_axes, rules_axis):
-        if rules_axis == 'x' and 'x' not in all_rules_axes:
-            return None
-        elif rules_axis == 'y' and 'y' not in all_rules_axes:
+    def _set_rules_params(self, all_rules_axes: list[str], rules_axis: str) -> dict[str, Any] | None:
+        if rules_axis == 'x' and 'x' not in all_rules_axes or rules_axis == 'y' and 'y' not in all_rules_axes:
             return None
         # k, f = self.link.data_key, self.link.filter  # unused
         x, y = self.link.x, self.link.y
@@ -87,7 +88,7 @@ class Rules(object):
                     pass
         return rules
 
-    def _get_sort_weight(self, use_weight):
+    def _get_sort_weight(self, use_weight: str | None) -> str | None:
         var = self.link.y if self.link.x == '@' else self.link.x
         try:
             collection = self.meta['columns'][var]
@@ -103,47 +104,43 @@ class Rules(object):
                 else:
                     sort_weight = use_weight
             return sort_weight
-        else:
-            return None
+        return None
 
     # ------------------------------------------------------------------------
     # display
     # ------------------------------------------------------------------------
 
-    def rules_df(self):
+    def rules_df(self) -> pd.DataFrame:
         if self.transposed_summary:
             return self.rules_view_df.T
-        else:
-            return self.rules_view_df
+        return self.rules_view_df
 
-    def show_rules(self, axis=None):
+    def show_rules(self, axis: str | None = None) -> None:
         """ """
         if not axis:
             return {'x': self.x_rules}, {'y': self.y_rules}
-        elif axis == 'x':
+        if axis == 'x':
             return {'x': self.x_rules}
-        elif axis == 'y':
+        if axis == 'y':
             return {'y': self.y_rules}
-        else:
-            err = "If provided, 'axis' must be one of {'x', 'y'}"
-            raise ValueError(err)
+        err = "If provided, 'axis' must be one of {'x', 'y'}"
+        raise ValueError(err)
 
-    def show_slicers(self, axis=None):
+    def show_slicers(self, axis: str | None = None) -> None:
         if not axis:
             return {'x': self.x_slicer}, {'y': self.y_slicer}
-        elif axis == 'x':
+        if axis == 'x':
             return {'x': self.x_slicer}
-        elif axis == 'y':
+        if axis == 'y':
             return {'y': self.y_slicer}
-        else:
-            err = "If provided, 'axis' must be one of {'x', 'y'}"
-            raise ValueError(err)
+        err = "If provided, 'axis' must be one of {'x', 'y'}"
+        raise ValueError(err)
 
     # ------------------------------------------------------------------------
     # apply rules
     # ------------------------------------------------------------------------
 
-    def apply(self):
+    def apply(self) -> pd.DataFrame:
         self.get_slicer()
 
         viable_axes = self.rule_viable_axes()
@@ -165,7 +162,7 @@ class Rules(object):
         self.rules_view_df = df
         return None
 
-    def get_slicer(self):
+    def get_slicer(self) -> tuple[list[int] | None, list[int] | None]:
         """ """
         for axis, rule_axis in enumerate([self.x_rules, self.y_rules]):
             if not rule_axis:
@@ -211,7 +208,7 @@ class Rules(object):
                         self.y_slicer = r_slicer
                     return None
                 # get df-desc-slice to sort on
-                elif sort_on_stat:
+                if sort_on_stat:
                     f = self._get_descriptive_via_stack(col_key, sort_on)
                 # get df-net-slice to sort on
                 elif sort_on_net:
@@ -232,11 +229,11 @@ class Rules(object):
                 self.y_slicer = r_slicer
         return None
 
-    def _get_frequency_via_stack(self, col, axis, weight):
+    def _get_frequency_via_stack(self, col: str, axis: str, weight: str | None) -> pd.Series:
         if weight is None:
             vk = 'x|f|:|||counts'
         else:
-            vk = 'x|f|:||{}|counts'.format(weight)
+            vk = f'x|f|:||{weight}|counts'
             view_weight = self.view_name.split('|')[-2]
             link_weights = [
                 k.split('|')[-2]
@@ -258,26 +255,25 @@ class Rules(object):
             )
         return f
 
-    def _get_descriptive_via_stack(self, col, desc='mean'):
+    def _get_descriptive_via_stack(self, col: str, desc: str = 'mean') -> pd.Series:
         link = self.link_base[col]['@']
         w = self._sort_weight
         desc_key = [
             k
             for k in list(link.keys())
-            if 'd.{}'.format(desc) in k.split('|')[1] and k.split('|')[-2] == w
+            if f'd.{desc}' in k.split('|')[1] and k.split('|')[-2] == w
         ]
         if not desc_key:
             msg = "No {} view to sort '{}' on found!"
             raise RuntimeError(msg.format(desc, col))
-        elif len(desc_key) > 1:
+        if len(desc_key) > 1:
             msg = "Multiple {} views found for '{}'. Unable to sort!"
             raise RuntimeError(msg.format(desc, col))
-        else:
-            desc_key = desc_key[0]
+        desc_key = desc_key[0]
         d = link[desc_key].dataframe
         return d
 
-    def _get_net_via_stack(self, col, net='net_1'):
+    def _get_net_via_stack(self, col: str, net: str = 'net_1') -> pd.Series:
         link = self.link_base[col]['@']
         w = self._sort_weight
         net_no = int(net.split('_')[-1])
@@ -291,12 +287,11 @@ class Rules(object):
         if not net_key:
             msg = "No net view to sort '{}' on found!"
             raise RuntimeError(msg.format(col))
-        else:
-            net_key = net_key[0]
+        net_key = net_key[0]
         d = link[net_key].dataframe
         return d
 
-    def _get_rules_slicer(self, f, rules, apply_rules=None):
+    def _get_rules_slicer(self, f: pd.DataFrame, rules: dict[str, Any], apply_rules: list[str] | None = None) -> list[int]:
         f = f.copy()
         rulesx = OrderedDict(
             [('slicex', self.slicex), ('sortx', self.sortx), ('dropx', self.dropx)]
@@ -315,7 +310,7 @@ class Rules(object):
 
         return rules_slicer
 
-    def _find_expanded_nets(self, all_views, rule_axis):
+    def _find_expanded_nets(self, all_views: list[str], rule_axis: str) -> list[str]:
         expanded_net = [
             v
             for v in all_views
@@ -327,7 +322,7 @@ class Rules(object):
 
         return expanded_net[0] if expanded_net else None
 
-    def _find_expanded_net_groups(self, exp_net_view):
+    def _find_expanded_net_groups(self, exp_net_view: str) -> list[str]:
         groups = OrderedDict()
         view = exp_net_view
         logic = view._kwargs.get('logic')
@@ -343,11 +338,11 @@ class Rules(object):
         groups['codes'] = [c for c, d in list(description.items()) if d == 'normal']
         return groups
 
-    def sort_expanded_nets(self, view, sortx):
+    def sort_expanded_nets(self, view: 'qp.View', sortx: dict[str, Any]) -> list[str]:
         within = sortx.get('within', True)
         between = sortx.get('between', True)
         ascending = sortx.get('ascending', False)
-        fix = sortx.get('fixed', None)
+        fix = sortx.get('fixed')
         if not within and not between:
             return view.dataframe
         df = view.dataframe
@@ -425,14 +420,14 @@ class Rules(object):
 
     def sortx(
         self,
-        df,
-        sort_on='@',
-        within=True,
-        between=True,
-        ascending=False,
-        fixed=None,
-        with_weight='auto',
-    ):
+        df: pd.DataFrame,
+        sort_on: str = '@',
+        within: bool = True,
+        between: bool = True,
+        ascending: bool = False,
+        fixed: list[str | int] | None = None,
+        with_weight: str = 'auto',
+    ) -> pd.DataFrame:
         """
         Sort the index of df on a column, keeping margins and fixing values.
 
@@ -523,10 +518,10 @@ class Rules(object):
             df = df.loc[s_all + s_sort + s_fixed]
             return df
         except UnboundLocalError:
-            print(('Could not sort on {}'.format(sort_on)))
+            print(f'Could not sort on {sort_on}')
             return df
 
-    def slicex(self, df, values, keep_margins=True):
+    def slicex(self, df: pd.DataFrame, values: list[str | int], keep_margins: bool = True) -> pd.DataFrame:
         """
         Return an index-wise slice of df, keeping margins if desired.
 
@@ -562,7 +557,7 @@ class Rules(object):
 
         return df
 
-    def dropx(self, df, values):
+    def dropx(self, df: pd.DataFrame, values: list[str | int]) -> pd.DataFrame:
         """
         Return df after dropping values from the index.
 
@@ -596,7 +591,7 @@ class Rules(object):
 
     # ------------------------------------------------------------------------
 
-    def rule_viable_axes(self):
+    def rule_viable_axes(self) -> list[str]:
         viable_axes = ['x', 'y']
         condensed_x = False
         condensed_y = False
@@ -638,7 +633,7 @@ class Rules(object):
         return viable_axes
 
     @staticmethod
-    def verify_test_results(df):
+    def verify_test_results(df: pd.DataFrame) -> pd.DataFrame:
         """
         Verify tests results in df are consistent with existing columns.
 
@@ -658,7 +653,7 @@ class Rules(object):
             The view dataframe showing edited column tests results.
         """
 
-        def verify_test_value(value):
+        def verify_test_value(value: Any) -> Any:
             """
             Verify a specific test value.
             """
@@ -697,10 +692,9 @@ class Rules(object):
                     value = np.NaN
 
                 return value
-            else:
-                return value
+            return value
 
-        cols = set([int(v) for v in zip(*[c for c in df.columns])[1]])
+        cols = set([int(v) for v in zip(*[c for c in df.columns], strict=False)[1]])
         df = df.applymap(verify_test_value)
 
         return df

@@ -3,7 +3,9 @@
 This module provides the WeightEngine class for coordinating and managing
 various weighting schemes and algorithms for survey data adjustment.
 """
+
 import re
+from typing import Any
 
 import pandas as pd
 
@@ -19,17 +21,22 @@ class WeightEngine:
     and coordinating the weighting process.
     """
 
-    def __init__(self, data=None, dropna=True, meta=None):
+    def __init__(
+        self,
+        data: pd.DataFrame | None = None,
+        dropna: bool = True,
+        meta: dict[str, Any] | list[Any] | None = None,
+    ) -> None:
         """
         Initialize a WeightEngine instance.
 
         Parameters
         ----------
-        data : pandas.DataFrame
+        data : Optional[pandas.DataFrame]
             Survey data to be weighted.
         dropna : bool, default True
             Whether to drop rows with missing values.
-        meta : dict, optional
+        meta : Optional[Union[Dict[str, Any], List[Any]]], optional
             Metadata describing the survey data structure.
         """
 
@@ -42,7 +49,7 @@ class WeightEngine:
         self.dataset = None
         self._df = data.copy()
 
-        self.schemes = {}
+        self.schemes: dict[str, dict[str, Any]] = {}
 
         self.original_columns = None
 
@@ -52,20 +59,20 @@ class WeightEngine:
         self.dropna = dropna
 
         # Constants
-        self._SCHEME = 'scheme'
-        self._KEY = 'key'
+        self._SCHEME = "scheme"
+        self._KEY = "key"
 
         if meta is not None:
-            if not isinstance(meta, (dict, list)):
+            if not isinstance(meta, dict | list):
                 raise ValueError(
                     "\n You must pass a dict or list to the 'meta' argument of the WeightEngine"
                     "\n constructor. If your meta is serialized please load it first."
                 )
             self._meta = meta
-            self.dataset = DataSet('__weights__', False)
+            self.dataset = DataSet("__weights__", False)
             self.dataset.from_components(self._df.copy(), self._meta)
 
-    def get_report(self):
+    def get_report(self) -> pd.DataFrame:
         """
         Return a DataFrame summarising results of the calculated weights.
 
@@ -89,34 +96,35 @@ class WeightEngine:
 
         Returns
         -------
-        None
+        pd.DataFrame
+            Summary report of weighting results with metrics by scheme and group.
         """
 
         # List to store each report series for later concatenation
         reports = []
 
         for scheme_name in sorted(self.schemes.keys()):
-            scheme = self.schemes[scheme_name]['scheme']
+            scheme = self.schemes[scheme_name]["scheme"]
             data = self.dataframe(scheme_name)
 
             for group_name in sorted(scheme.groups.keys()):
                 report = pd.Series([])
-                weight_col = 'weights_{0}'.format(scheme_name)
+                weight_col = f"weights_{scheme_name}"
                 group = scheme.groups[group_name]
-                filter_def = group['filters']
+                filter_def = group["filters"]
 
-                report['Weight variable'] = weight_col
-                report['Weight group'] = group_name
+                report["Weight variable"] = weight_col
+                report["Weight group"] = group_name
 
                 if filter_def is None:
-                    report['Weight filter'] = 'None'
+                    report["Weight filter"] = "None"
                     # This is a trick to keep rows that are not NaN
                     # since Nan is never equal to NaN.
-                    filter_def = '{0}=={0}'.format(weight_col)
+                    filter_def = f"{weight_col}=={weight_col}"
                 else:
-                    report['Weight filter'] = filter_def
+                    report["Weight filter"] = filter_def
 
-                if report['Weight filter'] == "None":
+                if report["Weight filter"] == "None":
                     filtered_data = data
                 else:
                     filtered_data = data.query(filter_def)
@@ -144,31 +152,32 @@ class WeightEngine:
                 minimum = filtered_data[weight_col].min()
                 maximum = filtered_data[weight_col].max()
 
-                report['Total: unweighted'] = weight_count
-                report['Total: weighted'] = weight_sum
-                report['Weighting efficiency'] = efficiency
-                report['Iterations required'] = group['iterations']
-                report['Mean weight factor'] = mean
-                report['Minimum weight factor'] = minimum
-                report['Maximum weight factor'] = maximum
-                report['Weight factor ratio'] = maximum / minimum
+                report["Total: unweighted"] = weight_count
+                report["Total: weighted"] = weight_sum
+                report["Weighting efficiency"] = efficiency
+                report["Iterations required"] = group["iterations"]
+                report["Mean weight factor"] = mean
+                report["Minimum weight factor"] = minimum
+                report["Maximum weight factor"] = maximum
+                report["Weight factor ratio"] = maximum / minimum
 
                 reports.append(report)
 
         report_df = (
             pd.DataFrame(reports)
-            .set_index(['Weight variable', 'Weight group', 'Weight filter'])
+            .set_index(["Weight variable", "Weight group", "Weight filter"])
             .T
         )
         return report_df
 
-    def run(self, schemes=[]):
+    def run(self, schemes: list[str] | str | None = None) -> None:
+        if schemes is None:
+            schemes = []
         if isinstance(schemes, str):
             schemes = [schemes]
         if isinstance(schemes, list):
-
             if len(schemes) == 0:  # Weight all schemes
-                schemes = self.schemes
+                schemes = list(self.schemes.keys())
 
             for scheme in schemes:
                 if scheme in self.schemes:
@@ -178,56 +187,51 @@ class WeightEngine:
                     self._df[the_scheme._weight_name()] = weights
 
                 else:
-                    raise Exception(("Scheme '%s' not found." % scheme))
+                    raise Exception(f"Scheme '{scheme}' not found.")
         else:
-            raise ValueError(
-                ('schemes must be of type %s NOT %s ') % (type([]), type(scheme))
-            )
+            raise ValueError(f"schemes must be of type {type([])} NOT {type(schemes)} ")
 
-    def report(self, scheme, group=None):
+    def report(self, scheme: str, group: str | None = None) -> dict[str, Any]:
         report = self.schemes[scheme][self._SCHEME].report(group)
         group_names = sorted(report.keys())
-        summary_df = pd.DataFrame([report[gn]['summary'] for gn in group_names]).T
-        idx_tuples = list(zip(*[summary_df.columns, group_names]))
+        summary_df = pd.DataFrame([report[gn]["summary"] for gn in group_names]).T
+        idx_tuples = list(zip(*[summary_df.columns, group_names], strict=False))
         summary_df.columns = pd.MultiIndex.from_tuples(
-            idx_tuples, names=['Weight variable', 'Weight group']
+            idx_tuples, names=["Weight variable", "Weight group"]
         )
-        report['summary'] = summary_df
+        report["summary"] = summary_df
         return report
 
-    def dataframe(self, scheme=None):
+    def dataframe(self, scheme: str | None = None) -> pd.DataFrame:
         if scheme is None:
             # Return the whole dataframe if no scheme is selected
             return self._df
-        elif isinstance(scheme, str):
+        if isinstance(scheme, str):
             if scheme in self.schemes:
                 the_scheme = self.schemes[scheme][self._SCHEME]
                 key_column = self.schemes[scheme][self._KEY]
                 return the_scheme.dataframe(self._df, key_column=key_column)
-            else:
-                raise Exception("Scheme not found.")
-        else:
-            raise ValueError(
-                ('scheme must be of type %s, %s or %s NOT %s ')
-                % (type(str), type(str), type(None), type(scheme))
-            )
+            raise Exception("Scheme not found.")
+        raise ValueError(
+            f"scheme must be of type {type(str)}, {type(str)} or {type(None)} NOT {type(scheme)} "
+        )
 
-    def add_scheme(self, scheme, key, verbose=True):
+    def add_scheme(self, scheme: Any, key: str, verbose: bool = True) -> None:
         if scheme.name in self.schemes:
-            print("Overwriting existing scheme '%s'.").format(scheme.name)
+            print(f"Overwriting existing scheme '{scheme.name}'.")
         self._resolve_filters(scheme, key)
         self.schemes[scheme.name] = {self._SCHEME: scheme, self._KEY: key}
         scheme._minimize_columns(self._df, key, verbose)
 
-    def _resolve_filters(self, scheme, key):
+    def _resolve_filters(self, scheme: Any, key: str) -> None:
         grps = scheme.groups
         for grp in grps:
-            f = grps[grp]['filters']
+            f = grps[grp]["filters"]
             if f is not None:
-                grps[grp]['filter_vars'] = self._find_filter_variables(f)
+                grps[grp]["filter_vars"] = self._find_filter_variables(f)
                 if not isinstance(f, str):
                     f = self.dataset._logic_as_pd_expr(f, grp)
-                    filter_var = f.split('=')[0]
+                    filter_var = f.split("=")[0]
 
                     # make sure scheme df is sorted by key variable
                     self._df.set_index(key, inplace=True)
@@ -242,13 +246,13 @@ class WeightEngine:
                     self.dataset._data.reset_index(inplace=True)
                     self.dataset.drop(filter_var)
 
-                    msg = 'Converted {} filter to logical dummy expression: {}'
+                    msg = "Converted {} filter to logical dummy expression: {}"
                     print(msg.format(grp, f))
-                    grps[grp]['filter_vars'].append(filter_var)
-                grps[grp]['filters'] = f
-        return None
+                    grps[grp]["filter_vars"].append(filter_var)
+                grps[grp]["filters"] = f
+        return
 
-    def _find_filter_variables(self, filter_expression):
+    def _find_filter_variables(self, filter_expression: str) -> list[str]:
         """ """
         filter_variables = []
         for col in self._df.columns:
