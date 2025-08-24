@@ -3,6 +3,8 @@ import json
 import sqlite3
 import sys
 from collections import OrderedDict
+from pathlib import Path
+from typing import Any, Dict, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -21,21 +23,27 @@ from quantipy.core.tools.dp.spss.writer import save_sav
 from .forsta.api_requests import get_surveys
 
 
-def make_like_ascii(text):
+def make_like_ascii(text: str) -> str:
     """
     Replaces any non-ascii unicode with ascii unicode.
+
+    Args:
+        text: Input string that may contain non-ASCII unicode characters
+
+    Returns:
+        String with non-ASCII unicode replaced with ASCII equivalents
     """
 
     unicode_ascii_mapper = {
-        '\u2022': '-',  # http://www.fileformat.info/info/unicode/char/2022/index.htm
-        '\u2013': '-',  # http://www.fileformat.info/info/unicode/char/2013/index.htm
-        '\u2018': '\u0027',  # http://www.fileformat.info/info/unicode/char/2018/index.htm
-        '\u2019': '\u0027',  # http://www.fileformat.info/info/unicode/char/2019/index.htm
-        '\u201c': '\u0022',  # http://www.fileformat.info/info/unicode/char/201C/index.htm
-        '\u201d': '\u0022',  # http://www.fileformat.info/info/unicode/char/201D/index.htm
-        '\u00a3': 'GBP ',  # http://www.fileformat.info/info/unicode/char/a3/index.htm
-        '\u20AC': 'EUR ',  # http://www.fileformat.info/info/unicode/char/20aC/index.htm
-        '\u2026': '\u002E\u002E\u002E',  # http://www.fileformat.info/info/unicode/char/002e/index.htm
+        "\u2022": "-",  # http://www.fileformat.info/info/unicode/char/2022/index.htm
+        "\u2013": "-",  # http://www.fileformat.info/info/unicode/char/2013/index.htm
+        "\u2018": "\u0027",  # http://www.fileformat.info/info/unicode/char/2018/index.htm
+        "\u2019": "\u0027",  # http://www.fileformat.info/info/unicode/char/2019/index.htm
+        "\u201c": "\u0022",  # http://www.fileformat.info/info/unicode/char/201C/index.htm
+        "\u201d": "\u0022",  # http://www.fileformat.info/info/unicode/char/201D/index.htm
+        "\u00a3": "GBP ",  # http://www.fileformat.info/info/unicode/char/a3/index.htm
+        "\u20ac": "EUR ",  # http://www.fileformat.info/info/unicode/char/20aC/index.htm
+        "\u2026": "\u002e\u002e\u002e",  # http://www.fileformat.info/info/unicode/char/002e/index.htm
     }
 
     for old, new in unicode_ascii_mapper.items():
@@ -44,7 +52,7 @@ def make_like_ascii(text):
     return text
 
 
-def unicoder(obj, decoder='UTF-8', like_ascii=False):
+def unicoder(obj: Any, decoder: str = "UTF-8", like_ascii: bool = False) -> Any:
     """
     Decodes all the text (keys and strings) in obj.
 
@@ -80,7 +88,7 @@ def unicoder(obj, decoder='UTF-8', like_ascii=False):
     return obj
 
 
-def encoder(obj, encoder='UTF-8'):
+def encoder(obj: Any, encoder: str = "UTF-8") -> Any:
     """
     Encodes all the text (keys and strings) in obj.
 
@@ -110,15 +118,15 @@ def encoder(obj, encoder='UTF-8'):
     return obj
 
 
-def enjson(obj, indent=4, encoding='UTF-8'):
+def enjson(obj: Any, indent: int = 4, encoding: str = "UTF-8") -> bytes:
     """
     Dumps unicode json allowing non-ascii characters encoded as needed.
     """
     return json.dumps(obj, indent=indent, ensure_ascii=False).encode(encoding)
 
 
-def load_json(path_json, hook=OrderedDict):
-    '''Returns a python object from the json file located at path_json'''
+def load_json(path_json: Union[str, Path], hook=OrderedDict) -> Any:
+    """Returns a python object from the json file located at path_json"""
 
     with open(path_json) as f:
         obj = unicoder(json.load(f, object_pairs_hook=hook))
@@ -126,81 +134,79 @@ def load_json(path_json, hook=OrderedDict):
         return obj
 
 
-def loads_json(json_text, hook=OrderedDict):
-    '''Returns a python object from the json string json_text'''
+def loads_json(json_text: str, hook=OrderedDict) -> Any:
+    """Returns a python object from the json string json_text"""
 
     obj = json.loads(json_text, object_pairs_hook=hook)
 
     return obj
 
 
-def load_csv(path_csv):
-
+def load_csv(path_csv: Union[str, Path]) -> pd.DataFrame:
     data = pd.read_csv(path_csv)
     return data
 
 
-def save_json(obj, path_json, decode_str=False, decoder='UTF-8'):
-
+def save_json(
+    obj: Any, path_json: Union[str, Path], decode_str: bool = False, decoder: str = "UTF-8"
+) -> None:
     if decode_str:
         obj = unicoder(obj, decoder)
 
-    def represent(obj):
+    def represent(obj: Any) -> str:
         if isinstance(obj, np.generic):
-            return np.asscalar(obj)
+            return obj.item()
         return f"Unserializable object: {str(type(obj))}"
 
-    with open(path_json, 'w+') as f:
+    with open(path_json, "w+") as f:
         json.dump(obj, f, default=represent, sort_keys=True)
 
 
-def df_to_browser(df, path_html='df.html', **kwargs):
-
+def df_to_browser(df: pd.DataFrame, path_html: str = "df.html", **kwargs: Any) -> None:
     import webbrowser
 
-    with open(path_html, 'w') as f:
+    with open(path_html, "w") as f:
         f.write(df.to_html(**kwargs))
 
     webbrowser.open(path_html, new=2)
 
 
-def verify_dtypes_vs_meta(data, meta):
-    '''Returns a df showing the pandas dtype for each column in data compared
+def verify_dtypes_vs_meta(data: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
+    """Returns a df showing the pandas dtype for each column in data compared
     to the type indicated for that variable name in meta plus a 'verified'
     column indicating if quantipy determines the comparison as viable.
 
     data - (pandas.DataFrame)
     meta - (dict) quantipy meta object
-    '''
+    """
 
     dtypes = data.dtypes
-    dtypes.name = 'dtype'
+    dtypes.name = "dtype"
     var_types = pd.DataFrame(
-        {k: v['type'] for k, v in meta['columns'].items()}, index=['meta']
+        {k: v["type"] for k, v in meta["columns"].items()}, index=["meta"]
     ).T
     df = pd.concat([var_types, dtypes.astype(str)], axis=1)
 
-    missing = df.loc[df['dtype'].isin([np.NaN])]['meta']
+    missing = df.loc[df["dtype"].isin([np.NaN])]["meta"]
     if missing.size > 0:
         print(
-            '\nSome meta not paired to data columns was found (these may be special data types):\n',
+            "\nSome meta not paired to data columns was found (these may be special data types):\n",
             missing,
-            '\n',
+            "\n",
         )
 
-    df = df.dropna(how='any')
-    df['verified'] = df.apply(lambda x: x['dtype'] in DTYPE_MAP[x['meta']], axis=1)
+    df = df.dropna(how="any")
+    df["verified"] = df.apply(lambda x: x["dtype"] in DTYPE_MAP[x["meta"]], axis=1)
 
     return df
 
 
-def coerce_dtypes_from_meta(data, meta):
-
+def coerce_dtypes_from_meta(data: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
     data = data.copy()
     verified = verify_dtypes_vs_meta(data, meta)
-    for idx in verified[~verified['verified']].index:
-        meta = verified.loc[idx]['meta']
-        dtype = verified.loc[idx]['dtype']
+    for idx in verified[~verified["verified"]].index:
+        meta = verified.loc[idx]["meta"]
+        dtype = verified.loc[idx]["dtype"]
         if meta in ["int", "single"]:
             if dtype in ["object"]:
                 data[idx] = data[idx].convert_objects(convert_numeric=True)
@@ -209,8 +215,8 @@ def coerce_dtypes_from_meta(data, meta):
     return data
 
 
-def read_ddf(path_ddf, auto_index_tables=True):
-    '''Returns a raw version of the DDF in the form of a dict of
+def read_ddf(path_ddf: Union[str, Path], auto_index_tables: bool = True) -> Dict[str, Any]:
+    """Returns a raw version of the DDF in the form of a dict of
     pandas DataFrames (one for each table in the DDF).
 
     Parameters
@@ -225,104 +231,100 @@ def read_ddf(path_ddf, auto_index_tables=True):
     Returns
     ----------
     dict of pandas DataFrames
-    '''
+    """
 
     # Read in the DDF (which is a sqlite file) and retain all available
     # information in the form of pandas DataFrames.
     with sqlite3.connect(path_ddf) as conn:
         ddf = {}
-        ddf['sqlite_master'] = pd.read_sql('SELECT * FROM sqlite_master;', conn)
-        ddf['tables'] = {
-            table_name: pd.read_sql(f'SELECT * FROM {table_name};', conn)
-            for table_name in ddf['sqlite_master']['tbl_name'].values
-            if table_name.startswith('L')
+        ddf["sqlite_master"] = pd.read_sql("SELECT * FROM sqlite_master;", conn)
+        ddf["tables"] = {
+            table_name: pd.read_sql(f"SELECT * FROM {table_name};", conn)
+            for table_name in ddf["sqlite_master"]["tbl_name"].values
+            if table_name.startswith("L")
         }
-        ddf['table_info'] = {
+        ddf["table_info"] = {
             table_name: pd.read_sql(f"PRAGMA table_info('{table_name}');", conn)
-            for table_name in list(ddf['tables'].keys())
+            for table_name in list(ddf["tables"].keys())
         }
 
     # If required, set the index for the expected Dataframes that should
     # result from the above operation.
     if auto_index_tables:
         try:
-            ddf['sqlite_master'].set_index(['name'], drop=False, inplace=True)
+            ddf["sqlite_master"].set_index(["name"], drop=False, inplace=True)
         except BaseException:
             print("Couldn't set 'name' into the index for 'sqlite_master'.")
-        for table_name in list(ddf['table_info'].keys()):
+        for table_name in list(ddf["table_info"].keys()):
             try:
-                ddf['table_info'][table_name].set_index(
-                    ['name'], drop=False, inplace=True
+                ddf["table_info"][table_name].set_index(
+                    ["name"], drop=False, inplace=True
                 )
             except BaseException:
                 print(f"Couldn't set 'name' into the index for '{table_name}'.")
 
-        for table_name in list(ddf['tables'].keys()):
-            index_col = 'TableName' if table_name == 'Levels' else ':P0'
+        for table_name in list(ddf["tables"].keys()):
+            index_col = "TableName" if table_name == "Levels" else ":P0"
             try:
-                ddf['table_info'][table_name].set_index(
-                    ['name'], drop=False, inplace=True
+                ddf["table_info"][table_name].set_index(
+                    ["name"], drop=False, inplace=True
                 )
             except BaseException:
                 print(
-                    f"Couldn't set '{index_col}' into the index for the '{table_name}' " "Dataframe."
+                    f"Couldn't set '{index_col}' into the index for the '{table_name}' "
+                    "Dataframe."
                 )
 
     return ddf
 
 
-def read_dimensions(path_mdd, path_ddf):
-
+def read_dimensions(
+    path_mdd: Union[str, Path], path_ddf: Union[str, Path]
+) -> Tuple[Dict[str, Any], pd.DataFrame]:
     meta, data = quantipy_from_dimensions(path_mdd, path_ddf)
     return meta, data
 
 
 def write_dimensions(
-    meta, data, path_mdd, path_ddf, text_key=None, CRLF="CR", run=True, clean_up=True
-):
-
-    default_stdout = sys.stdout
-    default_stderr = sys.stderr
-    importlib.reload(sys)
-    sys.setdefaultencoding("cp1252")
-    sys.stdout = default_stdout
-    sys.stderr = default_stderr
-
+    meta: Dict[str, Any], 
+    data: pd.DataFrame, 
+    path_mdd: Union[str, Path], 
+    path_ddf: Union[str, Path], 
+    text_key: Union[str, None] = None, 
+    crlf: str = "CR", 
+    run: bool = True, 
+    clean_up: bool = True
+) -> Any:
+    # Legacy Python 2 encoding handling removed for Python 3.10+ compatibility
     out = dimensions_from_quantipy(
-        meta, data, path_mdd, path_ddf, text_key, CRLF, run, clean_up
+        meta, data, path_mdd, path_ddf, text_key, crlf, run, clean_up
     )
-
-    default_stdout = sys.stdout
-    default_stderr = sys.stderr
-    importlib.reload(sys)
-    sys.setdefaultencoding("utf-8")
-    sys.stdout = default_stdout
-    sys.stderr = default_stderr
     return out
 
 
-def read_decipher(path_json, path_txt, text_key='main'):
-
+def read_decipher(
+    path_json: Union[str, Path], path_txt: Union[str, Path], text_key: str = "main"
+) -> Tuple[Dict[str, Any], pd.DataFrame]:
     meta, data = quantipy_from_decipher(path_json, path_txt, text_key)
     return meta, data
 
 
-def read_forsta_from_files(self, path_meta, path_data, verbose=True):
+def read_forsta_from_files(self: Any, path_meta: Union[str, Path], path_data: Union[str, Path], verbose: bool = True) -> Tuple[Dict[str, Any], pd.DataFrame]:
     meta, data = quantipy_from_forsta(self, path_meta, path_data, verbose)
     return meta, data
 
 
 def read_forsta_api(
-    self,
-    projectid,
-    public_url,
-    idp_url,
-    client_id,
-    client_secret,
-    schema_vars,
-    data_filter,
-    verbose,
-):
+    self: Any,
+    projectid: str,
+    public_url: str,
+    idp_url: str,
+    client_id: str,
+    client_secret: str,
+    schema_vars: Any,
+    data_filter: Any,
+    verbose: bool,
+) -> Tuple[Any, Any, Dict[str, Any], pd.DataFrame]:
     json_data, json_meta = get_surveys(
         projectid,
         public_url,
@@ -337,31 +339,37 @@ def read_forsta_api(
 
 
 def write_forsta_api(
-    self, projectid, public_url, idp_url, client_id, client_secret, schema_vars
-):
+    self: Any, 
+    projectid: str, 
+    public_url: str, 
+    idp_url: str, 
+    client_id: str, 
+    client_secret: str, 
+    schema_vars: Any
+) -> Any:
     return quantipy_to_forsta(
         self, projectid, public_url, idp_url, client_id, client_secret, schema_vars
     )
 
 
-def read_spss(path_sav, **kwargs):
-
+def read_spss(
+    path_sav: Union[str, Path], **kwargs: Any
+) -> Tuple[Dict[str, Any], pd.DataFrame]:
     meta, data = parse_sav_file(path_sav, **kwargs)
     return meta, data
 
 
 def write_spss(
-    path_sav,
-    meta,
-    data,
-    index=True,
-    text_key=None,
-    mrset_tag_style='__',
-    drop_delimited=True,
-    from_set=None,
-    verbose=False,
-):
-
+    path_sav: Union[str, Path],
+    meta: Dict[str, Any],
+    data: pd.DataFrame,
+    index: bool = True,
+    text_key: Union[str, None] = None,
+    mrset_tag_style: str = "__",
+    drop_delimited: bool = True,
+    from_set: Any = None,
+    verbose: bool = False,
+) -> None:
     save_sav(
         path_sav,
         meta,
@@ -375,13 +383,16 @@ def write_spss(
     )
 
 
-def read_ascribe(path_xml, path_txt, text_key='main'):
-
+def read_ascribe(
+    path_xml: Union[str, Path], path_txt: Union[str, Path], text_key: str = "main"
+) -> Tuple[Dict[str, Any], pd.DataFrame]:
     meta, data = quantipy_from_ascribe(path_xml, path_txt, text_key)
     return meta, data
 
 
-def read_quantipy(path_json, path_csv):
+def read_quantipy(
+    path_json: Union[str, Path], path_csv: Union[str, Path]
+) -> Tuple[Dict[str, Any], pd.DataFrame]:
     """
     Load Quantipy meta and data from disk.
     """
@@ -389,14 +400,19 @@ def read_quantipy(path_json, path_csv):
     meta = load_json(path_json)
     data = load_csv(path_csv)
 
-    for col in list(meta['columns'].keys()):
-        if meta['columns'][col]['type'] == 'date' and col in data.columns:
+    for col in list(meta["columns"].keys()):
+        if meta["columns"][col]["type"] == "date" and col in data.columns:
             data[col] = pd.to_datetime(data[col])
 
     return meta, data
 
 
-def write_quantipy(meta, data, path_json, path_csv):
+def write_quantipy(
+    meta: Dict[str, Any],
+    data: pd.DataFrame,
+    path_json: Union[str, Path],
+    path_csv: Union[str, Path],
+) -> None:
     """
     Save Quantipy meta and data to disk.
     """
