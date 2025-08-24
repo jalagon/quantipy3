@@ -23,7 +23,6 @@ CBASE = "x|f|x:|||cbase"
 COUNTS = "x|f|:|||counts"
 DEFAULT = "x|default|:|||default"
 
-@unittest.skip("Not yet supported in python 3")
 class TestStackObject(unittest.TestCase):
 
     def setUp(self):

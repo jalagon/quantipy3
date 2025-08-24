@@ -1,45 +1,54 @@
-
-#-*- coding: utf-8 -*-
-import io
-import itertools
-import json
-import pandas as pd
-import numpy as np
-import quantipy as qp
+# -*- coding: utf-8 -*-
 import copy
-import time
-import sys
-import warnings
-
-from .link import Link
-from .chain import Chain
-from .view import View
-from .helpers import functions
-from .view_generators.view_mapper import ViewMapper
-from .view_generators.view_maps import QuantipyViews
-from quantipy.core.tools.qp_decorators import modify
-from quantipy.core.tools.dp.spss.reader import parse_sav_file
-from quantipy.core.tools.dp.io import unicoder, write_quantipy
-from quantipy.core.tools.dp.prep import frequency, verify_test_results, frange
-from quantipy.core.tools.view.logic import (
-    has_any, has_all, has_count,
-    not_any, not_all, not_count,
-    is_lt, is_ne, is_gt,
-    is_le, is_eq, is_ge,
-    union, intersection, get_logic_index)
-from .cache import Cache
-
-import itertools
-from collections import defaultdict, OrderedDict
-
-# Pickle modules
-import pickle
 
 # Compression methods
 import gzip
+import io
+import itertools
+import json
 
+# Pickle modules
+import pickle
+import sys
+import time
+import warnings
+from collections import OrderedDict, defaultdict
+
+import numpy as np
+import pandas as pd
+
+import quantipy as qp
+from quantipy.core.tools.dp.io import unicoder, write_quantipy
+from quantipy.core.tools.dp.prep import frange, frequency, verify_test_results
+from quantipy.core.tools.dp.spss.reader import parse_sav_file
+from quantipy.core.tools.qp_decorators import modify
+from quantipy.core.tools.view.logic import (
+    get_logic_index,
+    has_all,
+    has_any,
+    has_count,
+    intersection,
+    is_eq,
+    is_ge,
+    is_gt,
+    is_le,
+    is_lt,
+    is_ne,
+    not_all,
+    not_any,
+    not_count,
+    union,
+)
 from quantipy.sandbox.sandbox import Chain as NewChain
 from quantipy.sandbox.sandbox import ChainManager
+
+from .cache import Cache
+from .chain import Chain
+from .helpers import functions
+from .link import Link
+from .view import View
+from .view_generators.view_mapper import ViewMapper
+from .view_generators.view_maps import QuantipyViews
 
 
 class Stack(defaultdict):
@@ -50,9 +59,7 @@ class Stack(defaultdict):
     relationships storing all View aggregations performed.
     """
 
-    def __init__(self,
-                 name="",
-                 add_data=None):
+    def __init__(self, name="", add_data=None):
 
         super(Stack, self).__init__(Stack)
 
@@ -76,13 +83,11 @@ class Stack(defaultdict):
                     self.add_data(
                         data_key=key,
                         data=add_data[key].get('data', None),
-                        meta=add_data[key].get('meta', None)
+                        meta=add_data[key].get('meta', None),
                     )
                 elif isinstance(add_data[key], tuple):
                     self.add_data(
-                        data_key=key,
-                        data=add_data[key][0],
-                        meta=add_data[key][1]
+                        data_key=key, data=add_data[key][0], meta=add_data[key][1]
                     )
                 else:
                     raise TypeError(
@@ -95,52 +100,57 @@ class Stack(defaultdict):
         self.__dict__.update(attr_dict)
 
     def __reduce__(self):
-        arguments = (self.name, )
+        arguments = (self.name,)
         state = self.__dict__.copy()
         if 'cache' in state:
             state.pop('cache')
-            state['cache'] = Cache() # Empty the cache for storage
+            state['cache'] = Cache()  # Empty the cache for storage
         return self.__class__, arguments, state, None, iter(self.items())
 
     def __setitem__(self, key, val):
-        """ The 'set' method for the Stack(dict)
+        """The 'set' method for the Stack(dict)
 
-            It 'sets' the value in it's correct place in the Stack
-            AND applies a 'stack_pos' value depending on WHERE in
-            the stack the value is being placed.
+        It 'sets' the value in it's correct place in the Stack
+        AND applies a 'stack_pos' value depending on WHERE in
+        the stack the value is being placed.
         """
         super(Stack, self).__setitem__(key, val)
 
         # The 'meta' portion of the stack is a standar dict (not Stack)
         try:
-            if isinstance(val, Stack) and val.stack_pos is "stack_root":
+            if isinstance(val, Stack) and val.stack_pos == "stack_root":
                 val.parent = self
                 val.key = key
 
                 # This needs to be compacted and simplified.
-                if self.stack_pos is "stack_root":
+                if self.stack_pos == "stack_root":
                     val.stack_pos = "data_root"
-                elif self.stack_pos is "data_root":
+                elif self.stack_pos == "data_root":
                     val.stack_pos = "filter"
-                elif self.stack_pos is "filter":
+                elif self.stack_pos == "filter":
                     val.stack_pos = "x"
 
         except AttributeError:
             pass
 
     def __getitem__(self, key):
-        """ The 'get' method for the Stack(dict)
+        """The 'get' method for the Stack(dict)
 
-            The method 'gets' a value from the stack. If 'stack_pos' is 'y'
-            AND the value isn't a Link instance THEN it tries to query the
-            stack again with the x/y variables swapped and IF that yelds
-            a result that is a Link object THEN it sets a 'transpose' variable
-            as True in the result and the result is transposed.
+        The method 'gets' a value from the stack. If 'stack_pos' is 'y'
+        AND the value isn't a Link instance THEN it tries to query the
+        stack again with the x/y variables swapped and IF that yelds
+        a result that is a Link object THEN it sets a 'transpose' variable
+        as True in the result and the result is transposed.
         """
         val = defaultdict.__getitem__(self, key)
         return val
 
-    def add_data(self, data_key, data=None, meta=None, ):
+    def add_data(
+        self,
+        data_key,
+        data=None,
+        meta=None,
+    ):
         """
         Sets the data_key into the stack, optionally mapping data sources it.
 
@@ -174,8 +184,13 @@ class Stack(defaultdict):
             if isinstance(data, pd.DataFrame):
                 if meta is None:
                     # To do: infer meta from DataFrame
-                    meta = {'info': None, 'lib': None, 'sets': None,
-                            'columns': None, 'masks': None}
+                    meta = {
+                        'info': None,
+                        'lib': None,
+                        'sets': None,
+                        'columns': None,
+                        'masks': None,
+                    }
                 # Add a special column of 1s
                 data['@1'] = np.ones(len(data.index))
                 data.index = list(range(0, len(data.index)))
@@ -243,7 +258,7 @@ class Stack(defaultdict):
             confirming only_type.
         """
         if self[data_key].meta['columns'] is None:
-            return 'No meta attached to data_key: %s' %(data_key)
+            return 'No meta attached to data_key: %s' % (data_key)
         else:
             types = {
                 'int': [],
@@ -253,28 +268,25 @@ class Stack(defaultdict):
                 'string': [],
                 'date': [],
                 'time': [],
-                'array': []
+                'array': [],
             }
             not_found = []
             for col in self[data_key].data.columns:
                 if not col in ['@1', 'id_L1', 'id_L1.1']:
                     try:
-                        types[
-                              self[data_key].meta['columns'][col]['type']
-                             ].append(col)
-                    except:
+                        types[self[data_key].meta['columns'][col]['type']].append(col)
+                    except KeyError:
                         not_found.append(col)
             for mask in list(self[data_key].meta['masks'].keys()):
                 types[self[data_key].meta['masks'][mask]['type']].append(mask)
             if not_found and verbose:
-                print('%s not found in meta file. Ignored.' %(not_found))
+                print('%s not found in meta file. Ignored.' % (not_found))
             if only_type:
                 return types[only_type]
             else:
                 return types
 
-    def apply_meta_edits(self, batch_name, data_key, filter_key=None,
-                         freeze=False):
+    def apply_meta_edits(self, batch_name, data_key, filter_key=None, freeze=False):
         """
         Take over meta_edits from Batch definitions.
 
@@ -304,7 +316,7 @@ class Stack(defaultdict):
                 try:
                     lib = batch['meta_edits']['lib'][name]
                     meta['lib']['values'][name] = lib
-                except:
+                except KeyError:
                     pass
             else:
                 meta['columns'][name] = e_meta
@@ -347,20 +359,32 @@ class Stack(defaultdict):
             raise NotImplementedError("'filter_key' is not implemented.")
         try:
             self[data_key].meta = copy.deepcopy(self[data_key].master_meta)
-        except:
+        except AttributeError:
+            # master_meta doesn't exist - this is acceptable
             pass
         return None
 
     def get_chain(self, *args, **kwargs):
 
         if qp.OPTIONS['new_chains']:
-                chain = ChainManager(self)
-                chain = chain.get(*args, **kwargs)
-                return chain
+            chain = ChainManager(self)
+            chain = chain.get(*args, **kwargs)
+            return chain
         else:
-            def _get_chain(name=None, data_keys=None, filters=None, x=None, y=None,
-                           views=None, orient_on=None, select=None,
-                           rules=False, rules_weight=None, described=None):
+
+            def _get_chain(
+                name=None,
+                data_keys=None,
+                filters=None,
+                x=None,
+                y=None,
+                views=None,
+                orient_on=None,
+                select=None,
+                rules=False,
+                rules_weight=None,
+                described=None,
+            ):
                 """
                 Construct a "chain" shaped subset of Links and their Views from the Stack.
 
@@ -386,19 +410,19 @@ class Stack(defaultdict):
                 chain : Chain object instance
                 """
 
-                #Make sure all the given keys are in lists
+                # Make sure all the given keys are in lists
                 data_keys = self._force_key_as_list(data_keys)
                 # filters = self._force_key_as_list(filters)
                 views = self._force_key_as_list(views)
 
-                #Make sure all the given keys are in lists
+                # Make sure all the given keys are in lists
                 x = self._force_key_as_list(x)
                 y = self._force_key_as_list(y)
 
                 if orient_on is None:
-                    if len(x)==1:
+                    if len(x) == 1:
                         orientation = 'x'
-                    elif len(y)==1:
+                    elif len(y) == 1:
                         orientation = 'y'
                     else:
                         orientation = 'x'
@@ -431,13 +455,14 @@ class Stack(defaultdict):
                         orientation=orient_on,
                         select=select,
                         rules=rules,
-                        rules_weight=rules_weight)
+                        rules_weight=rules_weight,
+                    )
                     return chains
                 else:
                     chain = Chain(name)
                     found_views = []
 
-                    #Make sure all the given keys are in lists
+                    # Make sure all the given keys are in lists
                     x = self._force_key_as_list(x)
                     y = self._force_key_as_list(y)
 
@@ -451,26 +476,41 @@ class Stack(defaultdict):
                         for key in data_keys:
                             # Use describe method to get x keys if not supplied.
                             if x is None:
-                                x_keys = described['x'].drop_duplicates().values.tolist()
+                                x_keys = (
+                                    described['x'].drop_duplicates().values.tolist()
+                                )
                             else:
                                 x_keys = x
 
                             # Use describe method to get y keys if not supplied.
                             if y is None:
-                                y_keys = described['y'].drop_duplicates().values.tolist()
+                                y_keys = (
+                                    described['y'].drop_duplicates().values.tolist()
+                                )
                             else:
                                 y_keys = y
 
-                             # Use describe method to get view keys if not supplied.
+                            # Use describe method to get view keys if not supplied.
                             if views is None:
-                                v_keys = described['view'].drop_duplicates().values.tolist()
-                                v_keys = [v_key for v_key in v_keys if '|default|'
-                                          not in v_key]
+                                v_keys = (
+                                    described['view'].drop_duplicates().values.tolist()
+                                )
+                                v_keys = [
+                                    v_key
+                                    for v_key in v_keys
+                                    if '|default|' not in v_key
+                                ]
                             else:
                                 v_keys = views
 
                             chain._derive_attributes(
-                                key, the_filter, x_keys, y_keys, views, orientation=orientation)
+                                key,
+                                the_filter,
+                                x_keys,
+                                y_keys,
+                                views,
+                                orientation=orientation,
+                            )
 
                             # Apply lazy name if none given
                             if name is None:
@@ -478,88 +518,162 @@ class Stack(defaultdict):
 
                             for x_key in x_keys:
                                 self._verify_key_exists(
-                                    x_key,
-                                    stack_path=[key, the_filter]
+                                    x_key, stack_path=[key, the_filter]
                                 )
 
                                 for y_key in y_keys:
                                     self._verify_key_exists(
-                                        y_key,
-                                        stack_path=[key, the_filter, x_key])
-
+                                        y_key, stack_path=[key, the_filter, x_key]
+                                    )
 
                                     try:
-                                        base_text = self[key].meta['columns'][x_key]['properties']['base_text']
+                                        base_text = self[key].meta['columns'][x_key][
+                                            'properties'
+                                        ]['base_text']
                                         if isinstance(base_text, str):
                                             if base_text.startswith(('Base:', 'Bas:')):
-                                                base_text = base_text.split(':')[-1].lstrip()
+                                                base_text = base_text.split(':')[
+                                                    -1
+                                                ].lstrip()
                                         elif isinstance(base_text, dict):
                                             for text_key in list(base_text.keys()):
-                                                if base_text[text_key].startswith(('Base:', 'Bas:')):
-                                                    base_text[text_key] = base_text[text_key].split(':')[-1].lstrip()
+                                                if base_text[text_key].startswith(
+                                                    ('Base:', 'Bas:')
+                                                ):
+                                                    base_text[text_key] = (
+                                                        base_text[text_key]
+                                                        .split(':')[-1]
+                                                        .lstrip()
+                                                    )
                                         chain.base_text = base_text
                                     except:
                                         pass
                                     if views is None:
-                                        chain[key][the_filter][x_key][y_key] = self[key][the_filter][x_key][y_key]
+                                        chain[key][the_filter][x_key][y_key] = self[
+                                            key
+                                        ][the_filter][x_key][y_key]
                                     else:
                                         stack_link = self[key][the_filter][x_key][y_key]
                                         link_keys = list(stack_link.keys())
                                         chain_link = {}
-                                        chain_view_keys = [k for k in views if k in link_keys]
+                                        chain_view_keys = [
+                                            k for k in views if k in link_keys
+                                        ]
                                         for vk in chain_view_keys:
                                             stack_view = stack_link[vk]
                                             # Get view dataframe
-                                            rules_x_slicer = self.axis_slicer_from_vartype(
-                                                rules, 'x', key, the_filter, x_key, y_key, rules_weight)
+                                            rules_x_slicer = (
+                                                self.axis_slicer_from_vartype(
+                                                    rules,
+                                                    'x',
+                                                    key,
+                                                    the_filter,
+                                                    x_key,
+                                                    y_key,
+                                                    rules_weight,
+                                                )
+                                            )
 
-                                            rules_y_slicer = self.axis_slicer_from_vartype(
-                                                rules, 'y', key, the_filter, x_key, y_key, rules_weight)
-                                            if rules_x_slicer is None and rules_y_slicer is None:
+                                            rules_y_slicer = (
+                                                self.axis_slicer_from_vartype(
+                                                    rules,
+                                                    'y',
+                                                    key,
+                                                    the_filter,
+                                                    x_key,
+                                                    y_key,
+                                                    rules_weight,
+                                                )
+                                            )
+                                            if (
+                                                rules_x_slicer is None
+                                                and rules_y_slicer is None
+                                            ):
                                                 # No rules to apply
                                                 view_df = stack_view.dataframe
                                             else:
                                                 # Apply rules
-                                                viable_axes = functions.rule_viable_axes(self[key].meta, vk, x_key, y_key)
-                                                transposed_array_sum = x_key == '@' and y_key in self[key].meta['masks']
+                                                viable_axes = (
+                                                    functions.rule_viable_axes(
+                                                        self[key].meta, vk, x_key, y_key
+                                                    )
+                                                )
+                                                transposed_array_sum = (
+                                                    x_key == '@'
+                                                    and y_key in self[key].meta['masks']
+                                                )
                                                 if not viable_axes:
                                                     # Axes are not viable for rules application
                                                     view_df = stack_view.dataframe
                                                 else:
-                                                    view_df = stack_view.dataframe.copy()
-                                                    if 'x' in viable_axes and not rules_x_slicer is None:
+                                                    view_df = (
+                                                        stack_view.dataframe.copy()
+                                                    )
+                                                    if (
+                                                        'x' in viable_axes
+                                                        and not rules_x_slicer is None
+                                                    ):
                                                         # Apply x-rules
                                                         rule_codes = set(rules_x_slicer)
-                                                        view_codes = set(view_df.index.tolist())
+                                                        view_codes = set(
+                                                            view_df.index.tolist()
+                                                        )
                                                         if not rule_codes - view_codes:
-                                                            view_df = view_df.loc[rules_x_slicer]
-                                                    if 'x' in viable_axes and transposed_array_sum and rules_y_slicer:
-                                                        view_df = view_df.loc[rules_y_slicer]
-                                                    if 'y' in viable_axes and not rules_y_slicer is None:
+                                                            view_df = view_df.loc[
+                                                                rules_x_slicer
+                                                            ]
+                                                    if (
+                                                        'x' in viable_axes
+                                                        and transposed_array_sum
+                                                        and rules_y_slicer
+                                                    ):
+                                                        view_df = view_df.loc[
+                                                            rules_y_slicer
+                                                        ]
+                                                    if (
+                                                        'y' in viable_axes
+                                                        and not rules_y_slicer is None
+                                                    ):
                                                         # Apply y-rules
-                                                        view_df = view_df[rules_y_slicer]
-                                                        if vk.split('|')[1].startswith('t.'):
-                                                            view_df = verify_test_results(view_df)
+                                                        view_df = view_df[
+                                                            rules_y_slicer
+                                                        ]
+                                                        if vk.split('|')[1].startswith(
+                                                            't.'
+                                                        ):
+                                                            view_df = (
+                                                                verify_test_results(
+                                                                    view_df
+                                                                )
+                                                            )
                                             chain_view = View(
                                                 link=stack_link,
-                                                name = stack_view.name,
-                                                kwargs=stack_view._kwargs)
+                                                name=stack_view.name,
+                                                kwargs=stack_view._kwargs,
+                                            )
                                             chain_view._notation = vk
-                                            chain_view.grp_text_map = stack_view.grp_text_map
+                                            chain_view.grp_text_map = (
+                                                stack_view.grp_text_map
+                                            )
                                             chain_view.dataframe = view_df
-                                            chain_view._custom_txt = stack_view._custom_txt
-                                            chain_view.add_base_text = stack_view.add_base_text
+                                            chain_view._custom_txt = (
+                                                stack_view._custom_txt
+                                            )
+                                            chain_view.add_base_text = (
+                                                stack_view.add_base_text
+                                            )
                                             chain_link[vk] = chain_view
                                             if vk not in found_views:
                                                 found_views.append(vk)
 
-                                        chain[key][the_filter][x_key][y_key] = chain_link
+                                        chain[key][the_filter][x_key][
+                                            y_key
+                                        ] = chain_link
                     else:
                         raise ValueError(
                             "One or more of your data_keys ({data_keys}) is not"
                             " in the stack ({stack_keys})".format(
-                                data_keys=data_keys,
-                                stack_keys=list(self.keys())
+                                data_keys=data_keys, stack_keys=list(self.keys())
                             )
                         )
 
@@ -567,14 +681,15 @@ class Stack(defaultdict):
                     # in the chain
                     if found_views:
                         chain.views = [
-                            view
-                            for view in chain.views
-                            if view in found_views]
+                            view for view in chain.views if view in found_views
+                        ]
                     return chain
 
             return _get_chain(*args, **kwargs)
 
-    def reduce(self, data_keys=None, filters=None, x=None, y=None, variables=None, views=None):
+    def reduce(
+        self, data_keys=None, filters=None, x=None, y=None, variables=None, views=None
+    ):
         '''
         Remove keys from the matching levels, erasing discrete Stack portions.
 
@@ -594,7 +709,7 @@ class Stack(defaultdict):
             x=x,
             y=y,
             variables=variables,
-            views=views
+            views=views,
         )
 
         # Make sure all the given keys are in lists
@@ -615,7 +730,7 @@ class Stack(defaultdict):
             'filter': filters,
             'x': x,
             'y': y,
-            'view': views
+            'view': views,
         }
 
         contents = self.describe()
@@ -668,8 +783,16 @@ class Stack(defaultdict):
                                 except:
                                     pass
 
-    def add_link(self, data_keys=None, filters=['no_filter'], x=None, y=None,
-                 views=None, weights=None, variables=None):
+    def add_link(
+        self,
+        data_keys=None,
+        filters=['no_filter'],
+        x=None,
+        y=None,
+        views=None,
+        weights=None,
+        variables=None,
+    ):
         """
         Add Link and View defintions to the Stack.
 
@@ -743,19 +866,13 @@ class Stack(defaultdict):
 
         # Get the lazy y keys none were given and there is only 1 x key
         if not x is None:
-            if len(x)==1 and y is None:
-                y = self.describe(
-                    index=['y'],
-                    query="x=='%s'" % (x[0])
-                ).index.tolist()
+            if len(x) == 1 and y is None:
+                y = self.describe(index=['y'], query="x=='%s'" % (x[0])).index.tolist()
 
         # Get the lazy x keys none were given and there is only 1 y key
         if not y is None:
-            if len(y)==1 and x is None:
-                x = self.describe(
-                    index=['x'],
-                    query="y=='%s'" % (y[0])
-                ).index.tolist()
+            if len(y) == 1 and x is None:
+                x = self.describe(index=['x'], query="y=='%s'" % (y[0])).index.tolist()
 
         for dk in data_keys:
             self._verify_key_exists(dk)
@@ -764,26 +881,35 @@ class Stack(defaultdict):
                 # ------------------------------------------------------
                 if qp.OPTIONS['fast_stack_filters']:
                     if not filter_def in list(self[dk].keys()):
-                        if filter_def=='no_filter':
+                        if filter_def == 'no_filter':
                             self[dk][filter_def].data = self[dk].data
                             self[dk][filter_def].meta = self[dk].meta
                         else:
                             if not qplogic_filter:
                                 try:
-                                    self[dk][filter_def].data = self[dk].data.query(logic)
+                                    self[dk][filter_def].data = self[dk].data.query(
+                                        logic
+                                    )
                                     self[dk][filter_def].meta = self[dk].meta
                                 except Exception as ex:
-                                    raise UserWarning('A filter definition is invalid and will be skipped: {filter_def}'.format(filter_def=filter_def))
+                                    raise UserWarning(
+                                        'A filter definition is invalid and will be skipped: {filter_def}'.format(
+                                            filter_def=filter_def
+                                        )
+                                    )
                                     continue
                             else:
                                 dataset = qp.DataSet('stack')
-                                dataset.from_components(self[dk].data, self[dk].meta,
-                                                        reset=False)
-                                f_dataset = dataset.filter(filter_def, logic, inplace=False)
+                                dataset.from_components(
+                                    self[dk].data, self[dk].meta, reset=False
+                                )
+                                f_dataset = dataset.filter(
+                                    filter_def, logic, inplace=False
+                                )
                                 self[dk][filter_def].data = f_dataset._data
                                 self[dk][filter_def].meta = f_dataset._meta
                 else:
-                    if filter_def=='no_filter':
+                    if filter_def == 'no_filter':
                         self[dk][filter_def].data = self[dk].data
                         self[dk][filter_def].meta = self[dk].meta
                     else:
@@ -792,7 +918,11 @@ class Stack(defaultdict):
                                 self[dk][filter_def].data = self[dk].data.query(logic)
                                 self[dk][filter_def].meta = self[dk].meta
                             except Exception as ex:
-                                raise UserWarning('A filter definition is invalid and will be skipped: {filter_def}'.format(filter_def=filter_def))
+                                raise UserWarning(
+                                    'A filter definition is invalid and will be skipped: {filter_def}'.format(
+                                        filter_def=filter_def
+                                    )
+                                )
                                 continue
                         else:
                             dataset = qp.DataSet('stack')
@@ -803,9 +933,22 @@ class Stack(defaultdict):
                 fdata = self[dk][filter_def].data
 
                 if len(fdata) == 0:
-                    raise UserWarning('A filter definition resulted in no cases and will be skipped: {filter_def}'.format(filter_def=filter_def))
+                    raise UserWarning(
+                        'A filter definition resulted in no cases and will be skipped: {filter_def}'.format(
+                            filter_def=filter_def
+                        )
+                    )
                     continue
-                self.__create_links(data=fdata, data_key=dk, the_filter=filter_def, x=x, y=y, views=views, weights=weights, variables=variables)
+                self.__create_links(
+                    data=fdata,
+                    data_key=dk,
+                    the_filter=filter_def,
+                    x=x,
+                    y=y,
+                    views=views,
+                    weights=weights,
+                    variables=variables,
+                )
 
     def describe(self, index=None, columns=None, query=None, split_view_names=False):
         """
@@ -833,9 +976,9 @@ class Stack(defaultdict):
             path_dk = [dk]
             filters = self[dk]
 
-#             for fk in filters.keys():
-#                 path_fk = path_dk + [fk]
-#                 xs = self[dk][fk]
+            #             for fk in filters.keys():
+            #                 path_fk = path_dk + [fk]
+            #                 xs = self[dk][fk]
 
             for fk in list(filters.keys()):
                 path_fk = path_dk + [fk]
@@ -862,24 +1005,30 @@ class Stack(defaultdict):
         if split_view_names:
             views_as_series = pd.DataFrame(
                 description.pivot_table(values='#', columns='view', aggfunc='count')
-                ).reset_index()['view']
-            parts = ['xpos', 'agg', 'condition', 'rel_to', 'weights',
-                     'shortname']
+            ).reset_index()['view']
+            parts = ['xpos', 'agg', 'condition', 'rel_to', 'weights', 'shortname']
             description = pd.concat(
-                (views_as_series,
-                 pd.DataFrame(views_as_series.str.split('|').tolist(),
-                              columns=parts)), axis=1)
+                (
+                    views_as_series,
+                    pd.DataFrame(
+                        views_as_series.str.split('|').tolist(), columns=parts
+                    ),
+                ),
+                axis=1,
+            )
 
         description.replace('|||||', np.NaN, inplace=True)
         if query is not None:
             description = description.query(query)
         if not index is None or not columns is None:
-            description = description.pivot_table(values='#', index=index, columns=columns,
-                                aggfunc='count')
+            description = description.pivot_table(
+                values='#', index=index, columns=columns, aggfunc='count'
+            )
         return description
 
-    def refresh(self, data_key, new_data_key='', new_weight=None,
-                new_data=None, new_meta=None):
+    def refresh(
+        self, data_key, new_data_key='', new_weight=None, new_data=None, new_meta=None
+    ):
         """
         Re-run all or a portion of Stack's aggregations for a given data key.
 
@@ -922,14 +1071,24 @@ class Stack(defaultdict):
         skipped_views = []
         for _, f, x, y, view in content.values:
             shortname = view.split('|')[-1]
-            if shortname not in ['default', 'cbase', 'cbase_gross',
-                                 'rbase', 'counts', 'c%',
-                                 'r%', 'ebase', 'mean',
-                                 'c%_sum', 'counts_sum']:
+            if shortname not in [
+                'default',
+                'cbase',
+                'cbase_gross',
+                'rbase',
+                'counts',
+                'c%',
+                'r%',
+                'ebase',
+                'mean',
+                'c%_sum',
+                'counts_sum',
+            ]:
                 if view not in skipped_views:
                     skipped_views.append(view)
-                    warning_msg = ('\nOnly preset QuantipyViews are supported.'
-                                   'Skipping: {}').format(view)
+                    warning_msg = (
+                        '\nOnly preset QuantipyViews are supported.' 'Skipping: {}'
+                    ).format(view)
                     print(warning_msg)
             else:
                 view_weight = view.split('|')[-2]
@@ -945,8 +1104,14 @@ class Stack(defaultdict):
                                 weight = None
                             else:
                                 weight = [None, new_weight]
-                        self.add_link(data_keys=dk, filters=f, x=x, y=y,
-                                      weights=weight, views=[shortname])
+                        self.add_link(
+                            data_keys=dk,
+                            filters=f,
+                            x=x,
+                            y=y,
+                            weights=weight,
+                            views=[shortname],
+                        )
                     else:
                         if view_weight == '':
                             weight = None
@@ -961,14 +1126,27 @@ class Stack(defaultdict):
                         else:
                             weight = view_weight
                         try:
-                            self.add_link(data_keys=dk, filters=f, x=x, y=y,
-                                          weights=weight, views=[shortname])
+                            self.add_link(
+                                data_keys=dk,
+                                filters=f,
+                                x=x,
+                                y=y,
+                                weights=weight,
+                                views=[shortname],
+                            )
                         except ValueError as e:
                             print('\n', e)
         return None
 
-    def save(self, path_stack, compression="gzip", store_cache=True,
-             decode_str=False, dataset=False, describe=False):
+    def save(
+        self,
+        path_stack,
+        compression="gzip",
+        store_cache=True,
+        decode_str=False,
+        dataset=False,
+        describe=False,
+    ):
         """
         Save Stack instance to .stack file.
 
@@ -1037,17 +1215,14 @@ class Stack(defaultdict):
 
         if dataset:
             for key in list(self.keys()):
-                path_json = path_stack.replace(
-                    '.stack',
-                    ' [{}].json'.format(key))
-                path_csv = path_stack.replace(
-                    '.stack',
-                    ' [{}].csv'.format(key))
+                path_json = path_stack.replace('.stack', ' [{}].json'.format(key))
+                path_csv = path_stack.replace('.stack', ' [{}].csv'.format(key))
                 write_quantipy(
                     meta=self[key].meta,
                     data=self[key].data,
                     path_json=path_json,
-                    path_csv=path_csv)
+                    path_csv=path_csv,
+                )
 
         if describe:
             path_describe = path_stack.replace('.stack', '.xlsx')
@@ -1060,7 +1235,9 @@ class Stack(defaultdict):
     # STATIC METHODS
 
     @staticmethod
-    def from_sav(data_key, filename, name=None, path=None, ioLocale="en_US.UTF-8", ioUtf8=True):
+    def from_sav(
+        data_key, filename, name=None, path=None, ioLocale="en_US.UTF-8", ioUtf8=True
+    ):
         """
         Creates a new stack instance from a .sav file.
 
@@ -1089,8 +1266,10 @@ class Stack(defaultdict):
         if name is None:
             name = data_key
 
-        meta, data = parse_sav_file(filename=filename, path=path, name=name, ioLocale=ioLocale, ioUtf8=ioUtf8)
-        return Stack(add_data={name: {'meta': meta, 'data':data}})
+        meta, data = parse_sav_file(
+            filename=filename, path=path, name=name, ioLocale=ioLocale, ioUtf8=ioUtf8
+        )
+        return Stack(add_data={name: {'meta': meta, 'data': data}})
 
     @staticmethod
     def load(path_stack, compression="gzip", load_cache=False):
@@ -1111,7 +1290,6 @@ class Stack(defaultdict):
         -------
         None
         """
-
 
         if not path_stack.endswith('.stack'):
             raise ValueError(
@@ -1141,27 +1319,35 @@ class Stack(defaultdict):
                 else:
                     raise ValueError(
                         "Tried to insert a loaded MatrixCache in to a data_key in the stack that"
-                        "is not in the stack. The data_key is '{}', available keys are {}"
-                        .format(key, list(caches.keys()))
+                        "is not in the stack. The data_key is '{}', available keys are {}".format(
+                            key, list(caches.keys())
+                        )
                     )
             f.close()
 
         return new_stack
 
-
     # PRIVATE METHODS
 
     def __get_all_y_keys(self, data_key, the_filter="no_filter"):
-        if(self.stack_pos == 'stack_root'):
+        if self.stack_pos == 'stack_root':
             return self[data_key].y_variables
         else:
-            raise KeyError("get_all_y_keys can only be called from a stack at root level. Current level is '{0}'".format(self.stack_pos))
+            raise KeyError(
+                "get_all_y_keys can only be called from a stack at root level. Current level is '{0}'".format(
+                    self.stack_pos
+                )
+            )
 
     def __get_all_x_keys(self, data_key, the_filter="no_filter"):
-        if(self.stack_pos == 'stack_root'):
+        if self.stack_pos == 'stack_root':
             return self[data_key].x_variables
         else:
-            raise KeyError("get_all_x_keys can only be called from a stack at root level. Current level is '{0}'".format(self.stack_pos))
+            raise KeyError(
+                "get_all_x_keys can only be called from a stack at root level. Current level is '{0}'".format(
+                    self.stack_pos
+                )
+            )
 
     def __get_all_x_keys_except(self, data_key, exception):
         keys = self.__get_all_x_keys(data_key)
@@ -1192,15 +1378,23 @@ class Stack(defaultdict):
             self[data_key].__set_x_key(x)
             self[data_key].__set_y_key(y)
         else:
-            raise KeyError("set_x_keys can only be called from a stack at root level. Current level is '{0}'".format(self.stack_pos))
+            raise KeyError(
+                "set_x_keys can only be called from a stack at root level. Current level is '{0}'".format(
+                    self.stack_pos
+                )
+            )
 
-    def __create_combinations(self, data, data_key, x=None, y=None, weight=None, variables=None):
+    def __create_combinations(
+        self, data, data_key, x=None, y=None, weight=None, variables=None
+    ):
         if isinstance(y, str):
             y = [y]
         if isinstance(x, str):
             x = [x]
 
-        has_metadata = self[data_key].meta is not None and not isinstance(self[data_key].meta, Stack)
+        has_metadata = self[data_key].meta is not None and not isinstance(
+            self[data_key].meta, Stack
+        )
 
         # any(...) returns true if ANY of the vars are not None
         if any([x, y]) and variables is not None:
@@ -1221,22 +1415,31 @@ class Stack(defaultdict):
         # Ensure that we actually have metadata
         if has_metadata:
             # THEN we try to create the combinations with metadata
-            combinations = self.__create_combinations_with_meta(data=data, data_key=data_key, x=x, y=y, weight=weight)
+            combinations = self.__create_combinations_with_meta(
+                data=data, data_key=data_key, x=x, y=y, weight=weight
+            )
         else:
             # Either variables or both x AND y are supplied. Then create the combinations from that.
-            combinations = self.__create_combinations_no_meta(data=data, data_key=data_key, x=x, y=y, weight=weight)
+            combinations = self.__create_combinations_no_meta(
+                data=data, data_key=data_key, x=x, y=y, weight=weight
+            )
 
         unique_list = set([item for comb in combinations for item in comb])
 
         return combinations, unique_list
 
-    def __create_combinations_with_meta(self, data, data_key, x=None, y=None, weight=None):
+    def __create_combinations_with_meta(
+        self, data, data_key, x=None, y=None, weight=None
+    ):
         # TODO: These meta functions should possibly be in the helpers functions
         metadata_columns = list(self[data_key].meta['columns'].keys())
         for mask, mask_data in self[data_key].meta['masks'].items():
             # TODO :: Get the static list from somewhere. not hardcoded.
-            if mask_data['type'].lower() in ['array', 'dichotomous set',
-                                             "categorical set"]:
+            if mask_data['type'].lower() in [
+                'array',
+                'dichotomous set',
+                "categorical set",
+            ]:
                 metadata_columns.append(mask)
                 for item in mask_data['items']:
                     if "source" in item:
@@ -1254,25 +1457,34 @@ class Stack(defaultdict):
             metadata_columns = list(set(metadata_columns + x))
         elif y is not None:
             metadata_columns = list(set(metadata_columns + y))
-        combinations = functions.create_combinations_from_array(sorted(metadata_columns))
+        combinations = functions.create_combinations_from_array(
+            sorted(metadata_columns)
+        )
 
         for var in [x, y]:
             if var is not None:
                 if weight in var:
                     var.remove(weight)
         if all([x, y]):
-            combinations = [(x_item, y_item) for x_item, y_item in combinations
-                            if x_item in x and y_item in y]
+            combinations = [
+                (x_item, y_item)
+                for x_item, y_item in combinations
+                if x_item in x and y_item in y
+            ]
         elif x is not None:
-            combinations = [(x_item, y_item) for x_item, y_item in combinations
-                            if x_item in x]
+            combinations = [
+                (x_item, y_item) for x_item, y_item in combinations if x_item in x
+            ]
         elif y is not None:
-            combinations = [(x_item, y_item) for x_item, y_item in combinations
-                            if y_item in y]
+            combinations = [
+                (x_item, y_item) for x_item, y_item in combinations if y_item in y
+            ]
 
         return combinations
 
-    def __create_combinations_no_meta(self, data, data_key, x=None, y=None, weight=None):
+    def __create_combinations_no_meta(
+        self, data, data_key, x=None, y=None, weight=None
+    ):
         if x is None:
             x = data.columns.tolist()
         if y is None:
@@ -1280,14 +1492,25 @@ class Stack(defaultdict):
         for var in [x, y]:
             if weight in var:
                 var.remove(weight)
-        combinations = [(x_item, y_item) for x_item in x for y_item
-                        in y if x_item != y_item]
+        combinations = [
+            (x_item, y_item) for x_item in x for y_item in y if x_item != y_item
+        ]
         self._set_x_and_y_keys(data_key, x, y)
 
         return combinations
 
-    def __create_links(self, data, data_key, views, variables=None, x=None, y=None,
-                       the_filter=None, store_view_in_link=False, weights=None):
+    def __create_links(
+        self,
+        data,
+        data_key,
+        views,
+        variables=None,
+        x=None,
+        y=None,
+        the_filter=None,
+        store_view_in_link=False,
+        weights=None,
+    ):
         if views is not None:
             has_links = True if list(self[data_key][the_filter].keys()) else False
             if has_links:
@@ -1298,9 +1521,13 @@ class Stack(defaultdict):
                     x = set(valid_x)
                 else:
                     x = xs
-                ys = list(set(itertools.chain.from_iterable(
-                    [list(self[data_key][the_filter][xk].keys())
-                     for xk in xs])))
+                ys = list(
+                    set(
+                        itertools.chain.from_iterable(
+                            [list(self[data_key][the_filter][xk].keys()) for xk in xs]
+                        )
+                    )
+                )
                 if y is not None:
                     valid_y = [yk for yk in ys if yk in y]
                     valid_y.extend(y)
@@ -1309,47 +1536,47 @@ class Stack(defaultdict):
                     y = ys
         if self._x_and_y_keys_in_file(data_key, data, x, y):
             for x_key, y_key in itertools.product(x, y):
-                if x_key==y_key and x_key=='@':
+                if x_key == y_key and x_key == '@':
                     continue
                 if y_key == '@':
                     if not isinstance(self[data_key][the_filter][x_key][y_key], Link):
                         link = Link(
-                                    the_filter=the_filter,
-                                    x=x_key,
-                                    y='@',
-                                    data_key=data_key,
-                                    stack=self,
-                                    store_view=store_view_in_link,
-                                    create_views=False
-                                    )
+                            the_filter=the_filter,
+                            x=x_key,
+                            y='@',
+                            data_key=data_key,
+                            stack=self,
+                            store_view=store_view_in_link,
+                            create_views=False,
+                        )
                         self[data_key][the_filter][x_key]['@'] = link
                     else:
                         link = self[data_key][the_filter][x_key]['@']
                 elif x_key == '@':
                     if not isinstance(self[data_key][the_filter][x_key][y_key], Link):
                         link = Link(
-                                    the_filter=the_filter,
-                                    x='@',
-                                    y=y_key,
-                                    data_key=data_key,
-                                    stack=self,
-                                    store_view=store_view_in_link,
-                                    create_views=False
-                                    )
+                            the_filter=the_filter,
+                            x='@',
+                            y=y_key,
+                            data_key=data_key,
+                            stack=self,
+                            store_view=store_view_in_link,
+                            create_views=False,
+                        )
                         self[data_key][the_filter]['@'][y_key] = link
                     else:
                         link = self[data_key][the_filter]['@'][y_key]
                 else:
                     if not isinstance(self[data_key][the_filter][x_key][y_key], Link):
                         link = Link(
-                                    the_filter=the_filter,
-                                    x=x_key,
-                                    y=y_key,
-                                    data_key=data_key,
-                                    stack=self,
-                                    store_view=store_view_in_link,
-                                    create_views=False
-                                    )
+                            the_filter=the_filter,
+                            x=x_key,
+                            y=y_key,
+                            data_key=data_key,
+                            stack=self,
+                            store_view=store_view_in_link,
+                            create_views=False,
+                        )
                         self[data_key][the_filter][x_key][y_key] = link
                     else:
                         link = self[data_key][the_filter][x_key][y_key]
@@ -1358,21 +1585,26 @@ class Stack(defaultdict):
 
     def _x_and_y_keys_in_file(self, data_key, data, x, y):
         data_columns = data.columns.tolist()
-        if '>' in ','.join(y): y = self._clean_from_nests(y)
+        if '>' in ','.join(y):
+            y = self._clean_from_nests(y)
         if '>' in ','.join(x):
             raise NotImplementedError('x-axis Nesting not supported.')
-        x_not_found = [var for var in x if not var in data_columns
-                       and not var == '@']
-        y_not_found = [var for var in y if not var in data_columns
-                       and not var == '@']
+        x_not_found = [var for var in x if not var in data_columns and not var == '@']
+        y_not_found = [var for var in y if not var in data_columns and not var == '@']
         if x_not_found is not None:
-            masks_meta_lookup_x = [var for var in x_not_found
-                                   if var in list(self[data_key].meta['masks'].keys())]
+            masks_meta_lookup_x = [
+                var
+                for var in x_not_found
+                if var in list(self[data_key].meta['masks'].keys())
+            ]
             for found_in_meta in masks_meta_lookup_x:
                 x_not_found.remove(found_in_meta)
         if y_not_found is not None:
-            masks_meta_lookup_y = [var for var in y_not_found
-                                   if var in list(self[data_key].meta['masks'].keys())]
+            masks_meta_lookup_y = [
+                var
+                for var in y_not_found
+                if var in list(self[data_key].meta['masks'].keys())
+            ]
             for found_in_meta in masks_meta_lookup_y:
                 y_not_found.remove(found_in_meta)
         if not x_not_found and not y_not_found:
@@ -1380,15 +1612,17 @@ class Stack(defaultdict):
         elif x_not_found and y_not_found:
             raise ValueError(
                 'data key {}: x: {} and y: {} not found.'.format(
-                    data_key, x_not_found, y_not_found))
+                    data_key, x_not_found, y_not_found
+                )
+            )
         elif x_not_found:
             raise ValueError(
-                'data key {}: x: {} not found.'.format(
-                    data_key, x_not_found))
+                'data key {}: x: {} not found.'.format(data_key, x_not_found)
+            )
         elif y_not_found:
             raise ValueError(
-                'data key {}: y: {} not found.'.format(
-                    data_key, y_not_found))
+                'data key {}: y: {} not found.'.format(data_key, y_not_found)
+            )
 
     def _clean_from_nests(self, variables):
         cleaned = []
@@ -1422,31 +1656,43 @@ class Stack(defaultdict):
         Check if object contains a list of strings.
         """
         keys = list(self.keys())
-        for i in range(len(keys)-len(small)+1):
+        for i in range(len(keys) - len(small) + 1):
             for j in range(len(small)):
-                if keys[i+j] != small[j]:
+                if keys[i + j] != small[j]:
                     break
             else:
-                return i, i+len(small)
+                return i, i + len(small)
         return False
 
     def __get_all_combinations(self, list_of_items):
-        """Generates all combinations of items from a list """
-        return [itertools.combinations(list_of_items, index+1)
-                for index in range(len(list_of_items))]
+        """Generates all combinations of items from a list"""
+        return [
+            itertools.combinations(list_of_items, index + 1)
+            for index in range(len(list_of_items))
+        ]
 
     def __get_stack_pointer(self, stack_pos):
         """Takes a stack_pos and returns the stack with that location
-            raises an exception IF the stack pointer is not found
+        raises an exception IF the stack pointer is not found
         """
         if self.parent.stack_pos == stack_pos:
             return self.parent
         else:
             return self.parent.__get_stack_pointer(stack_pos)
 
-    def __get_chains(self, name, data_keys, filters, x, y, views,
-                     orientation, select, rules,
-                     rules_weight):
+    def __get_chains(
+        self,
+        name,
+        data_keys,
+        filters,
+        x,
+        y,
+        views,
+        orientation,
+        select,
+        rules,
+        rules_weight,
+    ):
         """
         List comprehension wrapper around .get_chain().
         """
@@ -1461,7 +1707,7 @@ class Stack(defaultdict):
                     views=views,
                     select=select,
                     rules=rules,
-                    rules_weight=rules_weight
+                    rules_weight=rules_weight,
                 )
                 for y_var in y
             ]
@@ -1476,17 +1722,16 @@ class Stack(defaultdict):
                     views=views,
                     select=select,
                     rules=rules,
-                    rules_weight=rules_weight
+                    rules_weight=rules_weight,
                 )
                 for x_var in x
             ]
         else:
-            raise ValueError(
-                "Unknown orientation type. Please use 'x' or 'y'."
-            )
+            raise ValueError("Unknown orientation type. Please use 'x' or 'y'.")
 
-    def _verify_multiple_key_types(self, data_keys=None, filters=None, x=None,
-                                   y=None, variables=None, views=None):
+    def _verify_multiple_key_types(
+        self, data_keys=None, filters=None, x=None, y=None, variables=None, views=None
+    ):
         """
         Verify that the given keys str or unicode or a list or tuple of those.
         """
@@ -1533,14 +1778,12 @@ class Stack(defaultdict):
             elif len(stack_path) == 1:
                 if key not in self[dk]:
                     key_type, keys_found = 'filter', list(self[dk].keys())
-                    stack_path = "stack['{dk}']".format(
-                        dk=dk)
+                    stack_path = "stack['{dk}']".format(dk=dk)
                     raise ValueError
             elif len(stack_path) == 2:
                 if key not in self[dk][fk]:
                     key_type, keys_found = 'x', list(self[dk][fk].keys())
-                    stack_path = "stack['{dk}']['{fk}']".format(
-                        dk=dk, fk=fk)
+                    stack_path = "stack['{dk}']['{fk}']".format(dk=dk, fk=fk)
                     raise ValueError
             elif len(stack_path) == 3:
                 meta = self[dk].meta
@@ -1549,21 +1792,25 @@ class Stack(defaultdict):
                 elif key not in self[dk][fk][xk]:
                     key_type, keys_found = 'y', list(self[dk][fk][xk].keys())
                     stack_path = "stack['{dk}']['{fk}']['{xk}']".format(
-                        dk=dk, fk=fk, xk=xk)
+                        dk=dk, fk=fk, xk=xk
+                    )
                     raise ValueError
             elif len(stack_path) == 4:
                 if key not in self[dk][fk][xk][yk]:
                     key_type, keys_found = 'view', list(self[dk][fk][xk][yk].keys())
                     stack_path = "stack['{dk}']['{fk}']['{xk}']['{yk}']".format(
-                        dk=dk, fk=fk, xk=xk, yk=yk)
+                        dk=dk, fk=fk, xk=xk, yk=yk
+                    )
                     raise ValueError
         except ValueError:
-            print(error_msg.format(
-                key_type=key_type,
-                key=key,
-                stack_path=stack_path,
-                keys_found=keys_found
-            ))
+            print(
+                error_msg.format(
+                    key_type=key_type,
+                    key=key,
+                    stack_path=stack_path,
+                    keys_found=keys_found,
+                )
+            )
 
     def _force_key_as_list(self, key):
         """Returns key as [key] if it is str or unicode"""
@@ -1602,8 +1849,9 @@ class Stack(defaultdict):
         groups['codes'] = [c for c, d in list(description.items()) if d == 'normal']
         return groups
 
-    def sort_expanded_nets(self, view, within=True, between=True, ascending=False,
-                           fix=None):
+    def sort_expanded_nets(
+        self, view, within=True, between=True, ascending=False, fix=None
+    ):
         if not within and not between:
             return view.dataframe
         df = view.dataframe
@@ -1615,13 +1863,17 @@ class Stack(defaultdict):
                 fix_codes = [fix]
             else:
                 fix_codes = fix
-            fix_codes = [c for c in fix_codes if c in
-                         df.index.get_level_values(1).tolist()]
+            fix_codes = [
+                c for c in fix_codes if c in df.index.get_level_values(1).tolist()
+            ]
         net_groups = self._find_groups(view)
         sort_col = (df.columns.levels[0][0], '@')
-        sort = [(name, v) for v in df.index.get_level_values(1)
-                if (v in net_groups['codes'] or
-                v in list(net_groups.keys())) and not v in fix_codes]
+        sort = [
+            (name, v)
+            for v in df.index.get_level_values(1)
+            if (v in net_groups['codes'] or v in list(net_groups.keys()))
+            and not v in fix_codes
+        ]
         if between:
             if pd.__version__ == '0.19.2':
                 temp_df = df.loc[sort].sort_values(sort_col, 0, ascending=ascending)
@@ -1644,9 +1896,13 @@ class Stack(defaultdict):
                 sort = [(name, v) for v in g[1:]]
                 if within:
                     if pd.__version__ == '0.19.2':
-                        temp_df = df.loc[sort].sort_values(sort_col, 0, ascending=ascending)
+                        temp_df = df.loc[sort].sort_values(
+                            sort_col, 0, ascending=ascending
+                        )
                     else:
-                        temp_df = df.loc[sort].sort_index(0, sort_col, ascending=ascending)
+                        temp_df = df.loc[sort].sort_index(
+                            0, sort_col, ascending=ascending
+                        )
                 else:
                     temp_df = df.loc[sort]
                 new_idx = [fixed_net_name] + temp_df.index.get_level_values(1).tolist()
@@ -1669,14 +1925,19 @@ class Stack(defaultdict):
             try:
                 f = self[data_key][the_filter]['@'][col][vk].dataframe.T
             except (KeyError, AttributeError) as e:
-                f = frequency(self[data_key].meta, self[data_key].data, x=col, weight=weight)
+                f = frequency(
+                    self[data_key].meta, self[data_key].data, x=col, weight=weight
+                )
         return f
 
     def get_descriptive_via_stack(self, data_key, the_filter, col, weight=None):
         l = self[data_key][the_filter][col]['@']
         w = '' if weight is None else weight
-        mean_key = [k for k in list(l.keys()) if 'd.mean' in k.split('|')[1] and
-                    k.split('|')[-2] == w]
+        mean_key = [
+            k
+            for k in list(l.keys())
+            if 'd.mean' in k.split('|')[1] and k.split('|')[-2] == w
+        ]
         if not mean_key:
             msg = "No mean view to sort '{}' on found!"
             raise RuntimeError(msg.format(col))
@@ -1695,7 +1956,9 @@ class Stack(defaultdict):
     def _is_transposed_summary(self, meta, x, y):
         return x == '@' and y in meta['masks']
 
-    def axis_slicer_from_vartype(self, all_rules_axes, rules_axis, dk, the_filter, x, y, rules_weight):
+    def axis_slicer_from_vartype(
+        self, all_rules_axes, rules_axis, dk, the_filter, x, y, rules_weight
+    ):
         if rules_axis == 'x' and 'x' not in all_rules_axes:
             return None
         elif rules_axis == 'y' and 'y' not in all_rules_axes:
@@ -1710,31 +1973,45 @@ class Stack(defaultdict):
         if rules_axis == 'x':
             if not array_summary and not transposed_summary:
                 axis_slicer = self.get_rules_slicer_via_stack(
-                    dk, the_filter, x=x, weight=rules_weight)
+                    dk, the_filter, x=x, weight=rules_weight
+                )
             elif array_summary:
                 axis_slicer = self.get_rules_slicer_via_stack(
-                    dk, the_filter, x=x, y='@', weight=rules_weight,
-                    slice_array_items=True)
+                    dk,
+                    the_filter,
+                    x=x,
+                    y='@',
+                    weight=rules_weight,
+                    slice_array_items=True,
+                )
             elif transposed_summary:
                 axis_slicer = self.get_rules_slicer_via_stack(
-                    dk, the_filter, x='@', y=y, weight=rules_weight)
+                    dk, the_filter, x='@', y=y, weight=rules_weight
+                )
         elif rules_axis == 'y':
             if not array_summary and not transposed_summary:
                 axis_slicer = self.get_rules_slicer_via_stack(
-                    dk, the_filter, y=y, weight=rules_weight)
+                    dk, the_filter, y=y, weight=rules_weight
+                )
             elif array_summary:
                 axis_slicer = self.get_rules_slicer_via_stack(
-                    dk, the_filter, x=x, y='@', weight=rules_weight,
-                    slice_array_items=False)
+                    dk,
+                    the_filter,
+                    x=x,
+                    y='@',
+                    weight=rules_weight,
+                    slice_array_items=False,
+                )
             elif transposed_summary:
                 axis_slicer = self.get_rules_slicer_via_stack(
-                    dk, the_filter, x='@', y=y, weight=rules_weight)
+                    dk, the_filter, x='@', y=y, weight=rules_weight
+                )
 
         return axis_slicer
 
-    def get_rules_slicer_via_stack(self, data_key, the_filter,
-                                   x=None, y=None, weight=None,
-                                   slice_array_items=False):
+    def get_rules_slicer_via_stack(
+        self, data_key, the_filter, x=None, y=None, weight=None, slice_array_items=False
+    ):
         m = self[data_key].meta
         array_summary = self._is_array_summary(m, x, y)
         transposed_summary = self._is_transposed_summary(m, x, y)
@@ -1770,26 +2047,33 @@ class Stack(defaultdict):
                     pass
 
         elif transposed_summary:
-                try:
-                    rules = self[data_key].meta['masks'][y]['rules']['x']
-                    col = y
-                except:
-                    pass
+            try:
+                rules = self[data_key].meta['masks'][y]['rules']['x']
+                col = y
+            except:
+                pass
 
-        if not rules: return None
+        if not rules:
+            return None
         views = list(self[data_key][the_filter][col]['@'].keys())
         w = '' if weight is None else weight
-        expanded_net = [v for v in views if '}+]' in v
-                        and v.split('|')[-2] == w
-                        and v.split('|')[1] == 'f' and
-                        not v.split('|')[3] == 'x']
+        expanded_net = [
+            v
+            for v in views
+            if '}+]' in v
+            and v.split('|')[-2] == w
+            and v.split('|')[1] == 'f'
+            and not v.split('|')[3] == 'x'
+        ]
         if expanded_net:
             if len(expanded_net) > 1:
                 if len(expanded_net) == 2:
                     if expanded_net[0].split('|')[2] == expanded_net[1].split('|')[2]:
                         expanded_net = expanded_net[0]
                 else:
-                    msg = "Multiple 'expand' using views found for '{}'. Unable to sort!"
+                    msg = (
+                        "Multiple 'expand' using views found for '{}'. Unable to sort!"
+                    )
                     raise RuntimeError(msg.format(col))
             else:
                 expanded_net = expanded_net[0]
@@ -1798,19 +2082,18 @@ class Stack(defaultdict):
         else:
             on_mean = False
         if 'sortx' in rules and on_mean:
-            f = self.get_descriptive_via_stack(
-                data_key, the_filter, col, weight=weight)
+            f = self.get_descriptive_via_stack(data_key, the_filter, col, weight=weight)
         elif 'sortx' in rules and expanded_net:
             within = rules['sortx'].get('within', False)
             between = rules['sortx'].get('between', False)
             fix = rules['sortx'].get('fixed', False)
             ascending = rules['sortx'].get('ascending', False)
             view = self[data_key][the_filter][col]['@'][expanded_net]
-            f = self.sort_expanded_nets(view, between=between, within=within,
-                                        ascending=ascending, fix=fix)
+            f = self.sort_expanded_nets(
+                view, between=between, within=within, ascending=ascending, fix=fix
+            )
         else:
-            f = self.get_frequency_via_stack(
-                data_key, the_filter, col, weight=weight)
+            f = self.get_frequency_via_stack(data_key, the_filter, col, weight=weight)
 
         if transposed_summary or (not slice_array_items and array_summary):
             rules_slicer = functions.get_rules_slicer(f.T, rules)
@@ -1853,10 +2136,11 @@ class Stack(defaultdict):
             return batches
 
     def _x_y_f_w_map(self, dk, batches='all'):
-        """
-        """
+        """ """
+
         def _append_loop(mapping, x, fi, w, ys):
-            if fi: fi = fi.encode('utf8')
+            if fi:
+                fi = fi.encode('utf8')
             fn = 'no_filter' if fi is None else fi
             f = 'no_filter' if fi is None else {fi: {fi: 0}}
             if not x in mapping:
@@ -1877,9 +2161,9 @@ class Stack(defaultdict):
         for batch in batches:
             b = self[dk].meta['sets']['batches'][batch]
             xy = b['x_y_map']
-            f  = b['x_filter_map']
+            f = b['x_filter_map']
             fy = b['y_filter_map']
-            w  = b['weights']
+            w = b['weights']
             for x, y in xy:
                 if x == '@':
                     y = y[0]
@@ -1893,8 +2177,16 @@ class Stack(defaultdict):
         return mapping, y_on_y
 
     @modify(to_list=['views', 'categorize', 'xs', 'batches'])
-    def aggregate(self, views, unweighted_base=True, categorize=[],
-                  batches='all', xs=None, bases={}, verbose=True):
+    def aggregate(
+        self,
+        views,
+        unweighted_base=True,
+        categorize=[],
+        batches='all',
+        xs=None,
+        bases={},
+        verbose=True,
+    ):
 
         """
         Add views to all defined ``qp.Link`` in ``qp.Stack``.
@@ -1930,8 +2222,10 @@ class Stack(defaultdict):
             new_bases = {}
             for ba in valid_bases:
                 if ba in views:
-                    new_bases[ba] = {'unwgt': False if ba=='ebase' else unweighted_base,
-                                     'wgt': True}
+                    new_bases[ba] = {
+                        'unwgt': False if ba == 'ebase' else unweighted_base,
+                        'wgt': True,
+                    }
             views = [v for v in views if not v in valid_bases]
         else:
             new_bases = bases
@@ -1950,11 +2244,13 @@ class Stack(defaultdict):
         if isinstance(views, ViewMapper) and list(views.keys()) == ['net']:
             counts_nets = qp.ViewMapper()
             counts_nets.make_template('frequency', {'rel_to': [None, 'y']})
-            options = {'logic': views['net']['kwargs']['logic'],
-                       'axis': 'x',
-                       'expand': views['net']['kwargs']['expand'],
-                       'complete': views['net']['kwargs']['complete'],
-                       'calc': views['net']['kwargs']['calc']}
+            options = {
+                'logic': views['net']['kwargs']['logic'],
+                'axis': 'x',
+                'expand': views['net']['kwargs']['expand'],
+                'complete': views['net']['kwargs']['complete'],
+                'calc': views['net']['kwargs']['calc'],
+            }
             counts_nets.add_method('net', kwargs=options)
         else:
             counts_nets = [v for v in views if v in count_net_views]
@@ -1962,7 +2258,8 @@ class Stack(defaultdict):
         x_in_stack = self.describe('x').index.tolist()
         for dk in list(self.keys()):
             batches = self._check_batches(dk, batches)
-            if not batches: return None
+            if not batches:
+                return None
             # check for unweighted_counts
             batch = self[dk].meta['sets']['batches']
             unwgt_c = any(batch[b].get('unwgt_counts') for b in batches)
@@ -1977,9 +2274,13 @@ class Stack(defaultdict):
             numerics = v_typ['int'] + v_typ['float']
             masks = self[dk].meta['masks']
             num_arrays = [m for m in masks if masks[m]['subtype'] in ['int', 'float']]
-            if num_arrays: numerics = numerics + num_arrays
-            skipped = [x for x in xs if (x in numerics and not x in categorize)
-                       and not isinstance(x, tuple)]
+            if num_arrays:
+                numerics = numerics + num_arrays
+            skipped = [
+                x
+                for x in xs
+                if (x in numerics and not x in categorize) and not isinstance(x, tuple)
+            ]
             total_len = len(xs)
             # loop over map and aggregate views
             if total_len == 0:
@@ -1998,15 +2299,19 @@ class Stack(defaultdict):
                     f = f_dict['f']
                     f_key = list(f.keys())[0] if isinstance(f, dict) else f
                     for weight, y in list(f_dict.items()):
-                        if weight == 'f': continue
-                        if y_trans: y = y_trans
+                        if weight == 'f':
+                            continue
+                        if y_trans:
+                            y = y_trans
                         w = list(weight) if weight else None
                         # add bases
                         for ba, weights in list(new_bases.items()):
                             ba_w = [b_w for b_w in w if not b_w is None]
                             if weights.get('wgt') and ba_w:
                                 self.add_link(dk, f, x=x, y=y, views=[ba], weights=ba_w)
-                            if (weights.get('wgt') and not ba_w) or weights.get('unwgt'):
+                            if (weights.get('wgt') and not ba_w) or weights.get(
+                                'unwgt'
+                            ):
                                 self.add_link(dk, f, x=x, y=y, views=[ba], weights=None)
                         # remove existing nets for link if new view is a net
                         if isinstance(v, ViewMapper) and v.get('net') and not y_trans:
@@ -2015,28 +2320,36 @@ class Stack(defaultdict):
                                 for view in list(link.keys()):
                                     is_net = view.split('|')[-1] == 'net'
                                     has_w = view.split('|')[-2]
-                                    if not has_w: has_w = None
+                                    if not has_w:
+                                        has_w = None
                                     if is_net and has_w in list(f_dict.keys()):
                                         del link[view]
                         # add unweighted views for counts/ nets
                         if unwgt_c and counts_nets and not None in w:
-                            self.add_link(dk, f, x=x, y=y, views=counts_nets, weights=None)
+                            self.add_link(
+                                dk, f, x=x, y=y, views=counts_nets, weights=None
+                            )
                         # add common views
                         self.add_link(dk, f, x=x, y=y, views=v, weights=w)
                         # remove views if complete (cumsum/ nets)
                         if complete:
                             for ys in y:
-                                y_on_ys = y_on_y.get(x, {}).get(f_key, {}).get(tuple(w), [])
-                                if ys in y_on_ys: continue
+                                y_on_ys = (
+                                    y_on_y.get(x, {}).get(f_key, {}).get(tuple(w), [])
+                                )
+                                if ys in y_on_ys:
+                                    continue
                                 link = self[dk][f_key][x][ys]
                                 for ws in w:
                                     pct = 'x|f|:|y|{}|c%'.format('' if not ws else ws)
-                                    counts = 'x|f|:||{}|counts'.format('' if not ws else ws)
+                                    counts = 'x|f|:||{}|counts'.format(
+                                        '' if not ws else ws
+                                    )
                                     for view in [pct, counts]:
                                         if view in link:
                                             del link[view]
                 if verbose:
-                    done = float(idx) / float(total_len) *100
+                    done = float(idx) / float(total_len) * 100
                     print('\r', end=' ')
                     time.sleep(0.01)
                     print('Stack [{}]: {} %'.format(dk, round(done, 1)), end=' ')
@@ -2044,8 +2357,10 @@ class Stack(defaultdict):
             print('\n')
 
             if skipped and verbose:
-                msg = ("\n\nWarning: Found {} non-categorized numeric variable(s): {}.\n"
-                       "Descriptive statistics must be added!")
+                msg = (
+                    "\n\nWarning: Found {} non-categorized numeric variable(s): {}.\n"
+                    "Descriptive statistics must be added!"
+                )
                 print(msg.format(len(skipped), skipped))
         return None
 
@@ -2069,7 +2384,8 @@ class Stack(defaultdict):
         """
         for dk in list(self.keys()):
             _batches = self._check_batches(dk, _batches)
-            if not _batches or not on_vars: return None
+            if not _batches or not on_vars:
+                return None
             meta = self[dk].meta
             data = self[dk].data
             for v in on_vars:
@@ -2077,7 +2393,14 @@ class Stack(defaultdict):
                     items = [i.split('@')[-1] for i in meta['sets'][v]['items']]
                     on_vars = list(set(on_vars + items))
 
-            self.aggregate(['counts_cumsum', 'c%_cumsum'], False, [], _batches, on_vars, verbose=verbose)
+            self.aggregate(
+                ['counts_cumsum', 'c%_cumsum'],
+                False,
+                [],
+                _batches,
+                on_vars,
+                verbose=verbose,
+            )
         return None
 
     def _add_checking_chain(self, dk, cluster, name, x, y, views):
@@ -2092,8 +2415,7 @@ class Stack(defaultdict):
         c_views = c_stack.describe('view').index.tolist()
         len_v_keys = len(view)
         view_keys = ['x|f|x:|||cbase', 'x|f|:|||counts'][0:len_v_keys]
-        c_views = view_keys + [v for v in c_views
-                   if v.endswith('{}_check'.format(key))]
+        c_views = view_keys + [v for v in c_views if v.endswith('{}_check'.format(key))]
         if isinstance(cluster, ChainManager):
             cluster.get('checks', 'no_filter', x, y, c_views, folder=name, rules=False)
         else:
@@ -2107,19 +2429,27 @@ class Stack(defaultdict):
         return cluster
 
     @staticmethod
-    def recode_from_net_def(dataset, on_vars, net_map, expand, recode='auto',
-                            text_prefix='Net:', mis_in_rec=False,
-                            verbose=True):
+    def recode_from_net_def(
+        dataset,
+        on_vars,
+        net_map,
+        expand,
+        recode='auto',
+        text_prefix='Net:',
+        mis_in_rec=False,
+        verbose=True,
+    ):
         """
         Create variables from net definitions.
         """
+
         def _is_simple_net(net_map):
             return all(isinstance(list(net.values())[0], list) for net in net_map)
 
         def _dissect_defs(ds, var, net_map, recode, text_prefix):
             mapper = []
             if recode == 'extend_codes':
-                mapper += [(x, y, {var: x}) for (x,y) in ds.values(var)]
+                mapper += [(x, y, {var: x}) for (x, y) in ds.values(var)]
                 max_code = max(ds.codes(var))
             elif recode == 'drop_codes':
                 max_code = 0
@@ -2138,7 +2468,8 @@ class Stack(defaultdict):
                     labs = {ds.text_key: list(n.keys())[0]}
                 code = max_code + x
                 for tk, lab in list(labs.items()):
-                    if not tk in labels: labels[tk] = {}
+                    if not tk in labels:
+                        labels[tk] = {}
                     labels[tk].update({code: '{} {}'.format(text_prefix, lab)})
                 appends.append((code, str(code), {var: list(n.values())[0]}))
                 if not isinstance(list(n.values())[0], list):
@@ -2146,9 +2477,15 @@ class Stack(defaultdict):
                     simple_nets = []
                 if s_net:
                     simple_nets.append(
-                        ('{} {}'.format(text_prefix, labs[ds.text_key]), list(n.values())[0]))
+                        (
+                            '{} {}'.format(text_prefix, labs[ds.text_key]),
+                            list(n.values())[0],
+                        )
+                    )
             mapper += appends
-            q_type = 'delimited set' if ds._is_delimited_set_mapper(mapper) else 'single'
+            q_type = (
+                'delimited set' if ds._is_delimited_set_mapper(mapper) else 'single'
+            )
             return mapper, q_type, labels, simple_nets
 
         forced_recode = False
@@ -2161,7 +2498,8 @@ class Stack(defaultdict):
 
         dataset._meta['sets']['to_array'] = {}
         for var in on_vars[:]:
-            if dataset.is_array(var): continue
+            if dataset.is_array(var):
+                continue
             # get name for new variable
             suffix = '_rc'
             for s in [str(x) if not x == 1 else '' for x in frange('1-5')]:
@@ -2191,7 +2529,8 @@ class Stack(defaultdict):
 
             # create mapper to derive new variable
             mapper, q_type, labels, simple_nets = _dissect_defs(
-                dataset, var, net_map, recode, text_prefix)
+                dataset, var, net_map, recode, text_prefix
+            )
             dataset.derive(name, q_type, dataset.text(var), mapper)
 
             # meta edits for new variable
@@ -2204,30 +2543,37 @@ class Stack(defaultdict):
             props = dataset._meta['columns'][name]['properties']
             props.update({'recoded_net': var})
             if 'properties' in dataset._meta['columns'][var]:
-                for pname, prop in list(dataset._meta['columns'][var]['properties'].items()):
-                    if pname == 'survey': continue
+                for pname, prop in list(
+                    dataset._meta['columns'][var]['properties'].items()
+                ):
+                    if pname == 'survey':
+                        continue
                     props[pname] = prop
             if simple_nets:
                 props['simple_org_expr'] = simple_nets
 
             if verbose:
-                print('Created: {}'. format(name))
+                print('Created: {}'.format(name))
             if forced_recode:
                 warnings.warn("'{}' was a forced recode.".format(name))
 
             # order, remove codes
             if 'collect_codes' in recode:
                 if not mis_in_rec and dataset._get_missing_list(var):
-                    other_logic = intersection([
-                        {var: not_count(0)},
-                        {name: has_count(0)},
-                        {var: not_any(dataset._get_missing_list(var))}])
+                    other_logic = intersection(
+                        [
+                            {var: not_count(0)},
+                            {name: has_count(0)},
+                            {var: not_any(dataset._get_missing_list(var))},
+                        ]
+                    )
                 else:
                     other_logic = intersection(
-                        [{var: not_count(0)}, {name: has_count(0)}])
+                        [{var: not_count(0)}, {name: has_count(0)}]
+                    )
                 if dataset._is_array_item(var) or dataset.take(other_logic).tolist():
                     cat_name = recode.split('@')[-1] if '@' in recode else 'Other'
-                    code = len(mapper)+1
+                    code = len(mapper) + 1
                     dataset.extend_values(name, [(code, str(code))])
                     for tk in list(labels.keys()):
                         dataset.set_value_texts(name, {code: cat_name}, tk)
@@ -2246,9 +2592,14 @@ class Stack(defaultdict):
                             remove.append(vals)
                             vals = [vals]
                         if expand == 'after':
-                            idx = order.index(codes[min([codes.index(v) for v in vals])])
+                            idx = order.index(
+                                codes[min([codes.index(v) for v in vals])]
+                            )
                         elif expand == 'before':
-                            idx = order.index(codes[max([codes.index(v) for v in vals])]) + 1
+                            idx = (
+                                order.index(codes[max([codes.index(v) for v in vals])])
+                                + 1
+                            )
                         order.insert(idx, x)
 
                 dataset.reorder_values(name, order)
@@ -2264,14 +2615,20 @@ class Stack(defaultdict):
             prop = dataset._meta['masks'][dims_name]['properties']
             prop['recoded_net'] = org_mask
             if 'properties' in dataset._meta['masks'][org_mask]:
-                for p, v in list(dataset._meta['masks'][org_mask]['properties'].items()):
-                    if p == 'survey': continue
+                for p, v in list(
+                    dataset._meta['masks'][org_mask]['properties'].items()
+                ):
+                    if p == 'survey':
+                        continue
                     prop[p] = v
             n_i0 = dataset.sources(dims_name)[0]
-            simple_net = dataset._meta['columns'][n_i0]['properties'].get('simple_org_expr')
+            simple_net = dataset._meta['columns'][n_i0]['properties'].get(
+                'simple_org_expr'
+            )
             if simple_net:
                 dataset._meta['masks'][dims_name]['properties'].update(
-                    {'simple_org_expr': simple_net})
+                    {'simple_org_expr': simple_net}
+                )
             if verbose:
                 msg = "Array {} built from recoded view variables!"
                 print(msg.format(dims_name))
@@ -2279,11 +2636,21 @@ class Stack(defaultdict):
 
         return None
 
-
     @modify(to_list=['on_vars', '_batches'])
-    def add_nets(self, on_vars, net_map, expand=None, calc=None, rebase=None,
-                 text_prefix='Net:', checking_cluster=None, _batches='all',
-                 recode='auto', mis_in_rec=False, verbose=True):
+    def add_nets(
+        self,
+        on_vars,
+        net_map,
+        expand=None,
+        calc=None,
+        rebase=None,
+        text_prefix='Net:',
+        checking_cluster=None,
+        _batches='all',
+        recode='auto',
+        mis_in_rec=False,
+        verbose=True,
+    ):
         """
         Add a net-like view to a specified collection of x keys of the stack.
 
@@ -2364,25 +2731,32 @@ class Stack(defaultdict):
 
         def _check_and_update_calc(calc_expression, text_key):
             if not isinstance(calc_expression, dict):
-                err_msg = ("'calc' must be a dict in form of\n"
-                           "{'calculation label': (net # 1, operator, net # 2)}")
+                err_msg = (
+                    "'calc' must be a dict in form of\n"
+                    "{'calculation label': (net # 1, operator, net # 2)}"
+                )
                 raise TypeError(err_msg)
             for k, v in list(calc_expression.items()):
-                if not k in ['text', 'calc_only']: exp = v
-                if not k == 'calc_only': text = v
+                if not k in ['text', 'calc_only']:
+                    exp = v
+                if not k == 'calc_only':
+                    text = v
             if not 'text' in calc_expression:
                 text = {tk: text for tk in text_key}
                 calc_expression['text'] = text
             if not isinstance(exp, (tuple, list)) or len(exp) != 3:
-                err_msg = ("Not properly formed expression found in 'calc':\n"
-                           "{}\nMust be provided as (net # 1, operator, net # 2)")
+                err_msg = (
+                    "Not properly formed expression found in 'calc':\n"
+                    "{}\nMust be provided as (net # 1, operator, net # 2)"
+                )
                 raise TypeError(err_msg.format(exp))
             return calc_expression
 
         for dk in list(self.keys()):
             _batches = self._check_batches(dk, _batches)
             only_recode = not _batches and recode
-            if not _batches and not recode: return None
+            if not _batches and not recode:
+                return None
             meta = self[dk].meta
             data = self[dk].data
             check_on = []
@@ -2405,8 +2779,11 @@ class Stack(defaultdict):
             if not only_recode:
                 all_batches = copy.deepcopy(meta['sets']['batches'])
                 for n, b in list(all_batches.items()):
-                    if not n in _batches: all_batches.pop(n)
-                languages = list(set(b['language'] for n, b in list(all_batches.items())))
+                    if not n in _batches:
+                        all_batches.pop(n)
+                languages = list(
+                    set(b['language'] for n, b in list(all_batches.items()))
+                )
                 netdef = _netdef_from_map(net_map, expand, text_prefix, languages)
                 if calc:
                     calc = _check_and_update_calc(calc, languages)
@@ -2419,24 +2796,36 @@ class Stack(defaultdict):
                 else:
                     rebase = '{}.base'.format(rebase)
                     view.make_template('frequency', {'rel_to': [None, rebase]})
-                options = {'logic': netdef,
-                           'axis': 'x',
-                           'expand': expand if expand in ['after', 'before'] else None,
-                           'complete': True if expand else False,
-                           'calc': calc,
-                           'calc_only': calc_only}
+                options = {
+                    'logic': netdef,
+                    'axis': 'x',
+                    'expand': expand if expand in ['after', 'before'] else None,
+                    'complete': True if expand else False,
+                    'calc': calc,
+                    'calc_only': calc_only,
+                }
                 view.add_method('net', kwargs=options)
                 self.aggregate(view, False, [], _batches, on_vars, verbose=verbose)
 
             if recode:
-                ds = ds = qp.DataSet(dk, dimensions_comp=meta['info'].get('dimensions_comp'))
+                ds = ds = qp.DataSet(
+                    dk, dimensions_comp=meta['info'].get('dimensions_comp')
+                )
                 ds.from_stack(self, dk)
                 on_vars = [x for x in on_vars if x in self.describe('x').index.tolist()]
-                self.recode_from_net_def(ds, on_vars, net_map, expand, recode,
-                                         text_prefix, mis_in_rec,
-                                         verbose)
+                self.recode_from_net_def(
+                    ds,
+                    on_vars,
+                    net_map,
+                    expand,
+                    recode,
+                    text_prefix,
+                    mis_in_rec,
+                    verbose,
+                )
 
-            if checking_cluster in [None, False] or only_recode: continue
+            if checking_cluster in [None, False] or only_recode:
+                continue
             if isinstance(checking_cluster, ChainManager):
                 cc_keys = checking_cluster.folder_names
             else:
@@ -2447,17 +2836,27 @@ class Stack(defaultdict):
                 v_net = '{}_net'.format(v)
                 v_net = v_net.split('.')[-1]
                 if not v_net in cc_keys:
-                    checking_cluster = self._add_checking_chain(dk, checking_cluster,
-                                            v_net, v, ['@', v], ('net', ['cbase'], view))
+                    checking_cluster = self._add_checking_chain(
+                        dk,
+                        checking_cluster,
+                        v_net,
+                        v,
+                        ['@', v],
+                        ('net', ['cbase'], view),
+                    )
 
         return None
 
     @staticmethod
-    def _factor_labs(values, axis, rescale, drop, exclude, factor_labels,
-                     has_factors):
-        if not rescale: rescale = {}
-        ignore = [v['value'] for v in values if v['value'] in exclude or
-                  (not v['value'] in list(rescale.keys()) and drop)]
+    def _factor_labs(values, axis, rescale, drop, exclude, factor_labels, has_factors):
+        if not rescale:
+            rescale = {}
+        ignore = [
+            v['value']
+            for v in values
+            if v['value'] in exclude
+            or (not v['value'] in list(rescale.keys()) and drop)
+        ]
         if factor_labels == '()':
             new_lab = '{} ({})'
             split = ('(', ')')
@@ -2466,15 +2865,19 @@ class Stack(defaultdict):
             split = ('[', ']')
         factors_mapped = {}
         for v in values:
-            if v['value'] in ignore: continue
-            has_xedits  = v['text'].get('x edits', {})
-            has_yedits  = v['text'].get('y edits', {})
-            if not has_xedits:  v['text']['x edits'] = {}
-            if not has_yedits:  v['text']['y edits'] = {}
+            if v['value'] in ignore:
+                continue
+            has_xedits = v['text'].get('x edits', {})
+            has_yedits = v['text'].get('y edits', {})
+            if not has_xedits:
+                v['text']['x edits'] = {}
+            if not has_yedits:
+                v['text']['y edits'] = {}
 
             factor = rescale[v['value']] if rescale else v['value']
             for tk, text in list(v['text'].items()):
-                if tk in ['x edits', 'y edits']: continue
+                if tk in ['x edits', 'y edits']:
+                    continue
                 for ax in axis:
                     try:
                         t = v['text']['{} edits'.format(ax)][tk]
@@ -2482,7 +2885,8 @@ class Stack(defaultdict):
                         t = text
                     if has_factors:
                         fac = t.split(split[0])[-1].replace(split[1], '')
-                        if fac == str(factor): continue
+                        if fac == str(factor):
+                            continue
                     v['text']['{} edits'.format(ax)][tk] = new_lab.format(t, factor)
         return values
 
@@ -2511,9 +2915,21 @@ class Stack(defaultdict):
         return None
 
     @modify(to_list=['on_vars', 'stats', 'exclude', '_batches'])
-    def add_stats(self, on_vars, stats=['mean'], other_source=None, rescale=None,
-                  drop=True, exclude=None, factor_labels=True, custom_text=None,
-                  checking_cluster=None, _batches='all', recode=False, verbose=True):
+    def add_stats(
+        self,
+        on_vars,
+        stats=['mean'],
+        other_source=None,
+        rescale=None,
+        drop=True,
+        exclude=None,
+        factor_labels=True,
+        custom_text=None,
+        checking_cluster=None,
+        _batches='all',
+        recode=False,
+        verbose=True,
+    ):
         """
         Add a descriptives view to a specified collection of xks of the stack.
 
@@ -2561,13 +2977,16 @@ class Stack(defaultdict):
 
         def _recode_from_stat_def(dataset, on_vars, rescale, drop, exclude, verbose):
             for var in on_vars:
-                if dataset.is_array(var): continue
+                if dataset.is_array(var):
+                    continue
                 suffix = '_rc'
                 for s in [str(x) if not x == 1 else '' for x in frange('1-5')]:
                     suf = suffix + s
                     name = '{}{}'.format(var, suf)
                     if dataset.var_exists(name):
-                        if dataset._meta['columns'][name]['properties'].get('recoded_stat'):
+                        if dataset._meta['columns'][name]['properties'].get(
+                            'recoded_stat'
+                        ):
                             break
                     else:
                         break
@@ -2584,8 +3003,10 @@ class Stack(defaultdict):
                     sl = dataset.take({var: x})
                     dataset[sl, name] = y
                 if verbose:
-                    print('Created: {}'. format(name))
-                dataset._meta['columns'][name]['properties'].update({'recoded_stat': var})
+                    print('Created: {}'.format(name))
+                dataset._meta['columns'][name]['properties'].update(
+                    {'recoded_stat': var}
+                )
             return None
 
         def _add_factors(v, meta, values, args):
@@ -2597,31 +3018,38 @@ class Stack(defaultdict):
                 v_args = args + [has_factors]
                 values = p_lib[p]
                 p_lib[p] = self._factor_labs(values, ['x', 'y'], *v_args)
-                if not p_meta.get('properties'): p_meta['properties'] = {}
+                if not p_meta.get('properties'):
+                    p_meta['properties'] = {}
                 p_meta['properties'].update({'factor_labels': True})
             else:
                 v_meta = meta.get('columns', meta)[v]
                 has_factors = v_meta.get('properties', {}).get('factor_labels')
                 v_args = args + [has_factors]
                 v_meta['values'] = self._factor_labs(values, ['x'], *v_args)
-                if not v_meta.get('properties'): v_meta['properties'] = {}
+                if not v_meta.get('properties'):
+                    v_meta['properties'] = {}
                 v_meta['properties'].update({'factor_labels': True})
             return None
 
         if other_source and not isinstance(other_source, str):
             raise ValueError("'other_source' must be a str!")
-        if not rescale: drop = False
+        if not rescale:
+            drop = False
 
-        options = {'stats': '',
-                   'source': other_source,
-                   'rescale': rescale,
-                   'drop': drop, 'exclude': exclude,
-                   'axis': 'x',
-                   'text': '' if not custom_text else custom_text}
+        options = {
+            'stats': '',
+            'source': other_source,
+            'rescale': rescale,
+            'drop': drop,
+            'exclude': exclude,
+            'axis': 'x',
+            'text': '' if not custom_text else custom_text,
+        }
         warn = "\nCannot add stats on '{}'.\n"
         for dk in list(self.keys()):
             _batches = self._check_batches(dk, _batches)
-            if not _batches: return None
+            if not _batches:
+                return None
             meta = self[dk].meta
             data = self[dk].data
             check_on = []
@@ -2661,7 +3089,6 @@ class Stack(defaultdict):
                 if not other_source:
                     self._add_factor_meta(ds, v, (rescale, drop, exclude))
 
-
             view = qp.ViewMapper()
             view.make_template('descriptives')
             for stat in stats:
@@ -2680,7 +3107,8 @@ class Stack(defaultdict):
             if factor_labels:
                 args = [rescale, drop, exclude, factor_labels]
                 all_batches = list(meta['sets']['batches'].keys())
-                if not _batches: _batches = all_batches
+                if not _batches:
+                    _batches = all_batches
                 batches = [b for b in all_batches if b in _batches]
                 for v in check_on:
                     globally = False
@@ -2705,8 +3133,9 @@ class Stack(defaultdict):
                 c_view.add_method('stat_check', kwargs=options)
 
                 views = ('stat', ['cbase', 'counts'], c_view)
-                checking_cluster = self._add_checking_chain(dk, checking_cluster,
-                                            'stat_check', check_on, ['@'], views)
+                checking_cluster = self._add_checking_chain(
+                    dk, checking_cluster, 'stat_check', check_on, ['@'], views
+                )
 
         return None
 
@@ -2734,54 +3163,70 @@ class Stack(defaultdict):
 
         for dk in list(self.keys()):
             _batches = self._check_batches(dk, _batches)
-            if not _batches: return None
+            if not _batches:
+                return None
             for batch_name in _batches:
                 batch = self[dk].meta['sets']['batches'][batch_name]
                 sigpro = batch.get('sigproperties', {})
                 levels = batch.get('sigproperties', batch).get('siglevels', [])
                 weight = batch['weights']
-                x_y    = batch['x_y_map']
-                x_f    = batch['x_filter_map']
-                y_f    = batch['y_filter_map']
-                yks    = batch['yks']
+                x_y = batch['x_y_map']
+                x_f = batch['x_filter_map']
+                y_f = batch['y_filter_map']
+                yks = batch['yks']
 
                 if levels:
                     vm_tests = qp.ViewMapper().make_template(
-                    method='coltests',
-                    iterators={'metric': ['props', 'means'],
-                               'mimic': sigpro.get('mimic', ['Dim']),
-                               'level': levels})
-                    vm_tests.add_method('significance',
-                                        kwargs = {'flag_bases': sigpro.get('flag_bases', [30, 100]),
-                                                  'test_total': sigpro.get('test_total', None),
-                                                  'groups': 'Tests'})
+                        method='coltests',
+                        iterators={
+                            'metric': ['props', 'means'],
+                            'mimic': sigpro.get('mimic', ['Dim']),
+                            'level': levels,
+                        },
+                    )
+                    vm_tests.add_method(
+                        'significance',
+                        kwargs={
+                            'flag_bases': sigpro.get('flag_bases', [30, 100]),
+                            'test_total': sigpro.get('test_total', None),
+                            'groups': 'Tests',
+                        },
+                    )
                     for yy in batch['y_on_y']:
                         if y_f[yy]:
                             fy = y_f[yy].encode('utf8')
                             f = {fy: {fy: 0}}
                         else:
                             f = ['no_filter']
-                        self.add_link(filters=f, x=yks[1:], y=yks,
-                                      views=vm_tests, weights=weight)
+                        self.add_link(
+                            filters=f, x=yks[1:], y=yks, views=vm_tests, weights=weight
+                        )
                     total_len = len(x_y)
                     for idx, xy in enumerate(x_y, 1):
                         x, y = xy
-                        if x == '@': continue
+                        if x == '@':
+                            continue
                         if x_f[x]:
                             fx = x_f[x].encode('utf8')
                             f = {fx: {fx: 0}}
                         else:
                             f = ['no_filter']
-                        self.add_link(filters=f, x=x, y=y,
-                                       views=vm_tests, weights=weight)
+                        self.add_link(
+                            filters=f, x=x, y=y, views=vm_tests, weights=weight
+                        )
                         if verbose:
-                            done = float(idx) / float(total_len) *100
+                            done = float(idx) / float(total_len) * 100
                             print('\r', end=' ')
                             time.sleep(0.01)
-                            print('Batch [{}]: {} %'.format(batch_name, round(done, 1)), end=' ')
+                            print(
+                                'Batch [{}]: {} %'.format(batch_name, round(done, 1)),
+                                end=' ',
+                            )
                             sys.stdout.flush()
-                if verbose and levels: print('\n')
-        if verbose: print('Sig-Tests:', time.time()-start)
+                if verbose and levels:
+                    print('\n')
+        if verbose:
+            print('Sig-Tests:', time.time() - start)
         return None
 
     def _remove_coltests(self, props=True, means=True):
