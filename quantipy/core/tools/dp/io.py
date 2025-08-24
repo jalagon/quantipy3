@@ -148,8 +148,7 @@ def save_json(obj, path_json, decode_str=False, decoder='UTF-8'):
     def represent(obj):
         if isinstance(obj, np.generic):
             return np.asscalar(obj)
-        else:
-            return "Unserializable object: %s" % (str(type(obj)))
+        return f"Unserializable object: {str(type(obj))}"
 
     with open(path_json, 'w+') as f:
         json.dump(obj, f, default=represent, sort_keys=True)
@@ -234,12 +233,12 @@ def read_ddf(path_ddf, auto_index_tables=True):
         ddf = {}
         ddf['sqlite_master'] = pd.read_sql('SELECT * FROM sqlite_master;', conn)
         ddf['tables'] = {
-            table_name: pd.read_sql('SELECT * FROM %s;' % (table_name), conn)
+            table_name: pd.read_sql(f'SELECT * FROM {table_name};', conn)
             for table_name in ddf['sqlite_master']['tbl_name'].values
             if table_name.startswith('L')
         }
         ddf['table_info'] = {
-            table_name: pd.read_sql("PRAGMA table_info('%s');" % (table_name), conn)
+            table_name: pd.read_sql(f"PRAGMA table_info('{table_name}');", conn)
             for table_name in list(ddf['tables'].keys())
         }
 
@@ -256,7 +255,7 @@ def read_ddf(path_ddf, auto_index_tables=True):
                     ['name'], drop=False, inplace=True
                 )
             except BaseException:
-                print(("Couldn't set 'name' into the index for '%s'.") % (table_name))
+                print(f"Couldn't set 'name' into the index for '{table_name}'.")
 
         for table_name in list(ddf['tables'].keys()):
             index_col = 'TableName' if table_name == 'Levels' else ':P0'
@@ -266,8 +265,7 @@ def read_ddf(path_ddf, auto_index_tables=True):
                 )
             except BaseException:
                 print(
-                    ("Couldn't set '%s' into the index for the '%s' " "Dataframe.")
-                    % (index_col, table_name)
+                    f"Couldn't set '{index_col}' into the index for the '{table_name}' " "Dataframe."
                 )
 
     return ddf

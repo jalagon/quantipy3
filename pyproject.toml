@@ -1,8 +1,147 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantipy3"
+version = "0.2.15"
+description = "Python 3 port of Quantipy - survey data processing, analysis and reporting"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+keywords = ["survey", "research", "data", "analysis", "quantipy"]
+authors = [
+    {name = "Quantipy Team", email = "quantipy@datasmoothie.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent", 
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11", 
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "pandas>=1.5.0,<2.3.0",
+    "numpy>=1.21.0,<2.0.0", 
+    "scipy>=1.9.0,<2.0.0",
+    "pyreadstat>=1.2.0",
+    "ftfy>=6.0.0",
+    "requests>=2.28.0",
+    "xlsxwriter>=3.0.0",
+    "python-pptx>=0.6.21"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "mypy>=1.5.0",
+    "ruff>=0.0.285",
+    "black>=23.0.0",
+    "isort>=5.12.0"
+]
+test = [
+    "pytest>=7.0.0", 
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/Quantipy/quantipy3"
+Repository = "https://github.com/Quantipy/quantipy3.git"
+Documentation = "https://quantipy.readthedocs.io"
+Issues = "https://github.com/Quantipy/quantipy3/issues"
+
+# Legacy Black configuration (maintained for compatibility)
 [tool.black]
-target-version = ["py36"]
+target-version = ["py310"]
 line-length = 88
 skip-string-normalization = true
 
 [tool.isort]
 profile = "black"
-py_version = 36
+py_version = 310
+line_length = 88
+
+# Modern Ruff Configuration - Week 2 Implementation  
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors  
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "UP",  # pyupgrade rules (Python 3.10+ syntax)
+    "I",   # isort
+    "N",   # pep8-naming
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "PIE", # flake8-pie
+    "SIM", # flake8-simplify
+    "RET", # flake8-return
+]
+ignore = [
+    "E501",   # Line too long (handled by black)
+    "RET504", # Unnecessary variable assignment before return statement
+    "SIM118", # Use dict.keys() directly instead of dict.keys() iteration
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["N802", "N803"]  # Allow lowercase class/method names in tests
+"__init__.py" = ["F401"]      # Allow unused imports in __init__.py
+
+# MyPy Configuration - Non-strict start as per plan
+[tool.mypy]
+python_version = "3.10"
+# Start non-strict as specified
+disallow_untyped_defs = false
+disallow_incomplete_defs = false  
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+strict_optional = true
+no_implicit_reexport = true
+
+# Pytest Configuration with Coverage
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "--cov=quantipy --cov-fail-under=80 --cov-report=term-missing --cov-report=html"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+branch = true
+source = ["quantipy"]
+omit = [
+    "*/tests/*", 
+    "*/venv/*",
+    "*/__pycache__/*",
+    "*/site-packages/*"
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"

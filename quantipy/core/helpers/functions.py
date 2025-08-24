@@ -160,6 +160,7 @@ def has_collapsed_axis(df, axis=0):
     else:
         if df.T.index.get_level_values(1)[0].startswith(agg_func):
             return True
+    return None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -191,15 +192,14 @@ def paint_index(
     values = list(levels[1])
     if col not in meta['columns']:
         return index
-    else:
-        col_text = paint_col_text(meta, col, text_key, display_names, transform_names)
-        values_text = paint_col_values_text(meta, col, values, text_key, grp_text_map)
+    col_text = paint_col_text(meta, col, text_key, display_names, transform_names)
+    values_text = paint_col_values_text(meta, col, values, text_key, grp_text_map)
 
-        new_index = build_multiindex_from_tuples(
-            col_text, values_text, ['Question', 'Values'], single_row
-        )
+    new_index = build_multiindex_from_tuples(
+        col_text, values_text, ['Question', 'Values'], single_row
+    )
 
-        return new_index
+    return new_index
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -211,9 +211,11 @@ def paint_view(
     text_key=None,
     display_names=None,
     transform_names=False,
-    axes=['x', 'y'],
+    axes=None,
 ):
 
+    if axes is None:
+        axes = ['x', 'y']
     if text_key is None:
         text_key = finish_text_key(meta, {})
     if display_names is None:
@@ -242,10 +244,12 @@ def paint_dataframe(
     text_key=None,
     display_names=None,
     transform_names=False,
-    axes=['x', 'y'],
+    axes=None,
     grp_text_map=None,
 ):
 
+    if axes is None:
+        axes = ['x', 'y']
     if text_key is None:
         text_key = finish_text_key(meta, {})
     if display_names is None:
@@ -260,7 +264,7 @@ def paint_dataframe(
                 if x not in order:
                     order.append(x)
             levels = df.index.levels[0]
-            it = sorted(zip(levels, order), key=lambda x: x[1])
+            it = sorted(zip(levels, order, strict=False), key=lambda x: x[1])
             df.index = pd.concat(
                 [
                     paint_dataframe(
@@ -360,7 +364,7 @@ def get_index_levels(index):
         levels.append(unzipped[0][0])
         levels.append([unzipped[0][1]])
     else:
-        unzipped = list(zip(*index.values))
+        unzipped = list(zip(*index.values, strict=False))
         levels.append(unzipped[0][0])
         levels.append(unzipped[1])
 
@@ -481,7 +485,7 @@ def paint_array_items_text(meta, mask, items, text_key):
 
     try:
         has_all = 'All' in items
-        items = [i for i in items if not i == 'All']
+        items = [i for i in items if i != 'All']
         items_map = {}
         try:
             for item in meta['masks'][mask]['items']:
@@ -644,7 +648,7 @@ def get_rules_slicer(f, rules, copy=True):
 
     if 'slicex' in rules:
         kwargs = rules['slicex']
-        values = kwargs.get('values', None)
+        kwargs.get('values', None)
         #         if not values is None:
         #             kwargs['values'] = [val for val in values]
         f = qp.core.tools.view.query.slicex(f, **kwargs)
@@ -808,7 +812,7 @@ def get_text(text, text_key, axis=None):
     if isinstance(text, str):
         return text
 
-    elif isinstance(text, (dict, OrderedDict)):
+    if isinstance(text, dict | OrderedDict):
 
         if axis is None:
 
@@ -826,16 +830,15 @@ def get_text(text, text_key, axis=None):
                         return text[key]
 
         raise KeyError(
-            "No matching text key from the list {} was not found in the"
-            " text object: {}".format(text_key, text)
+            f"No matching text key from the list {text_key} was not found in the"
+            f" text object: {text}"
         )
 
-    else:
-        raise TypeError(
-            "The value set into a 'text' object must either be"
-            " <str> or <unicode>, or <dict> or <collections.OrderedDict>"
-            " of <str> or <unicode>. Found: {}".format(text)
-        )
+    raise TypeError(
+        "The value set into a 'text' object must either be"
+        " <str> or <unicode>, or <dict> or <collections.OrderedDict>"
+        f" of <str> or <unicode>. Found: {text}"
+    )
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -856,7 +859,7 @@ def finish_text_key(meta, text_key):
             else:
                 raise TypeError(
                     "text_key items must be <str> or <list>\n"
-                    "Found: %s" % (type(text_key[key]))
+                    f"Found: {type(text_key[key])}"
                 )
         else:
             text_key[key] = [default_text]
@@ -935,7 +938,7 @@ def get_mapped_meta(meta, mapped):
         meta = meta[step]
 
     if key in meta:
-        if isinstance(meta[key], (dict, OrderedDict)):
+        if isinstance(meta[key], dict | OrderedDict):
             meta = {key: meta[key]}
         else:
             meta = meta[key]
@@ -976,19 +979,18 @@ def emulate_meta(meta, item):
         item = emulate_meta(meta, item)
         return item
 
-    elif isinstance(item, (list, tuple, set)):
-        for n, i in enumerate(item):
+    if isinstance(item, list | tuple | set):
+        for n, _i in enumerate(item):
             item[n] = emulate_meta(meta, item[n])
         item = flatten_list(item)
         return item
 
-    elif isinstance(item, (dict, OrderedDict)):
+    if isinstance(item, dict | OrderedDict):
         for k in list(item.keys()):
             item[k] = emulate_meta(meta, item[k])
         return item
 
-    else:
-        return item
+    return item
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1014,7 +1016,7 @@ def as_datetime64(
     if has_time:
         if 's' not in time_format:
             data = data + ':00'
-        date_time = list(zip(*(data.str.split(' '))))
+        date_time = list(zip(*(data.str.split(' ')), strict=False))
         time = pd.Series(date_time[1])
         date = pd.Series(date_time[0])
 
@@ -1123,8 +1125,7 @@ def single_value_counts_groups(data, groupby):
             df['All'] = 0
             df = df.T
         return df
-    else:
-        pass
+    return None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1160,7 +1161,7 @@ def delimited_set_value_counts(data, value_map=None):
         {
             k: data[
                 data[data.columns[0]].str.contains(
-                    "(^{k};)|(;{k};)".format(k=k), regex=True
+                    f"(^{k};)|(;{k};)", regex=True
                 )
             ][data.columns[1]].sum()
             for k in value_map
@@ -1248,10 +1249,9 @@ def get_views(qp_structure):
     qp_structure = < stack[data_key]['data'] >
     '''
 
-    for k, v in qp_structure.items():
+    for _k, v in qp_structure.items():
         if not isinstance(v, qp.View):
-            for item in get_views(v):
-                yield item
+            yield from get_views(v)
         else:
             yield v
 
@@ -1267,10 +1267,9 @@ def get_links(qp_structure):
     qp_structure = < stack[data_key]['data'] >
     '''
 
-    for k, v in qp_structure.items():
+    for _k, v in qp_structure.items():
         if not isinstance(v, qp.Link):
-            for item in get_links(v):
-                yield item
+            yield from get_links(v)
         else:
             yield v
 
@@ -1310,8 +1309,7 @@ def array_items_from_meta(meta, variable):
             for var in meta['masks'][variable]['items']
             if 'source' in var
         ]
-    else:
-        return []
+    return []
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1343,13 +1341,10 @@ def default_meta(link, view_df, dtypes, weights=None):
 
     if dtypes[0] in ['single', 'dichotomous set', 'categorical set', 'delimited set']:
         datatype = 'categorical'
-        method = 'default'
     elif dtypes[0] in ['float', 'int']:
         datatype = 'numeric'
-        method = 'default'
     elif dtypes[0] in ['array']:
         datatype = 'array'
-        method = 'default'
     else:
         datatype = dtypes[0]
         _method = 'default'
@@ -1360,24 +1355,18 @@ def default_meta(link, view_df, dtypes, weights=None):
             'name': 'default',
             'datatype': datatype,
             'viewtype': 'quantipy.DefaultView',
-            'is_weighted': True if weights is not None else False,
+            'is_weighted': weights is not None,
             'weights': weights,
         },
         'x': {
             'name': link.x,
-            'is_multi': True
-            if dtypes[0] in ['dichotomous set', 'categorical set', 'delimited set']
-            and not link.x == '@'
-            else False,
-            'is_nested': True if ">" in link.x else False,
+            'is_multi': bool(dtypes[0] in ['dichotomous set', 'categorical set', 'delimited set'] and link.x != '@'),
+            'is_nested': ">" in link.x,
         },
         'y': {
             'name': link.y,
-            'is_multi': True
-            if dtypes[1] in ['dichotomous set', 'categorical set', 'delimited set']
-            and not link.y == '@'
-            else False,
-            'is_nested': True if ">" in link.y else False,
+            'is_multi': bool(dtypes[1] in ['dichotomous set', 'categorical set', 'delimited set'] and link.y != '@'),
+            'is_nested': ">" in link.y,
         },
         'shape': view_df.shape,
     }
@@ -1444,8 +1433,8 @@ def describe(data, x, weights=None):
     )
     # percentile information (incorrect for weighted data!) excluded for now...
     # desc_df.drop(['Lower quartile', 'Median', 'Upper quartile'], inplace=True)
-    if not len(data.index) == 0:
-        if not weights == '@1':
+    if len(data.index) != 0:
+        if weights != '@1':
             count = data[weights].sum()
             norm_wvector_coef = (
                 1 if len(data.index) == count else len(data.index) / count
@@ -1508,16 +1497,17 @@ def get_var_nest_combo(var):
     if '>' in var:
         split = var.split('>')
         return (split[0], '>'.join(split[1:]))
-    else:
-        return (var, None)
+    return (var, None)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 def create_multiindex_from_length(
-    name, length, names=['Question', 'Values'], margins=True
+    name, length, names=None, margins=True
 ):
+    if names is None:
+        names = ['Question', 'Values']
     if margins:
         multiindex = pd.MultiIndex(
             levels=[[name], [str(s) for s in range(1, length + 1)] + ['All']],
@@ -1552,8 +1542,10 @@ def cast_index_levels_as_str(df, x_eq_y=False):
 
 
 def create_nested_multiindex_from_array(
-    array, data, meta, names=['Question', 'Values'], margins=True
+    array, data, meta, names=None, margins=True
 ):
+    if names is None:
+        names = ['Question', 'Values']
     if len(names) <= len(array):
         names = names * len(array)
     product = [
@@ -1601,8 +1593,8 @@ def create_nest_meta(x, y, data, meta=None):
         return None
     if (
         x in list(meta['columns'].keys())
-        and not meta['columns'][x]['type'] in ['int', 'float']
-        and not meta['columns'][y]['type'] in ['int', 'float']
+        and meta['columns'][x]['type'] not in ['int', 'float']
+        and meta['columns'][y]['type'] not in ['int', 'float']
     ):
         return {
             var: {
@@ -1611,12 +1603,11 @@ def create_nest_meta(x, y, data, meta=None):
             for var in x.split('>') + y.split('>')
             if var in data
         }
-    else:
-        return {
-            var: {'items': sorted(data[var].unique())}
-            for var in x.split('>') + y.split('>')
-            if var in data
-        }
+    return {
+        var: {'items': sorted(data[var].unique())}
+        for var in x.split('>') + y.split('>')
+        if var in data
+    }
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1639,12 +1630,14 @@ def is_nested_with_arrays(link):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def deep_drop(df, targets, axes=[0, 1]):
+def deep_drop(df, targets, axes=None):
 
-    if not isinstance(targets, (list, tuple)):
+    if axes is None:
+        axes = [0, 1]
+    if not isinstance(targets, list | tuple):
         targets = [targets]
 
-    if not isinstance(axes, (list, tuple)):
+    if not isinstance(axes, list | tuple):
         axes = [axes]
 
     levels = (len(df.index.levels), len(df.columns.levels))
@@ -1977,7 +1970,7 @@ def create_range_as_list(rng, as_type=str):
     for sub_rng in rng.split(','):
         if '-' in sub_rng:
             lo, hi = sub_rng.split('-')
-            res.extend([i for i in range(int(lo), int(hi) + 1)])
+            res.extend(list(range(int(lo), int(hi) + 1)))
         else:
             res.append(sub_rng)
     if as_type == str:
@@ -2010,7 +2003,7 @@ def add_combined_codes_view(create_method, source, combine_codes, label):
     view = ViewMapper()
     if isinstance(combine_codes[0], list):
         for i in range(max(len(combine_codes), len(label))):
-            name = 'net_%s_%s_%s_%s' % (
+            name = 'net_{}_{}_{}_{}'.format(
                 combine_codes[i][0],
                 combine_codes[i][-1],
                 source,
@@ -2026,7 +2019,7 @@ def add_combined_codes_view(create_method, source, combine_codes, label):
                 },
             )
     else:
-        name = 'net_%s_%s_%s_%s' % (
+        name = 'net_{}_{}_{}_{}'.format(
             combine_codes[0],
             combine_codes[-1],
             source,
@@ -2073,7 +2066,7 @@ def hide_codes_x(x, codes_to_hide, views, exclude_from_base=False):
                     }
                 )
             else:
-                print('hide_codes_x(): %s not found --> ignored.' % (view))
+                print(f'hide_codes_x(): {view} not found --> ignored.')
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2121,10 +2114,11 @@ def define_multicodes(varlist, meta):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def create_delimited_from_single(data, meta=None, mrs_spec={}):
+def create_delimited_from_single(data, meta=None, mrs_spec=None):
+    if mrs_spec is None:
+        mrs_spec = {}
     df = data.copy()
     mrs_data = []
-    mrs_meta = None
     for name, definition in list(mrs_spec.items()):
 
         mrs_name = name
@@ -2269,41 +2263,38 @@ def map_multiindex(index, levels_map=None, names_map=None):
     '''
 
     if not isinstance(index, pd.MultiIndex):
-        raise TypeError("Index passed is not a MultiIndex, it is '%s'" % type(index))
+        raise TypeError(f"Index passed is not a MultiIndex, it is '{type(index)}'")
+
+    if not levels_map:
+        mapped_levels = index.levels
     else:
+        if not len(levels_map) == len(index.levels):
+            raise IndexError(
 
-        if not levels_map:
-            mapped_levels = index.levels
-        else:
-            if not len(levels_map) == len(index.levels):
-                raise IndexError(
-                    (
-                        "The levels_map passed is not the same length as "
-                        "the target levels (given %s, expected %s)"
-                    )
-                    % (len(levels_map), len(index.levels))
-                )
-            else:
-                mapped_levels = [
-                    [
-                        levels_map[level_idx][i] if i in list(levels_map[level_idx].keys()) else i
-                        for i in level
-                    ]
-                    for level_idx, level in enumerate(index.levels)
-                ]
+                    "The levels_map passed is not the same length as "
+                    f"the target levels (given {len(levels_map)}, expected {len(index.levels)})"
 
-        if not names_map:
-            mapped_names = index.names
-        else:
-            mapped_names = [
-                names_map[n] if n in list(names_map.keys()) else n for n in index.names
+            )
+        mapped_levels = [
+            [
+                levels_map[level_idx][i] if i in list(levels_map[level_idx].keys()) else i
+                for i in level
             ]
+            for level_idx, level in enumerate(index.levels)
+        ]
 
-        mapped_index = pd.MultiIndex(
-            levels=mapped_levels, labels=index.labels, names=mapped_names
-        )
+    if not names_map:
+        mapped_names = index.names
+    else:
+        mapped_names = [
+            names_map[n] if n in list(names_map.keys()) else n for n in index.names
+        ]
 
-        return mapped_index
+    mapped_index = pd.MultiIndex(
+        levels=mapped_levels, labels=index.labels, names=mapped_names
+    )
+
+    return mapped_index
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2360,8 +2351,7 @@ def cat_to_dummies(data, limit_to=None, as_df=False):
         dummy_df = limit_dummy_df(dummy_df, limit_to)
     if as_df:
         return dummy_df
-    else:
-        return dummy_df.values, dummy_df.columns.tolist()
+    return dummy_df.values, dummy_df.columns.tolist()
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2387,11 +2377,10 @@ def limit_dummy_df(dummy_df, codes):
     limited : pd.DataFrame
     '''
     if len(dummy_df.index) > 0:
-        if not sorted(codes) == sorted(dummy_df.columns):
+        if sorted(codes) != sorted(dummy_df.columns):
             codes = [code for code in codes if code in dummy_df.columns]
         return dummy_df[codes]
-    else:
-        return dummy_df
+    return dummy_df
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2532,11 +2521,9 @@ def aggregate_matrix(value_matrix, x_def, y_def, calc_bases=True, as_df=True):
             agg_df = freq_df
 
         return agg_df
-    else:
-        if calc_bases:
-            return freq, [cb, rb, tb]
-        else:
-            return freq
+    if calc_bases:
+        return freq, [cb, rb, tb]
+    return freq
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2681,8 +2668,7 @@ def make_default_num_view(data, x, y=None, weights=None, get_only=None):
         view_df = set_qp_multiindex(df, x, y)
 
         return view_df
-    else:
-        return df.T[get_only].T
+    return df.T[get_only].T
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2717,13 +2703,12 @@ def set_names_to_values(df, names, axis='x'):
                 index={df.index.get_level_values(-1)[name[0]]: name[1]}, inplace=True
             )
         return df.index
-    else:
-        for name in enumerate(names):
-            df.rename(
-                columns={df.columns.get_level_values(-1)[name[0]]: name[1]},
-                inplace=True,
-            )
-        return df.columns
+    for name in enumerate(names):
+        df.rename(
+            columns={df.columns.get_level_values(-1)[name[0]]: name[1]},
+            inplace=True,
+        )
+    return df.columns
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2761,10 +2746,9 @@ def partition_view_df(view, values=False, data_only=False, axes_only=False):
 
     if data_only:
         return data
-    elif axes_only:
+    if axes_only:
         return index.tolist(), columns.tolist()
-    else:
-        return data, index.tolist(), columns.tolist()
+    return data, index.tolist(), columns.tolist()
 
 
 def inherit_axis_codes(df, from_source, to='y'):
@@ -2929,8 +2913,8 @@ def get_default_num_stat(default_num_view, stat, drop_bases=True, as_df=True):
 
     if as_df:
         return df
-    else:
-        df.values
+    df.values
+    return None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2978,7 +2962,7 @@ def calc_net_values(link, source_view, combine_codes, force_raw_sum=False):
         else:
             net_values = np.zeros(1)
     else:
-        if not link.y == '@':
+        if link.y != '@':
             matrix, x_def, y_def = df_to_value_matrix(
                 data=link.get_data(),
                 x=link.x,
@@ -3091,7 +3075,7 @@ def filtered_set(
         included = []
     elif isinstance(included, str):
         included = [included]
-    if not isinstance(included, (list, tuple, set)):
+    if not isinstance(included, list | tuple | set):
         raise ValueError(
             "'included' must be either a string or a list, tuple or" " set of strings."
         )
@@ -3100,7 +3084,7 @@ def filtered_set(
         excluded = []
     elif isinstance(excluded, str):
         excluded = [excluded]
-    elif not isinstance(excluded, (list, tuple, set)):
+    elif not isinstance(excluded, list | tuple | set):
         raise ValueError(
             "'excluded' must be either a string or a list, tuple or" " set of strings."
         )
@@ -3116,17 +3100,15 @@ def filtered_set(
     pattern = "\\[(.*?)\\]"
 
     items = []
-    for item in set(included) - set(excluded) - set(['@']):
+    for item in set(included) - set(excluded) - {'@'}:
         # Account for special strings instruction
         if strings == 'keep':
             allow = True
         elif item in meta['columns']:
             is_string = meta['columns'][item]['type'] == 'string'
-            if not is_string and not strings == 'only':
+            if not is_string and strings != 'only':
                 allow = True
-            elif not is_string and strings == 'only':
-                allow = False
-            elif is_string and strings == 'drop':
+            elif not is_string and strings == 'only' or is_string and strings == 'drop':
                 allow = False
             elif is_string and strings == 'only':
                 allow = True
@@ -3134,10 +3116,10 @@ def filtered_set(
         if not allow:
             continue
 
-        if 'columns@{}'.format(item) in meta['sets'][based_on]['items']:
-            items.append('columns@{}'.format(item))
-        elif 'masks@{}'.format(item) in meta['sets'][based_on]['items']:
-            items.append('masks@{}'.format(item))
+        if f'columns@{item}' in meta['sets'][based_on]['items']:
+            items.append(f'columns@{item}')
+        elif f'masks@{item}' in meta['sets'][based_on]['items']:
+            items.append(f'masks@{item}')
         # what is this else-branch supposed to achieve?
         else:
             try:
