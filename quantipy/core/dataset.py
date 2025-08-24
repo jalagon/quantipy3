@@ -21,6 +21,7 @@ from quantipy.core.io_manager import IOManager
 from quantipy.core.data_validator import DataValidator
 from quantipy.core.data_transformer import DataTransformer
 from quantipy.core.filtering_engine import FilteringEngine
+from quantipy.core.statistical_processor import StatisticalProcessor
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -127,6 +128,7 @@ class DataSet(object):
         self._data_validator = DataValidator(self)
         self._data_transformer = DataTransformer(self)
         self._filtering_engine = FilteringEngine(self)
+        self._statistical_processor = StatisticalProcessor(self)
         
         return None
 
@@ -354,6 +356,94 @@ class DataSet(object):
     def filtering_engine(self):
         """Access to the modern FilteringEngine for advanced operations."""
         return self._filtering_engine
+
+    # =========================================================================
+    # STATISTICAL ANALYSIS DELEGATION METHODS (Phase 6 SOLID Refactoring)
+    # Delegate to StatisticalProcessor for improved maintainability and testing
+    # =========================================================================
+    
+    def describe_modern(self, var=None, only_type=None, text_key=None, axis_edit=None):
+        """Modern dataset structure inspection (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.describe(var, only_type, text_key, axis_edit)
+    
+    def weight_modern(self, weight_scheme, weight_name='weight', unique_key='identity',
+                     subset=None, report=True, path_report=None, inplace=True, verbose=True):
+        """Modern statistical weighting (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.weight(
+            weight_scheme, weight_name, unique_key, subset, report, path_report, inplace, verbose
+        )
+    
+    def codes_modern(self, name):
+        """Modern code extraction (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.codes(name)
+    
+    def codes_in_data_modern(self, name):
+        """Modern data code analysis (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.codes_in_data(name)
+    
+    def factors_modern(self, name):
+        """Modern factor extraction (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.factors(name)
+    
+    def is_numeric_modern(self, name):
+        """Modern numeric type checking (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.is_numeric(name)
+    
+    def min_value_count_modern(self, names, min_count=50, weight=None, condition=None,
+                              axis='y', verbose=True):
+        """Modern value count analysis (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.min_value_count(
+            names, min_count, weight, condition, axis, verbose
+        )
+    
+    def hiding_modern(self, names, hide, axis='y', hide_values=True):
+        """Modern statistical hiding (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.hiding(names, hide, axis, hide_values)
+    
+    def any_codes_modern(self, name, codes):
+        """Modern 'any codes' analysis (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.any_codes(name, codes)
+    
+    def all_codes_modern(self, name, codes):
+        """Modern 'all codes' analysis (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.all_codes(name, codes)
+    
+    def verify_data_vs_meta_codes_modern(self, name, raise_error=True):
+        """Modern code verification (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.verify_data_vs_meta_codes(name, raise_error)
+    
+    def clean_codes_against_meta_modern(self, name, codes):
+        """Modern code cleaning (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.clean_codes_against_meta(name, codes)
+    
+    def consecutive_codes_modern(self, codes):
+        """Modern consecutive code checking (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.consecutive_codes(codes)
+    
+    def highest_code_modern(self, codes):
+        """Modern highest code extraction (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.highest_code(codes)
+    
+    def lowest_code_modern(self, codes):
+        """Modern lowest code extraction (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.lowest_code(codes)
+    
+    def statistics_custom_modern(self, strategy_name, *args, **kwargs):
+        """Modern custom statistical analysis dispatch (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.statistics_custom(strategy_name, *args, **kwargs)
+    
+    def get_statistical_info_modern(self):
+        """Get statistical analysis capabilities info (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.get_statistical_info()
+    
+    def get_summary_statistics_modern(self):
+        """Get comprehensive dataset statistics (delegates to StatisticalProcessor)."""
+        return self._statistical_processor.get_summary_statistics()
+        
+    @property
+    def statistical_processor(self):
+        """Access to the modern StatisticalProcessor for advanced operations."""
+        return self._statistical_processor
 
     def __contains__(self, name):
         return self.var_exists(name)
