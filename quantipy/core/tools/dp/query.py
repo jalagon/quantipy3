@@ -7,14 +7,14 @@ and data transformation workflows.
 """
 import re
 from collections.abc import Generator
-from typing import Any
+from typing import Any, Dict, List, Generator, Optional, Union, Tuple
 
 import pandas as pd
 
 import quantipy as qp
 
 
-def get_views(qp_structure: dict[str, Any]) -> Generator['qp.View', None, None]:
+def get_views(qp_structure: Dict[str, Any]) -> Generator['qp.View', None, None]:
     '''Generator replacement for nested loops to return all view objects
     stored in a given qp container structure.
     Currently supports chain-classed shapes and cluster objects natively.
@@ -30,7 +30,7 @@ def get_views(qp_structure: dict[str, Any]) -> Generator['qp.View', None, None]:
             yield v
 
 
-def get_variable_types(data: pd.DataFrame, meta: dict[str, Any]) -> dict[str, list[str]]:
+def get_variable_types(data: pd.DataFrame, meta: Dict[str, Any]) -> Dict[str, List[str]]:
     """Returns a dict of variable types to lists of variable names.
 
     Parameters
@@ -72,7 +72,7 @@ def get_variable_types(data: pd.DataFrame, meta: dict[str, Any]) -> dict[str, li
     return types
 
 
-def uniquify_list(lst: list[str]) -> list[str]:
+def uniquify_list(lst: List[str]) -> List[str]:
     # De-dupe keys so far:
     # Credit: Dave Kirby's order preserving uniqueifying list function
     # http://www.peterbe.com/plog/uniqifiers-benchmark
@@ -82,7 +82,7 @@ def uniquify_list(lst: list[str]) -> list[str]:
     return result
 
 
-def get_tests_slicer(s: pd.Series, reverse: bool = False) -> list[str]:
+def get_tests_slicer(s: pd.Series, reverse: bool = False) -> List[str]:
     """
     Returns the slicer needed to get tests in order from high to low.
     """
@@ -94,7 +94,7 @@ def get_tests_slicer(s: pd.Series, reverse: bool = False) -> list[str]:
     return tests_slicer
 
 
-def shake(lst: list[str]) -> pd.DataFrame:
+def shake(lst: List[str]) -> pd.DataFrame:
     """
     De-dupe and reorder view keys in lst for request_views.
     """
@@ -109,7 +109,7 @@ def shake(lst: list[str]) -> pd.DataFrame:
     return df
 
 
-def shake_nets(lst: list[str]) -> list[str]:
+def shake_nets(lst: List[str]) -> List[str]:
     """
     De-dupe and reorder net view keys in lst for request_views.
     """
@@ -118,7 +118,7 @@ def shake_nets(lst: list[str]) -> list[str]:
     return result
 
 
-def shake_descriptives(lst: list[str], descriptives: list[str]) -> list[str]:
+def shake_descriptives(lst: List[str], descriptives: List[str]) -> List[str]:
     """
     De-dupe and reorder descriptives view keys in lst for request_views.
     """
@@ -152,21 +152,21 @@ def shake_descriptives(lst: list[str], descriptives: list[str]) -> list[str]:
 
 def request_views(
     stack: 'qp.Stack',
-    data_key: str | list[str] | tuple[str, ...] | None = None,
-    filter_key: str | list[str] | tuple[str, ...] | None = None,
-    weight: str | None = None,
+    data_key: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+    filter_key: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+    weight: Optional[str] = None,
     frequencies: bool = True,
     default: bool = False,
     nets: bool = True,
-    descriptives: list[str] | None = None,
-    sums: str | None = None,
+    descriptives: Optional[List[str]] = None,
+    sums: Optional[str] = None,
     coltests: bool = True,
     mimic: str = 'Dim',
-    sig_levels: list[str] | list[float] | None = None,
-    x: str | list[str] | tuple[str, ...] | None = None,
-    y: str | list[str] | tuple[str, ...] | None = None,
+    sig_levels: Optional[Union[List[str], List[float]]] = None,
+    x: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+    y: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
     by_x: bool = False,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """
     Get structured, request-ready views from the stack.
 
@@ -605,7 +605,7 @@ def request_views(
     return requested_views
 
 
-def reorder_set_keys(view_set: dict[str, Any]) -> dict[str, Any]:
+def reorder_set_keys(view_set: Dict[str, Any]) -> Dict[str, Any]:
     """
     Enforces an ordered convention of view keys in given keyed lists.
 
@@ -631,7 +631,7 @@ def reorder_set_keys(view_set: dict[str, Any]) -> dict[str, Any]:
     return view_set
 
 
-def reorder_test_keys(views: list[str]) -> list[str]:
+def reorder_test_keys(views: List[str]) -> List[str]:
     """
     Enforces an ordered convention of view keys in given keyed lists.
 

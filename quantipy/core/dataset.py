@@ -16,6 +16,9 @@ import pandas as pd
 
 import quantipy as qp
 from quantipy.core.helpers.functions import emulate_meta, filtered_set
+from quantipy.core.metadata import MetadataManager
+from quantipy.core.io_manager import IOManager
+from quantipy.core.data_validator import DataValidator
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -102,6 +105,7 @@ class DataSet(object):
     """
 
     def __init__(self, name, dimensions_comp=True):
+        # Legacy properties for backward compatibility
         self.path = None
         self.name = name
         self.filtered = 'no_filter'
@@ -114,7 +118,127 @@ class DataSet(object):
         self._cache = Cache()
         self._dimensions_comp = dimensions_comp
         self._dimensions_suffix = '_grid'
+        
+        # Modern SOLID-compliant components
+        self._metadata_manager = MetadataManager(self)
+        self._io_manager = IOManager(self)
+        self._data_validator = DataValidator(self)
+        
         return None
+
+    # =========================================================================
+    # METADATA DELEGATION METHODS (Phase 1 SOLID Refactoring)
+    # Delegate to MetadataManager for improved maintainability and testing
+    # =========================================================================
+    
+    def get_variable_text_modern(self, name, shorten=True, text_key=None, axis_edit=None):
+        """Modern type-safe variable text retrieval (delegates to MetadataManager)."""
+        return self._metadata_manager.get_variable_text(name, shorten, text_key, axis_edit)
+    
+    def set_variable_text_modern(self, name, new_text, text_key=None, axis_edit=None):
+        """Modern type-safe variable text setting (delegates to MetadataManager).""" 
+        return self._metadata_manager.set_variable_text(name, new_text, text_key, axis_edit)
+    
+    def get_value_texts_modern(self, name, text_key=None, axis_edit=None):
+        """Modern type-safe value text retrieval (delegates to MetadataManager)."""
+        return self._metadata_manager.get_value_texts(name, text_key, axis_edit)
+    
+    def set_value_texts_modern(self, name, renamed_vals, text_key=None, axis_edit=None):
+        """Modern type-safe value text setting (delegates to MetadataManager)."""
+        return self._metadata_manager.set_value_texts(name, renamed_vals, text_key, axis_edit)
+    
+    def validate_metadata_modern(self, spss_limits=False, verbose=True):
+        """Modern comprehensive metadata validation (delegates to MetadataManager)."""
+        return self._metadata_manager.validate_metadata(spss_limits, verbose)
+    
+    def get_text_keys_used_modern(self):
+        """Modern text key discovery (delegates to MetadataManager)."""
+        return self._metadata_manager.get_text_keys_used()
+        
+    @property
+    def metadata_manager(self):
+        """Access to the modern MetadataManager for advanced operations."""
+        return self._metadata_manager
+
+    # =========================================================================
+    # I/O DELEGATION METHODS (Phase 2 SOLID Refactoring)
+    # Delegate to IOManager for improved maintainability and testing
+    # =========================================================================
+    
+    def read_data_modern(self, format_name, *args, reset=True, **kwargs):
+        """Modern type-safe data reading (delegates to IOManager)."""
+        return self._io_manager.read_data(format_name, *args, reset=reset, **kwargs)
+    
+    def write_data_modern(self, format_name, *args, **kwargs):
+        """Modern type-safe data writing (delegates to IOManager)."""
+        return self._io_manager.write_data(format_name, *args, **kwargs)
+    
+    def from_components_modern(self, data_df, meta_dict=None, reset=True, text_key=None):
+        """Modern type-safe component loading (delegates to IOManager)."""
+        return self._io_manager.from_components(data_df, meta_dict, reset, text_key)
+    
+    def get_supported_formats_modern(self):
+        """Get list of supported file formats (delegates to IOManager)."""
+        return self._io_manager.get_supported_formats()
+    
+    def detect_format_from_path_modern(self, path):
+        """Detect file format from path (delegates to IOManager)."""
+        return self._io_manager.detect_format_from_path(path)
+    
+    def validate_paths_modern(self, *paths):
+        """Validate file paths (delegates to IOManager)."""
+        return self._io_manager.validate_paths(*paths)
+    
+    def get_file_info_modern(self):
+        """Get file information (delegates to IOManager)."""
+        return self._io_manager.get_file_info()
+        
+    @property
+    def io_manager(self):
+        """Access to the modern IOManager for advanced operations."""
+        return self._io_manager
+
+    # =========================================================================
+    # VALIDATION DELEGATION METHODS (Phase 3 SOLID Refactoring)
+    # Delegate to DataValidator for improved maintainability and testing
+    # =========================================================================
+    
+    def validate_complete_modern(self, spss_limits=False, verbose=True):
+        """Modern comprehensive dataset validation (delegates to DataValidator)."""
+        return self._data_validator.validate_complete(spss_limits, verbose)
+    
+    def validate_metadata_structure_modern(self):
+        """Modern metadata structure validation (delegates to DataValidator)."""
+        return self._data_validator.validate_metadata_structure()
+    
+    def validate_variable_modern(self, variable_name):
+        """Modern single variable validation (delegates to DataValidator)."""
+        return self._data_validator.validate_variable_consistency(variable_name)
+    
+    def validate_data_codes_modern(self, variable_name):
+        """Modern data code validation (delegates to DataValidator).""" 
+        return self._data_validator.validate_data_codes(variable_name)
+    
+    def validate_text_keys_modern(self, text_key=None):
+        """Modern text key validation (delegates to DataValidator)."""
+        return self._data_validator.validate_text_key_consistency(text_key)
+    
+    def compare_datasets_modern(self, other_dataset, variables=None, strict=False, text_key=None):
+        """Modern dataset comparison (delegates to DataValidator)."""
+        return self._data_validator.compare_datasets(other_dataset, variables, strict, text_key)
+    
+    def clean_and_validate_codes_modern(self, variable_name, codes):
+        """Modern code cleaning and validation (delegates to DataValidator)."""
+        return self._data_validator.clean_and_validate_codes(variable_name, codes)
+    
+    def get_validation_summary_modern(self):
+        """Modern validation summary (delegates to DataValidator)."""
+        return self._data_validator.get_validation_summary()
+        
+    @property
+    def data_validator(self):
+        """Access to the modern DataValidator for advanced operations."""
+        return self._data_validator
 
     def __contains__(self, name):
         return self.var_exists(name)
