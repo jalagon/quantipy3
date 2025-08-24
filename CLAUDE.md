@@ -16,45 +16,62 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 quantipy3 is a Python 3 port of the Quantipy library - a data processing, analysis and reporting software for "people data" (survey/market research data). It builds on pandas/numpy and offers specialized handling of survey data types, metadata, weights, and statistical analysis. We will be updating it to newer Python (3.10-3.12) and package versions.
 
-## Development Commands
+## Development Commands (Week 5 CI/CD Infrastructure - IMPLEMENTED)
 
-### Modern Tooling (Week 2+) - **RECOMMENDED**
-- `check-gates-modern.md`: Modern quality gates using ruff + mypy + pytest (Python 3.10+)
-- `code-review-modern.md`: Enhanced architecture assessment including ruff/mypy readiness
+### Primary Development Commands (Make-based Automation)
+- `make help` - Show all available development commands
+- `make quality` - Run linting, formatting, and type checking
+- `make test-cov` - Run tests with coverage reporting  
+- `make ci` - Complete CI pipeline validation locally
+- `make format` - Auto-format code with ruff
+- `make lint` - Code quality checking
+- `make type-check` - Type checking on enhanced files
+- `make security` - Security scanning (bandit + safety)
+- `make build` - Package building and verification
+- `make clean` - Clean build artifacts
 
-### Legacy Tooling (Week 1)  
-- `check-gates.md`: Legacy quality gates (flake8 + autopep8 + Black + isort) - for Python 3.6 compatibility
-- `code-review.md`: **MODERNIZATION STANDARDS** - SOLID/DRY/KISS/YAGNI + CI/lint/types + Python 3.10-3.12 + pytest/coverage/ruff/mypy
+### Environment Setup & CI Validation
+- `./setup-dev.sh` - Complete development environment automation
+- `./validate-ci.sh` - Local CI pipeline validation before push
+- `make install-all` - Install package + development dependencies
 
-### Architecture & Documentation
+### Legacy Commands (Superseded by Week 5 Infrastructure)
+- ❌ `check-gates-modern.md` → ✅ `make quality`
+- ❌ `check-gates.md` → ✅ `make quality`  
+- ❌ `code-review-modern.md` → ✅ CI pipeline enforces standards automatically
+
+### Architecture & Documentation Commands
 - `KISS-SOLID-check.md`: SOLID design principles validation
-- `document_feature.md`: Feature documentation generation  
-- `document_feature_advanced.md`: AI-powered comprehensive documentation with accessibility compliance
+- `document_feature.md`: Feature documentation generation
+- `document_feature_advanced.md`: AI-powered comprehensive documentation
 
-### Environment Usage
-**Modern Development**: `source /Users/jorgealagon/miniforge3_x86/bin/activate quantipy_modern`
-**Legacy Compatibility**: `/Users/jorgealagon/miniforge3_x86/envs/qp_legacy36/bin/python`
+### CI/CD Pipeline Infrastructure (Week 5 - ACTIVE)
+- **GitHub Actions**: `.github/workflows/ci.yml` - Multi-Python (3.10-3.12) testing matrix
+- **Pre-commit Hooks**: `.pre-commit-config.yaml` - Automated quality gates on commits
+- **Quality Gates**: Ruff (linting/formatting) + MyPy (type checking) - enforced automatically
+- **Security**: Bandit (code analysis) + Safety (dependency vulnerabilities) - integrated scanning
+- **Coverage**: Codecov integration with 70% minimum threshold - automatic reporting  
+- **Build Verification**: Package building and artifact validation - prevents broken releases
 
-### Review Standards (code-review.md)
-**TARGET ARCHITECTURE**:
-- **Code Quality**: SOLID, DRY, KISS, YAGNI principles
-- **CI Pipeline**: lint + types + coverage gates  
-- **Python Version**: 3.10-3.12 compatibility
-- **Tooling Stack**: pytest + coverage + ruff (incl. pyupgrade) + mypy (non-strict)
+### Environment Usage (Updated)
+**Primary Development**: Use `make` commands (handles environment management automatically)
+**Legacy Testing**: `/Users/jorgealagon/miniforge3_x86/envs/qp_legacy36/bin/python` (for Python 3.6 compatibility verification)
 
-### Quality Assurance Tools
-- **Legacy Tools** (current): flake8 + autopep8 + Black + isort + pytest-cov
-- **Modern Tooling** (target): ruff + mypy + pytest + coverage
-- **ruff**: Modern linter replacing flake8/pyflakes/isort with pyupgrade rules
-- **mypy**: Type checker (starting non-strict, progressing to strict)
-- **pytest**: Modern test framework with fixtures and coverage integration
-- **coverage**: Branch coverage analysis with 80% minimum gate
+### Quality Standards (IMPLEMENTED & ENFORCED)
+- **Code Quality**: SOLID, DRY, KISS, YAGNI principles enforced by pre-commit hooks
+- **CI Pipeline**: Automated lint + types + coverage gates operational  
+- **Python Version**: 3.10-3.12 compatibility matrix tested in CI
+- **Tooling Stack**: pytest + coverage + ruff + mypy (fully integrated and operational)
 
-### Testing
-- Run all tests: `/Users/jorgealagon/miniforge3_x86/envs/qp_legacy36/bin/python -m pytest tests`
-- Run specific test module: `/Users/jorgealagon/miniforge3_x86/envs/qp_legacy36/bin/python -m pytest tests/test_stack.py`
-- Run tests with coverage: `/Users/jorgealagon/miniforge3_x86/envs/qp_legacy36/bin/python -m pytest --cov=quantipy --cov-report=term-missing tests`
-- Auto-run tests on file changes: `python autotests.py` (needs Python 3 update)
+### Testing (Modernized Commands)
+**Recommended (Week 5)**:
+- `make test` - Run basic test suite
+- `make test-cov` - Run tests with coverage reporting
+- `make ci` - Full CI pipeline including all quality gates
+
+**Legacy (still functional for specific debugging)**:
+- `/Users/jorgealagon/miniforge3_x86/envs/qp_legacy36/bin/python -m pytest tests/` - Direct testing
+- Individual module testing with full paths when troubleshooting specific issues
 
 ### Testing Standards & Quality Gates
 **SIGNIFICANT PROGRESS**: Major test issues have been addressed in feature-critical-refactoring branch:
