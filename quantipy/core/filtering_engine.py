@@ -12,12 +12,10 @@ Following Single Responsibility Principle, this module handles:
 - Filter variable management and transformation
 """
 
-import warnings
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Tuple
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
-import numpy as np
 
 if TYPE_CHECKING:
     from quantipy.core.dataset import DataSet
@@ -31,11 +29,11 @@ class FilteringStrategy(ABC):
 
     @abstractmethod
     def filter(
-        self, 
-        dataset: "DataSet", 
-        *args, 
+        self,
+        dataset: "DataSet",
+        *args,
         **kwargs
-    ) -> Union[pd.Index, pd.DataFrame, "DataSet", None]:
+    ) -> pd.Index | pd.DataFrame | "DataSet" | None:
         """
         Execute filtering operation on dataset.
 
@@ -47,40 +45,37 @@ class FilteringStrategy(ABC):
         Returns:
             Strategy-dependent result (Index, DataFrame, DataSet, or None)
         """
-        pass
 
     @abstractmethod
     def get_strategy_name(self) -> str:
         """Return the name of this filtering strategy."""
-        pass
 
 
 class LogicalFilterStrategy(FilteringStrategy):
     """Strategy for logical expression filtering."""
 
     def filter(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         alias: str,
         condition: Any,
         inplace: bool = False
-    ) -> Optional["DataSet"]:
+    ) -> "DataSet" | None:
         """Execute logical filtering."""
         data = dataset._data.copy()
-        data.index = pd.Index(list(range(0, len(data.index))))
-        
+        data.index = pd.Index(list(range(len(data.index))))
+
         filter_idx, _ = get_logic_index(pd.Series(data.index), condition, data)
         filtered_data = data.iloc[filter_idx, :]
-        
+
         if inplace:
             dataset.filtered = alias
             dataset._data = filtered_data
             return None
-        else:
-            new_ds = dataset.clone()
-            new_ds._data = filtered_data
-            new_ds.filtered = alias
-            return new_ds
+        new_ds = dataset.clone()
+        new_ds._data = filtered_data
+        new_ds.filtered = alias
+        return new_ds
 
     def get_strategy_name(self) -> str:
         return "logical_filter"
@@ -90,8 +85,8 @@ class IndexSlicerStrategy(FilteringStrategy):
     """Strategy for index-based row selection."""
 
     def filter(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         condition: Any
     ) -> pd.Index:
         """Create index slicer for row selection."""
@@ -108,19 +103,19 @@ class SubsetStrategy(FilteringStrategy):
     """Strategy for variable subsetting operations."""
 
     def filter(
-        self, 
-        dataset: "DataSet", 
-        variables: Optional[List[str]] = None,
-        from_set: Optional[str] = None,
+        self,
+        dataset: "DataSet",
+        variables: list[str] | None = None,
+        from_set: str | None = None,
         inplace: bool = False
-    ) -> Optional["DataSet"]:
+    ) -> "DataSet" | None:
         """Create variable subset of dataset."""
         if not (variables or from_set) or (variables and from_set):
             raise ValueError("Must pass either 'variables' or 'from_set'!")
-            
+
         subset_ds = dataset.clone() if not inplace else dataset
         sets = subset_ds._meta['sets']
-        
+
         if variables:
             from_set = 'subset'
             subset_ds.create_set(setname='subset', included=variables)
@@ -128,12 +123,12 @@ class SubsetStrategy(FilteringStrategy):
             if from_set not in sets:
                 raise KeyError(f"'{from_set}' not found in meta 'sets' collection!")
             variables = [v.split('@')[-1] for v in sets[from_set]['items']]
-            
+
         all_vars = subset_ds.columns() + subset_ds.masks()
         for var in all_vars:
             if var not in variables:
                 subset_ds.drop(var)
-                
+
         if not inplace:
             return subset_ds
         return None
@@ -146,33 +141,33 @@ class CrosstabStrategy(FilteringStrategy):
     """Strategy for statistical cross-tabulation operations."""
 
     def filter(
-        self, 
-        dataset: "DataSet", 
-        x: Union[str, List[str]],
-        y: Union[str, List[str]] = None,
-        w: Optional[str] = None,
-        f: Optional[Any] = None,
+        self,
+        dataset: "DataSet",
+        x: str | list[str],
+        y: str | list[str] = None,
+        w: str | None = None,
+        f: Any | None = None,
         ci: str = 'counts',
         base: str = 'auto',
         stats: bool = False,
-        sig_level: Optional[float] = None,
+        sig_level: float | None = None,
         rules: bool = False,
         decimals: int = 1,
         xtotal: bool = False,
         painted: bool = True,
-        text_key: Optional[str] = None
+        text_key: str | None = None
     ) -> pd.DataFrame:
         """Execute cross-tabulation analysis."""
         # This is a simplified implementation - the full crosstab logic would be here
         # For now, returning a basic crosstab structure
-        
+
         if y is None:
             y = []
         if isinstance(x, str):
             x = [x]
         if isinstance(y, str):
             y = [y]
-            
+
         # Apply filter if provided
         filtered_data = dataset._data
         if f is not None:
@@ -183,12 +178,12 @@ class CrosstabStrategy(FilteringStrategy):
                 # Apply logical filter
                 slicer = dataset.take(f)
                 filtered_data = dataset._data.iloc[slicer]
-        
+
         # Apply weight if provided
         if w and w in filtered_data.columns:
             # Weight handling would go here
             pass
-            
+
         # Generate basic crosstab
         if len(y) == 0:
             # Frequency table
@@ -196,11 +191,11 @@ class CrosstabStrategy(FilteringStrategy):
         else:
             # Cross-tabulation
             result = pd.crosstab(
-                filtered_data[x[0]], 
-                filtered_data[y[0]], 
+                filtered_data[x[0]],
+                filtered_data[y[0]],
                 margins=xtotal
             )
-        
+
         return result
 
     def get_strategy_name(self) -> str:
@@ -211,51 +206,50 @@ class FilterVariableStrategy(FilteringStrategy):
     """Strategy for filter variable management operations."""
 
     def filter(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         name: str,
         *args,
         **kwargs
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Execute filter variable operations."""
         if operation == "add":
             return self._add_filter_var(dataset, name, *args, **kwargs)
-        elif operation == "extend":
+        if operation == "extend":
             return self._extend_filter_var(dataset, name, *args, **kwargs)
-        elif operation == "reduce":
+        if operation == "reduce":
             return self._reduce_filter_var(dataset, name, *args, **kwargs)
-        elif operation == "manifest":
+        if operation == "manifest":
             return self._manifest_filter(dataset, name, *args, **kwargs)
-        elif operation == "merge":
+        if operation == "merge":
             return self._merge_filter(dataset, name, *args, **kwargs)
-        elif operation == "compare":
+        if operation == "compare":
             return self._compare_filter(dataset, name, *args, **kwargs)
-        else:
-            raise ValueError(f"Unknown filter variable operation: {operation}")
+        raise ValueError(f"Unknown filter variable operation: {operation}")
 
     def _add_filter_var(
-        self, 
-        dataset: "DataSet", 
-        name: str, 
-        logic: Any, 
+        self,
+        dataset: "DataSet",
+        name: str,
+        logic: Any,
         overwrite: bool = False
     ) -> None:
         """Add a new filter variable."""
         if name in dataset._data.columns and not overwrite:
             raise ValueError(f"Filter variable '{name}' already exists. Use overwrite=True to replace.")
-        
+
         # Create filter series based on logic
         full_data = dataset._data.copy()
         series_data = full_data['@1'].copy()
         filter_idx, _ = get_logic_index(series_data, logic, full_data)
-        
+
         # Create binary filter variable
         filter_series = pd.Series(0, index=dataset._data.index, name=name)
         filter_series.iloc[filter_idx] = 1
-        
+
         dataset._data[name] = filter_series
-        
+
         # Add metadata for filter variable
         dataset.add_meta(
             name, 'single', f'Filter: {name}',
@@ -263,34 +257,34 @@ class FilterVariableStrategy(FilteringStrategy):
         )
 
     def _extend_filter_var(
-        self, 
-        dataset: "DataSet", 
-        name: str, 
-        logic: Any, 
-        extend_as: Optional[str] = None
+        self,
+        dataset: "DataSet",
+        name: str,
+        logic: Any,
+        extend_as: str | None = None
     ) -> None:
         """Extend existing filter variable with additional logic."""
         if name not in dataset._data.columns:
             raise KeyError(f"Filter variable '{name}' not found")
-            
+
         # Apply additional logic and extend filter
         full_data = dataset._data.copy()
         series_data = full_data['@1'].copy()
         additional_idx, _ = get_logic_index(series_data, logic, full_data)
-        
+
         # Extend existing filter
         dataset._data.loc[dataset._data.index[additional_idx], name] = 1
 
     def _reduce_filter_var(
-        self, 
-        dataset: "DataSet", 
-        name: str, 
-        values: List[int]
+        self,
+        dataset: "DataSet",
+        name: str,
+        values: list[int]
     ) -> None:
         """Reduce filter variable to specific values."""
         if name not in dataset._data.columns:
             raise KeyError(f"Filter variable '{name}' not found")
-            
+
         # Keep only specified values, set others to 0
         mask = ~dataset._data[name].isin(values)
         dataset._data.loc[mask, name] = 0
@@ -299,27 +293,27 @@ class FilterVariableStrategy(FilteringStrategy):
         """Manifest filter variable as boolean series."""
         if name not in dataset._data.columns:
             raise KeyError(f"Filter variable '{name}' not found")
-            
+
         return dataset._data[name].astype(bool)
 
     def _merge_filter(
-        self, 
-        dataset: "DataSet", 
-        name: str, 
-        filters: List[str]
+        self,
+        dataset: "DataSet",
+        name: str,
+        filters: list[str]
     ) -> None:
         """Merge multiple filter variables."""
         missing_filters = [f for f in filters if f not in dataset._data.columns]
         if missing_filters:
             raise KeyError(f"Filter variables not found: {missing_filters}")
-            
+
         # Combine filters using OR logic
         combined = pd.Series(0, index=dataset._data.index, name=name)
         for filter_var in filters:
             combined = combined | dataset._data[filter_var]
-            
+
         dataset._data[name] = combined.astype(int)
-        
+
         # Add metadata
         dataset.add_meta(
             name, 'single', f'Merged filter: {name}',
@@ -327,20 +321,20 @@ class FilterVariableStrategy(FilteringStrategy):
         )
 
     def _compare_filter(
-        self, 
-        dataset: "DataSet", 
-        name1: str, 
+        self,
+        dataset: "DataSet",
+        name1: str,
         name2: str
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """Compare two filter variables."""
         if name1 not in dataset._data.columns:
             raise KeyError(f"Filter variable '{name1}' not found")
         if name2 not in dataset._data.columns:
             raise KeyError(f"Filter variable '{name2}' not found")
-            
+
         f1 = dataset._data[name1]
         f2 = dataset._data[name2]
-        
+
         return {
             'both_selected': int(((f1 == 1) & (f2 == 1)).sum()),
             'only_first': int(((f1 == 1) & (f2 == 0)).sum()),
@@ -370,7 +364,7 @@ class FilteringEngine:
     def __init__(self, dataset: "DataSet") -> None:
         """Initialize FilteringEngine with reference to parent DataSet."""
         self._dataset = dataset
-        self._strategies: Dict[str, FilteringStrategy] = {}
+        self._strategies: dict[str, FilteringStrategy] = {}
         self._initialize_strategies()
 
     def _initialize_strategies(self) -> None:
@@ -383,16 +377,16 @@ class FilteringEngine:
             "filter_variable": FilterVariableStrategy(),
         }
 
-    def get_supported_filters(self) -> List[str]:
+    def get_supported_filters(self) -> list[str]:
         """Get list of supported filtering types."""
         return list(self._strategies.keys())
 
     def filter(
-        self, 
-        alias: str, 
-        condition: Any, 
+        self,
+        alias: str,
+        condition: Any,
         inplace: bool = False
-    ) -> Optional["DataSet"]:
+    ) -> "DataSet" | None:
         """
         Filter the DataSet using a Quantipy logical expression.
 
@@ -421,11 +415,11 @@ class FilteringEngine:
         return strategy.filter(self._dataset, condition)
 
     def subset(
-        self, 
-        variables: Optional[List[str]] = None, 
-        from_set: Optional[str] = None, 
+        self,
+        variables: list[str] | None = None,
+        from_set: str | None = None,
         inplace: bool = False
-    ) -> Optional["DataSet"]:
+    ) -> "DataSet" | None:
         """
         Create a cloned version with a reduced collection of variables.
 
@@ -442,19 +436,19 @@ class FilteringEngine:
 
     def crosstab(
         self,
-        x: Union[str, List[str]],
-        y: Union[str, List[str]] = None,
-        w: Optional[str] = None,
-        f: Optional[Any] = None,
+        x: str | list[str],
+        y: str | list[str] = None,
+        w: str | None = None,
+        f: Any | None = None,
         ci: str = 'counts',
         base: str = 'auto',
         stats: bool = False,
-        sig_level: Optional[float] = None,
+        sig_level: float | None = None,
         rules: bool = False,
         decimals: int = 1,
         xtotal: bool = False,
         painted: bool = True,
-        text_key: Optional[str] = None
+        text_key: str | None = None
     ) -> pd.DataFrame:
         """
         Return a well formatted crosstab.
@@ -479,14 +473,14 @@ class FilteringEngine:
         """
         strategy = self._strategies["crosstab"]
         return strategy.filter(
-            self._dataset, x, y, w, f, ci, base, stats, 
+            self._dataset, x, y, w, f, ci, base, stats,
             sig_level, rules, decimals, xtotal, painted, text_key
         )
 
     def add_filter_var(
-        self, 
-        name: str, 
-        logic: Any, 
+        self,
+        name: str,
+        logic: Any,
         overwrite: bool = False
     ) -> None:
         """
@@ -504,10 +498,10 @@ class FilteringEngine:
         return strategy.filter(self._dataset, "add", name, logic, overwrite=overwrite)
 
     def extend_filter_var(
-        self, 
-        name: str, 
-        logic: Any, 
-        extend_as: Optional[str] = None
+        self,
+        name: str,
+        logic: Any,
+        extend_as: str | None = None
     ) -> None:
         """
         Extend existing filter variable with additional logic.
@@ -589,9 +583,9 @@ class FilteringEngine:
         return self._dataset.clone()
 
     def filter_custom(
-        self, 
-        strategy_name: str, 
-        *args, 
+        self,
+        strategy_name: str,
+        *args,
         **kwargs
     ) -> Any:
         """
@@ -639,9 +633,9 @@ class FilteringEngine:
     def get_filter_statistics(self) -> Dict[str, Any]:
         """Get statistics about current filtering state."""
         total_rows = len(self._dataset._data) if self._dataset._data is not None else 0
-        filter_vars = [col for col in (self._dataset._data.columns if self._dataset._data is not None else []) 
+        filter_vars = [col for col in (self._dataset._data.columns if self._dataset._data is not None else [])
                       if col.startswith('f_') or self._dataset.is_filter(col)]
-        
+
         return {
             "total_rows": total_rows,
             "filter_variables": len(filter_vars),

@@ -12,18 +12,15 @@ Following Single Responsibility Principle, this module handles:
 - Array analysis and validation
 """
 
-import warnings
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Tuple
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 import numpy as np
 
 if TYPE_CHECKING:
     from quantipy.core.dataset import DataSet
 
 # Import array utility functions
-from quantipy.core.helpers.functions import verify_variable_name
 
 
 class ArrayStrategy(ABC):
@@ -31,9 +28,9 @@ class ArrayStrategy(ABC):
 
     @abstractmethod
     def execute(
-        self, 
-        dataset: "DataSet", 
-        *args, 
+        self,
+        dataset: "DataSet",
+        *args,
         **kwargs
     ) -> Any:
         """
@@ -47,20 +44,18 @@ class ArrayStrategy(ABC):
         Returns:
             Strategy-dependent return value
         """
-        pass
 
     @abstractmethod
     def get_strategy_name(self) -> str:
         """Return the name of this array strategy."""
-        pass
 
 
 class ArrayCreationStrategy(ArrayStrategy):
     """Strategy for array creation and combination operations."""
 
     def execute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         name: str,
         **kwargs
@@ -68,52 +63,51 @@ class ArrayCreationStrategy(ArrayStrategy):
         """Execute array creation operations."""
         if operation == "create_array":
             return self._create_array(dataset, name, **kwargs)
-        elif operation == "to_array":
+        if operation == "to_array":
             return self._to_array(dataset, name, **kwargs)
-        elif operation == "copy_array_data":
+        if operation == "copy_array_data":
             return self._copy_array_data(dataset, name, **kwargs)
-        else:
-            raise ValueError(f"Unknown array creation operation: {operation}")
+        raise ValueError(f"Unknown array creation operation: {operation}")
 
     def _create_array(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
         qtype: str,
         label: str,
-        items: List[Union[str, Tuple[int, str]]],
-        categories: Optional[List[Dict[str, Any]]] = None,
-        text_key: Optional[str] = None
+        items: list[str, tuple[int, str]],
+        categories: list[dict[str, Any | None]] = None,
+        text_key: str | None = None
     ) -> None:
         """Create a new array from scratch."""
         if not text_key:
             text_key = dataset.text_key
 
         dataset._add_array(name, qtype, label, items, categories, text_key)
-        return None
+        return
 
     def _to_array(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
-        variables: List[Union[str, Dict[str, str]]],
+        variables: list[str, dict[str, str]],
         label: str,
         safe: bool = True
     ) -> None:
         """Combine existing variables into an array."""
         meta = dataset._meta
         newname = dataset._dims_compat_arr_name(name)
-        
+
         if dataset.var_exists(newname):
             if safe:
                 raise ValueError(f'{name} does already exist.')
             dataset.drop(newname, ignore_items=True)
 
         var_list = [list(v.keys())[0] if isinstance(v, dict) else v for v in variables]
-        
+
         if not all(dataset.var_exists(v) for v in var_list):
             raise KeyError("'variables' must be included in DataSet.")
-        elif not len(set(var_list)) == len(var_list):
+        if not len(set(var_list)) == len(var_list):
             raise ValueError("'variables' contains duplicates!")
 
         to_comb = {
@@ -121,14 +115,14 @@ class ArrayCreationStrategy(ArrayStrategy):
             for v in variables
             if isinstance(v, dict)
         }
-        
+
         for var in var_list:
             if var not in to_comb:
                 to_comb[var] = dataset.text(var)
 
         first = var_list[0]
         subtype = dataset._get_type(var_list[0])
-        
+
         if dataset._has_categorical_data(var_list[0]):
             categorical = True
             if not all(dataset.codes(var) == dataset.codes(first) for var in var_list):
@@ -139,32 +133,32 @@ class ArrayCreationStrategy(ArrayStrategy):
         # Create the array
         items = [(i+1, to_comb[var]) for i, var in enumerate(var_list)]
         categories = dataset.values(first) if categorical else None
-        
+
         dataset._add_array(newname, subtype, label, items, categories, dataset.text_key)
-        
+
         # Copy data from original variables to array items
         array_items = dataset._get_itemmap(newname, 'items')
-        for orig_var, array_item in zip(var_list, array_items):
+        for orig_var, array_item in zip(var_list, array_items, strict=False):
             if orig_var in dataset._data.columns:
                 dataset._data[array_item] = dataset._data[orig_var].copy()
 
-        return None
+        return
 
     def _copy_array_data(
         self,
-        dataset: "DataSet", 
+        dataset: "DataSet",
         source: str,
         target: str,
-        source_items: Optional[List[str]] = None,
-        target_items: Optional[List[str]] = None,
-        slicer: Optional[Any] = None
+        source_items: list[str | None] = None,
+        target_items: list[str | None] = None,
+        slicer: Any | None = None
     ) -> None:
         """Copy data between array items."""
         dataset._verify_same_value_codes_meta(source, target)
-        
+
         all_source_items = dataset._get_itemmap(source, non_mapped='items')
         all_target_items = dataset._get_itemmap(target, non_mapped='items')
-        
+
         if source_items is None:
             source_items = all_source_items
         if target_items is None:
@@ -173,7 +167,7 @@ class ArrayCreationStrategy(ArrayStrategy):
         if len(source_items) != len(target_items):
             raise ValueError("Source and target items must have same length")
 
-        for s_item, t_item in zip(source_items, target_items):
+        for s_item, t_item in zip(source_items, target_items, strict=False):
             if s_item not in all_source_items:
                 raise KeyError(f"'{s_item}' not found in source array '{source}'")
             if t_item not in all_target_items:
@@ -184,7 +178,7 @@ class ArrayCreationStrategy(ArrayStrategy):
             else:
                 dataset._data[t_item] = dataset._data[s_item].copy()
 
-        return None
+        return
 
     def get_strategy_name(self) -> str:
         return "array_creation"
@@ -194,8 +188,8 @@ class ItemManagementStrategy(ArrayStrategy):
     """Strategy for array item management operations."""
 
     def execute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         name: str,
         **kwargs
@@ -203,20 +197,19 @@ class ItemManagementStrategy(ArrayStrategy):
         """Execute item management operations."""
         if operation == "remove_items":
             return self._remove_items(dataset, name, **kwargs)
-        elif operation == "extend_items":
+        if operation == "extend_items":
             return self._extend_items(dataset, name, **kwargs)
-        elif operation == "reorder_items":
+        if operation == "reorder_items":
             return self._reorder_items(dataset, name, **kwargs)
-        elif operation == "set_item_texts":
+        if operation == "set_item_texts":
             return self._set_item_texts(dataset, name, **kwargs)
-        else:
-            raise ValueError(f"Unknown item management operation: {operation}")
+        raise ValueError(f"Unknown item management operation: {operation}")
 
     def _remove_items(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
-        remove: Union[int, List[int]]
+        remove: int | list[int]
     ) -> None:
         """Remove items from an array."""
         if isinstance(remove, int):
@@ -229,35 +222,35 @@ class ItemManagementStrategy(ArrayStrategy):
         keep_item_idxs = [
             idx for idx, item in enumerate(items, start=1) if idx not in remove
         ]
-        
+
         # Update mask metadata
         new_items = dataset._meta['masks'][name]['items']
         new_items = [
             item for idx, item in enumerate(new_items, start=1) if idx in keep_item_idxs
         ]
         dataset._meta['masks'][name]['items'] = new_items
-        
+
         # Remove from data and metadata
         for drop_item_name in drop_item_names:
             if drop_item_name in dataset._data.columns:
                 dataset._data.drop(drop_item_name, axis=1, inplace=True)
             if drop_item_name in dataset._meta['columns']:
                 del dataset._meta['columns'][drop_item_name]
-            
+
             col_ref = f'columns@{drop_item_name}'
             if col_ref in dataset._meta['sets']['data file']['items']:
                 dataset._meta['sets']['data file']['items'].remove(col_ref)
             if col_ref in dataset._meta['sets'][name]['items']:
                 dataset._meta['sets'][name]['items'].remove(col_ref)
 
-        return None
+        return
 
     def _extend_items(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
-        ext_items: List[Union[str, Dict[str, str]]],
-        text_key: Optional[str] = None
+        ext_items: list[str, dict[str, str]],
+        text_key: str | None = None
     ) -> None:
         """Extend array with new items."""
         if not text_key:
@@ -265,19 +258,19 @@ class ItemManagementStrategy(ArrayStrategy):
 
         existing_items = dataset._get_itemmap(name, 'items')
         current_max = len(existing_items)
-        
+
         # Process extension items
         if isinstance(ext_items[0], str):
             ext_items = [(i + current_max + 1, item) for i, item in enumerate(ext_items)]
         elif isinstance(ext_items[0], dict):
-            ext_items = [(i + current_max + 1, list(item.values())[0]) 
+            ext_items = [(i + current_max + 1, list(item.values())[0])
                         for i, item in enumerate(ext_items)]
 
         # Get array metadata
         array_meta = dataset._meta['masks'][name]
         subtype = array_meta['subtype']
         array_label = array_meta['text'][text_key]
-        
+
         # Get values reference for categorical arrays
         if dataset._has_categorical_data(name):
             categories = dataset.values(name)
@@ -288,10 +281,10 @@ class ItemManagementStrategy(ArrayStrategy):
         for item_no, item_text in ext_items:
             item_name = f'{dataset._dims_free_arr_name(name)}_{item_no}'
             item_obj = dataset._item(item_name, text_key, item_text)
-            
+
             # Add to items list
             array_meta['items'].append(item_obj)
-            
+
             # Add column metadata
             column_label = f'{array_label} - {item_text}'
             dataset.add_meta(
@@ -301,32 +294,32 @@ class ItemManagementStrategy(ArrayStrategy):
                 categories=categories,
                 text_key=text_key
             )
-            
+
             # Set up parent relationship
             parent_spec = {f'masks@{name}': {'type': 'array'}}
             dataset._meta['columns'][item_name]['parent'] = parent_spec
-            
+
             # Update sets
             col_ref = f'columns@{item_name}'
             if col_ref in dataset._meta['sets']['data file']['items']:
                 dataset._meta['sets']['data file']['items'].remove(col_ref)
             dataset._meta['sets'][name]['items'].append(col_ref)
-            
+
             # Initialize data column
             if item_name not in dataset._data.columns:
                 dataset._data[item_name] = np.nan
 
-        return None
+        return
 
     def _reorder_items(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
-        new_order: List[int]
+        new_order: list[int]
     ) -> None:
         """Reorder array items."""
         items = dataset._meta['masks'][name]['items']
-        
+
         if len(new_order) != len(items):
             raise ValueError("New order must include all existing items")
         if set(new_order) != set(range(1, len(items) + 1)):
@@ -335,25 +328,25 @@ class ItemManagementStrategy(ArrayStrategy):
         # Reorder items metadata
         reordered_items = [items[i - 1] for i in new_order]
         dataset._meta['masks'][name]['items'] = reordered_items
-        
+
         # Reorder columns in data if needed
         item_names = dataset._get_itemmap(name, 'items')
         reordered_names = [dataset._get_itemmap(name, 'items')[i - 1] for i in new_order]
-        
+
         # Reorder data columns to match
         remaining_cols = [col for col in dataset._data.columns if col not in item_names]
         new_col_order = remaining_cols + reordered_names
         dataset._data = dataset._data[new_col_order]
 
-        return None
+        return
 
     def _set_item_texts(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
-        renamed_items: Dict[Union[str, int], str],
-        text_key: Optional[str] = None,
-        axis_edit: Optional[str] = None
+        renamed_items: dict[str, int, str],
+        text_key: str | None = None,
+        axis_edit: str | None = None
     ) -> None:
         """Set or rename item texts."""
         if not text_key:
@@ -361,7 +354,7 @@ class ItemManagementStrategy(ArrayStrategy):
 
         items = dataset._meta['masks'][name]['items']
         item_names = dataset._get_itemmap(name, 'items')
-        
+
         for key, new_text in renamed_items.items():
             if isinstance(key, int):
                 # Item number (1-based)
@@ -378,12 +371,12 @@ class ItemManagementStrategy(ArrayStrategy):
 
             # Update item text in mask metadata
             items[item_idx]['text'][text_key] = new_text
-            
+
             # Update column text metadata
             if item_name in dataset._meta['columns']:
                 dataset._meta['columns'][item_name]['text'][text_key] = new_text
 
-        return None
+        return
 
     def get_strategy_name(self) -> str:
         return "item_management"
@@ -393,37 +386,36 @@ class ArrayInspectionStrategy(ArrayStrategy):
     """Strategy for array inspection and metadata queries."""
 
     def execute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
-        name: Optional[str] = None,
+        name: str | None = None,
         **kwargs
     ) -> Any:
         """Execute array inspection operations."""
         if operation == "items":
             return self._get_items(dataset, name, **kwargs)
-        elif operation == "item_texts":
+        if operation == "item_texts":
             return self._get_item_texts(dataset, name, **kwargs)
-        elif operation == "item_no":
+        if operation == "item_no":
             return self._get_item_no(dataset, name, **kwargs)
-        elif operation == "sources":
+        if operation == "sources":
             return self._get_sources(dataset, name)
-        elif operation == "is_array":
+        if operation == "is_array":
             return self._is_array(dataset, name)
-        elif operation == "is_array_item":
+        if operation == "is_array_item":
             return self._is_array_item(dataset, name)
-        elif operation == "maskname_from_item":
+        if operation == "maskname_from_item":
             return self._maskname_from_item(dataset, name)
-        else:
-            raise ValueError(f"Unknown array inspection operation: {operation}")
+        raise ValueError(f"Unknown array inspection operation: {operation}")
 
     def _get_items(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
-        text_key: Optional[str] = None,
-        axis_edit: Optional[str] = None
-    ) -> List[Tuple[str, str]]:
+        text_key: str | None = None,
+        axis_edit: str | None = None
+    ) -> list[tuple[str, str]]:
         """Get array items with names and texts."""
         if not text_key:
             text_key = dataset.text_key
@@ -432,12 +424,12 @@ class ArrayInspectionStrategy(ArrayStrategy):
         return list(itemmap.items())
 
     def _get_item_texts(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
-        text_key: Optional[str] = None,
-        axis_edit: Optional[str] = None
-    ) -> List[str]:
+        text_key: str | None = None,
+        axis_edit: str | None = None
+    ) -> list[str]:
         """Get item text labels only."""
         if not text_key:
             text_key = dataset.text_key
@@ -446,7 +438,7 @@ class ArrayInspectionStrategy(ArrayStrategy):
         return itemmap
 
     def _get_item_no(
-        self, 
+        self,
         dataset: "DataSet",
         name: str
     ) -> int:
@@ -456,17 +448,17 @@ class ArrayInspectionStrategy(ArrayStrategy):
 
         mask_name = dataset._maskname_from_item(name)
         item_names = dataset._get_itemmap(mask_name, 'items')
-        
+
         try:
             return item_names.index(name) + 1
         except ValueError:
             raise KeyError(f"Item '{name}' not found in array")
 
     def _get_sources(
-        self, 
+        self,
         dataset: "DataSet",
         name: str
-    ) -> List[str]:
+    ) -> list[str]:
         """Get column names for array mask."""
         if not dataset.is_array(name):
             raise ValueError(f"'{name}' is not an array")
@@ -474,7 +466,7 @@ class ArrayInspectionStrategy(ArrayStrategy):
         return dataset._get_itemmap(name, 'items')
 
     def _is_array(
-        self, 
+        self,
         dataset: "DataSet",
         name: str
     ) -> bool:
@@ -482,7 +474,7 @@ class ArrayInspectionStrategy(ArrayStrategy):
         return dataset._get_type(name) == 'array'
 
     def _is_array_item(
-        self, 
+        self,
         dataset: "DataSet",
         name: str
     ) -> bool:
@@ -490,7 +482,7 @@ class ArrayInspectionStrategy(ArrayStrategy):
         return dataset._meta['columns'].get(name, {}).get('parent', False)
 
     def _maskname_from_item(
-        self, 
+        self,
         dataset: "DataSet",
         item_name: str
     ) -> str:
@@ -508,27 +500,26 @@ class ArrayMaintenanceStrategy(ArrayStrategy):
     """Strategy for array maintenance and text operations."""
 
     def execute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         **kwargs
     ) -> Any:
         """Execute array maintenance operations."""
         if operation == "restore_item_texts":
             return self._restore_item_texts(dataset, **kwargs)
-        elif operation == "cut_item_texts":
+        if operation == "cut_item_texts":
             return self._cut_item_texts(dataset, **kwargs)
-        elif operation == "fix_array_meta":
+        if operation == "fix_array_meta":
             return self._fix_array_meta(dataset)
-        elif operation == "fix_array_item_vals":
+        if operation == "fix_array_item_vals":
             return self._fix_array_item_vals(dataset)
-        else:
-            raise ValueError(f"Unknown array maintenance operation: {operation}")
+        raise ValueError(f"Unknown array maintenance operation: {operation}")
 
     def _restore_item_texts(
-        self, 
+        self,
         dataset: "DataSet",
-        arrays: Optional[List[str]] = None
+        arrays: list[str | None] = None
     ) -> None:
         """Restore array item texts from array labels."""
         if arrays is None:
@@ -541,26 +532,26 @@ class ArrayMaintenanceStrategy(ArrayStrategy):
             array_label = dataset.text(array)
             items = dataset._get_itemmap(array, 'items')
             item_texts = dataset._get_itemmap(array, 'texts')
-            
+
             # Check if items need restoration
             needs_restoration = any(
                 item_text == array_label for item_text in item_texts
             )
-            
+
             if needs_restoration:
                 # Generate new item texts
                 new_texts = {}
                 for i, item_name in enumerate(items, 1):
                     new_texts[i] = f"{array_label} - Item {i}"
-                
+
                 dataset._array_manager.set_item_texts(array, new_texts)
 
-        return None
+        return
 
     def _cut_item_texts(
-        self, 
+        self,
         dataset: "DataSet",
-        arrays: Optional[List[str]] = None
+        arrays: list[str | None] = None
     ) -> None:
         """Remove array text prefix from item texts."""
         if arrays is None:
@@ -572,14 +563,14 @@ class ArrayMaintenanceStrategy(ArrayStrategy):
 
             array_label = dataset.text(array)
             items = dataset._meta['masks'][array]['items']
-            
+
             for item in items:
                 item_text = item['text'].get(dataset.text_key, '')
                 if item_text.startswith(f"{array_label} - "):
                     new_text = item_text.replace(f"{array_label} - ", "", 1)
                     item['text'][dataset.text_key] = new_text
 
-        return None
+        return
 
     def _fix_array_meta(self, dataset: "DataSet") -> None:
         """Fix array metadata inconsistencies."""
@@ -595,7 +586,7 @@ class ArrayMaintenanceStrategy(ArrayStrategy):
                         col_meta['parent'] = parent_def
                         break
 
-        return None
+        return
 
     def _fix_array_item_vals(self, dataset: "DataSet") -> None:
         """Fix array item value references."""
@@ -603,12 +594,12 @@ class ArrayMaintenanceStrategy(ArrayStrategy):
             if dataset._has_categorical_data(mask_name):
                 value_ref = f'lib@values@{mask_name}'
                 items = dataset._get_itemmap(mask_name, 'items')
-                
+
                 for item_name in items:
                     if item_name in dataset._meta['columns']:
                         dataset._meta['columns'][item_name]['values'] = value_ref
 
-        return None
+        return
 
     def get_strategy_name(self) -> str:
         return "array_maintenance"
@@ -618,43 +609,42 @@ class ArrayAnalysisStrategy(ArrayStrategy):
     """Strategy for array analysis and validation operations."""
 
     def execute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
-        name: Optional[str] = None,
+        name: str | None = None,
         **kwargs
     ) -> Any:
         """Execute array analysis operations."""
         if operation == "empty_items":
             return self._empty_items(dataset, name, **kwargs)
-        elif operation == "hide_empty_items":
+        if operation == "hide_empty_items":
             return self._hide_empty_items(dataset, **kwargs)
-        elif operation == "fully_hidden_arrays":
+        if operation == "fully_hidden_arrays":
             return self._fully_hidden_arrays(dataset)
-        else:
-            raise ValueError(f"Unknown array analysis operation: {operation}")
+        raise ValueError(f"Unknown array analysis operation: {operation}")
 
     def _empty_items(
-        self, 
+        self,
         dataset: "DataSet",
         name: str,
-        condition: Optional[Any] = None,
+        condition: Any | None = None,
         by_name: bool = True
-    ) -> Union[List[str], List[int]]:
+    ) -> list[str, List[int]]:
         """Find empty array items."""
         if not dataset.is_array(name):
             raise ValueError(f"'{name}' is not an array")
 
         items = dataset._get_itemmap(name, 'items')
         empty_items = []
-        
+
         for i, item_name in enumerate(items, 1):
             if item_name not in dataset._data.columns:
                 empty_items.append(item_name if by_name else i)
                 continue
-                
+
             item_data = dataset._data[item_name]
-            
+
             if condition is not None:
                 # Apply condition filter first
                 filtered_data = dataset.take(condition)
@@ -663,7 +653,7 @@ class ArrayAnalysisStrategy(ArrayStrategy):
                 else:
                     empty_items.append(item_name if by_name else i)
                     continue
-            
+
             # Check if item is empty (all NaN or zeros)
             is_empty = item_data.isna().all() or (item_data == 0).all()
             if is_empty:
@@ -672,30 +662,30 @@ class ArrayAnalysisStrategy(ArrayStrategy):
         return empty_items
 
     def _hide_empty_items(
-        self, 
+        self,
         dataset: "DataSet",
-        condition: Optional[Any] = None,
-        arrays: Optional[List[str]] = None
-    ) -> Dict[str, List[str]]:
+        condition: Any | None = None,
+        arrays: list[str | None] = None
+    ) -> dict[str, list[str]]:
         """Hide empty items in arrays."""
         if arrays is None:
             arrays = dataset.masks()
 
         hidden_items = {}
-        
+
         for array in arrays:
             if not dataset.is_array(array):
                 continue
 
             empty_items = self._empty_items(dataset, array, condition, by_name=True)
-            
+
             if empty_items:
                 hidden_items[array] = empty_items
-                
+
                 # Apply hide rules
                 if 'rules' not in dataset._meta['masks'][array]:
                     dataset._meta['masks'][array]['rules'] = {}
-                
+
                 hide_rule = {
                     'hide': [f'columns@{item}' for item in empty_items]
                 }
@@ -703,15 +693,15 @@ class ArrayAnalysisStrategy(ArrayStrategy):
 
         return hidden_items
 
-    def _fully_hidden_arrays(self, dataset: "DataSet") -> List[str]:
+    def _fully_hidden_arrays(self, dataset: "DataSet") -> list[str]:
         """Find arrays where all items are hidden."""
         fully_hidden = []
-        
+
         for array in dataset.masks():
             items = dataset._get_itemmap(array, 'items')
             rules = dataset._meta['masks'][array].get('rules', {})
             hidden = rules.get('hide', [])
-            
+
             # Check if all items are hidden
             hidden_items = [rule.split('@')[-1] for rule in hidden if '@' in rule]
             if set(hidden_items) >= set(items):
@@ -740,7 +730,7 @@ class ArrayManager:
     def __init__(self, dataset: "DataSet") -> None:
         """Initialize ArrayManager with reference to parent DataSet."""
         self._dataset = dataset
-        self._strategies: Dict[str, ArrayStrategy] = {}
+        self._strategies: dict[str, ArrayStrategy] = {}
         self._initialize_strategies()
 
     def _initialize_strategies(self) -> None:
@@ -753,7 +743,7 @@ class ArrayManager:
             "array_analysis": ArrayAnalysisStrategy(),
         }
 
-    def get_supported_operations(self) -> List[str]:
+    def get_supported_operations(self) -> list[str]:
         """Get list of supported array operation types."""
         return list(self._strategies.keys())
 
@@ -763,9 +753,9 @@ class ArrayManager:
         name: str,
         qtype: str,
         label: str,
-        items: List[Union[str, Tuple[int, str]]],
-        categories: Optional[List[Dict[str, Any]]] = None,
-        text_key: Optional[str] = None
+        items: list[str, tuple[int, str]],
+        categories: list[dict[str, Any | None]] = None,
+        text_key: str | None = None
     ) -> None:
         """
         Create a new array from scratch.
@@ -786,15 +776,15 @@ class ArrayManager:
 
         strategy = self._strategies["array_creation"]
         return strategy.execute(
-            self._dataset, "create_array", name, 
-            qtype=qtype, label=label, items=items, 
+            self._dataset, "create_array", name,
+            qtype=qtype, label=label, items=items,
             categories=categories, text_key=text_key
         )
 
     def to_array(
         self,
         name: str,
-        variables: List[Union[str, Dict[str, str]]],
+        variables: list[str, dict[str, str]],
         label: str,
         safe: bool = True
     ) -> None:
@@ -820,9 +810,9 @@ class ArrayManager:
         self,
         source: str,
         target: str,
-        source_items: Optional[List[str]] = None,
-        target_items: Optional[List[str]] = None,
-        slicer: Optional[Any] = None
+        source_items: list[str | None] = None,
+        target_items: list[str | None] = None,
+        slicer: Any | None = None
     ) -> None:
         """
         Copy data between array items.
@@ -852,7 +842,7 @@ class ArrayManager:
     def remove_items(
         self,
         name: str,
-        remove: Union[int, List[int]]
+        remove: int | list[int]
     ) -> None:
         """
         Remove items from an array.
@@ -875,8 +865,8 @@ class ArrayManager:
     def extend_items(
         self,
         name: str,
-        ext_items: List[Union[str, Dict[str, str]]],
-        text_key: Optional[str] = None
+        ext_items: list[str, dict[str, str]],
+        text_key: str | None = None
     ) -> None:
         """
         Extend array with new items.
@@ -901,7 +891,7 @@ class ArrayManager:
     def reorder_items(
         self,
         name: str,
-        new_order: List[int]
+        new_order: list[int]
     ) -> None:
         """
         Reorder array items.
@@ -924,9 +914,9 @@ class ArrayManager:
     def set_item_texts(
         self,
         name: str,
-        renamed_items: Dict[Union[str, int], str],
-        text_key: Optional[str] = None,
-        axis_edit: Optional[str] = None
+        renamed_items: dict[str, int, str],
+        text_key: str | None = None,
+        axis_edit: str | None = None
     ) -> None:
         """
         Set or rename item texts.
@@ -953,9 +943,9 @@ class ArrayManager:
     def items(
         self,
         name: str,
-        text_key: Optional[str] = None,
-        axis_edit: Optional[str] = None
-    ) -> List[Tuple[str, str]]:
+        text_key: str | None = None,
+        axis_edit: str | None = None
+    ) -> list[tuple[str, str]]:
         """
         Get array items with names and texts.
 
@@ -979,9 +969,9 @@ class ArrayManager:
     def item_texts(
         self,
         name: str,
-        text_key: Optional[str] = None,
-        axis_edit: Optional[str] = None
-    ) -> List[str]:
+        text_key: str | None = None,
+        axis_edit: str | None = None
+    ) -> list[str]:
         """
         Get item text labels only.
 
@@ -1015,7 +1005,7 @@ class ArrayManager:
         strategy = self._strategies["array_inspection"]
         return strategy.execute(self._dataset, "item_no", name)
 
-    def sources(self, name: str) -> List[str]:
+    def sources(self, name: str) -> list[str]:
         """
         Get column names for array mask.
 
@@ -1070,7 +1060,7 @@ class ArrayManager:
     # Array Maintenance Operations
     def restore_item_texts(
         self,
-        arrays: Optional[List[str]] = None
+        arrays: list[str | None] = None
     ) -> None:
         """
         Restore array item texts from array labels.
@@ -1088,7 +1078,7 @@ class ArrayManager:
 
     def cut_item_texts(
         self,
-        arrays: Optional[List[str]] = None
+        arrays: list[str | None] = None
     ) -> None:
         """
         Remove array text prefix from item texts.
@@ -1128,9 +1118,9 @@ class ArrayManager:
     def empty_items(
         self,
         name: str,
-        condition: Optional[Any] = None,
+        condition: Any | None = None,
         by_name: bool = True
-    ) -> Union[List[str], List[int]]:
+    ) -> list[str, List[int]]:
         """
         Find empty array items.
 
@@ -1150,9 +1140,9 @@ class ArrayManager:
 
     def hide_empty_items(
         self,
-        condition: Optional[Any] = None,
-        arrays: Optional[List[str]] = None
-    ) -> Dict[str, List[str]]:
+        condition: Any | None = None,
+        arrays: list[str | None] = None
+    ) -> dict[str, list[str]]:
         """
         Hide empty items in arrays.
 
@@ -1169,7 +1159,7 @@ class ArrayManager:
             condition=condition, arrays=arrays
         )
 
-    def fully_hidden_arrays(self) -> List[str]:
+    def fully_hidden_arrays(self) -> list[str]:
         """
         Find arrays where all items are hidden.
 
@@ -1179,7 +1169,7 @@ class ArrayManager:
         strategy = self._strategies["array_analysis"]
         return strategy.execute(self._dataset, "fully_hidden_arrays")
 
-    def get_array_info(self) -> Dict[str, Any]:
+    def get_array_info(self) -> dict[str, Any]:
         """Get information about array management capabilities."""
         return {
             "supported_strategies": self.get_supported_operations(),

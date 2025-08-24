@@ -12,23 +12,23 @@ Following Single Responsibility Principle, this module handles:
 - Data splitting and component extraction
 """
 
-import os
 import json
+import os
 import warnings
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Tuple
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 if TYPE_CHECKING:
     from quantipy.core.dataset import DataSet
 
 # Import export utility functions
-from quantipy.core.tools.dp.io import write_quantipy as w_quantipy
-from quantipy.core.tools.dp.io import write_spss as w_spss
 from quantipy.core.tools.dp.io import write_dimensions as w_dimensions
 from quantipy.core.tools.dp.io import write_forsta_api as w_forsta_api
+from quantipy.core.tools.dp.io import write_quantipy as w_quantipy
+from quantipy.core.tools.dp.io import write_spss as w_spss
 
 
 class ExportStrategy(ABC):
@@ -36,9 +36,9 @@ class ExportStrategy(ABC):
 
     @abstractmethod
     def export(
-        self, 
-        dataset: "DataSet", 
-        *args, 
+        self,
+        dataset: "DataSet",
+        *args,
         **kwargs
     ) -> Any:
         """
@@ -52,42 +52,39 @@ class ExportStrategy(ABC):
         Returns:
             Strategy-dependent return value
         """
-        pass
 
     @abstractmethod
     def get_strategy_name(self) -> str:
         """Return the name of this export strategy."""
-        pass
 
 
 class NativeExportStrategy(ExportStrategy):
     """Strategy for native Quantipy format exports."""
 
     def export(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         **kwargs
     ) -> Any:
         """Execute native export operations."""
         if operation == "write_quantipy":
             return self._write_quantipy(dataset, **kwargs)
-        elif operation == "split":
+        if operation == "split":
             return self._split(dataset, **kwargs)
-        elif operation == "save":
+        if operation == "save":
             return self._save(dataset)
-        else:
-            raise ValueError(f"Unknown native export operation: {operation}")
+        raise ValueError(f"Unknown native export operation: {operation}")
 
     def _write_quantipy(
-        self, 
+        self,
         dataset: "DataSet",
-        path_meta: Optional[str] = None,
-        path_data: Optional[str] = None
+        path_meta: str | None = None,
+        path_data: str | None = None
     ) -> None:
         """Write data and meta components to .csv/.json files."""
         meta, data = dataset._meta, dataset._data
-        
+
         if path_data is None and path_meta is None:
             # Use dataset's default path and name
             path = dataset.path or ''
@@ -104,33 +101,33 @@ class NativeExportStrategy(ExportStrategy):
             raise ValueError("Must either specify or omit both 'path_meta' and 'path_data'!")
 
         w_quantipy(meta, data, path_meta, path_data)
-        return None
+        return
 
     def _split(
-        self, 
+        self,
         dataset: "DataSet",
         save: bool = False
-    ) -> Tuple[Dict[str, Any], pd.DataFrame]:
+    ) -> tuple[dict[str, Any], pd.DataFrame]:
         """Return meta and data components, optionally saving them."""
         meta, data = dataset._meta, dataset._data
-        
+
         if save:
             path = dataset.path or ''
             name = dataset.name
             w_quantipy(meta, data, f'{path}{name}.json', f'{path}{name}.csv')
-        
+
         return meta, data
 
     def _save(self, dataset: "DataSet") -> None:
         """Save current state for later recovery."""
         if dataset._data is None and dataset._meta is None:
             warnings.warn("No data/meta components found in the DataSet.")
-            return None
+            return
 
         # Create a clone and store in cache
         ds_clone = dataset.clone()
         dataset._cache['savepoint'] = ds_clone.split()
-        return None
+        return
 
     def get_strategy_name(self) -> str:
         return "native_export"
@@ -140,41 +137,40 @@ class ExternalFormatStrategy(ExportStrategy):
     """Strategy for external format exports (SPSS, Dimensions, Forsta)."""
 
     def export(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         **kwargs
     ) -> Any:
         """Execute external format export operations."""
         if operation == "write_spss":
             return self._write_spss(dataset, **kwargs)
-        elif operation == "write_dimensions":
+        if operation == "write_dimensions":
             return self._write_dimensions(dataset, **kwargs)
-        elif operation == "write_forsta":
+        if operation == "write_forsta":
             return self._write_forsta(dataset, **kwargs)
-        elif operation == "write_forsta_api":
+        if operation == "write_forsta_api":
             return self._write_forsta_api(dataset, **kwargs)
-        else:
-            raise ValueError(f"Unknown external format operation: {operation}")
+        raise ValueError(f"Unknown external format operation: {operation}")
 
     def _write_spss(
         self,
         dataset: "DataSet",
-        path_sav: Optional[str] = None,
+        path_sav: str | None = None,
         index: bool = True,
-        text_key: Optional[str] = None,
+        text_key: str | None = None,
         mrset_tag_style: str = '__',
         drop_delimited: bool = True,
-        from_set: Optional[str] = None,
+        from_set: str | None = None,
         verbose: bool = True
     ) -> None:
         """Export to SPSS .sav format."""
         dataset.set_encoding('cp1252')
         meta, data = dataset._meta, dataset._data
-        
+
         if not text_key:
             text_key = dataset.text_key
-        
+
         if not path_sav:
             path_sav = os.path.join(dataset.path or '', f'{dataset.name}.sav')
         else:
@@ -182,44 +178,44 @@ class ExternalFormatStrategy(ExportStrategy):
                 path_sav = f'{path_sav}.sav'
 
         w_spss(
-            meta, data, path_sav, index, text_key, 
+            meta, data, path_sav, index, text_key,
             mrset_tag_style, drop_delimited, from_set, verbose
         )
-        return None
+        return
 
     def _write_dimensions(
         self,
         dataset: "DataSet",
-        path_mdd: Optional[str] = None,
-        path_ddf: Optional[str] = None,
-        text_key: Optional[str] = None,
+        path_mdd: str | None = None,
+        path_ddf: str | None = None,
+        text_key: str | None = None,
         run: bool = True,
         clean_up: bool = True
     ) -> None:
         """Export to Dimensions .mdd/.ddf format."""
         ds_clone = dataset.clone()
-        
+
         if not text_key:
             text_key = ds_clone.text_key
-            
+
         if ds_clone._dimensions_comp:
             ds_clone.undimensionize()
-            
+
         # Check against weak dupes and rename automatically
         ds_clone._rename_weak_dupes()
-        
+
         # Apply Dimensions naming rules
         ds_clone.dimensionize()
-        
+
         w_dimensions(ds_clone, path_mdd, path_ddf, text_key, run, clean_up)
-        return None
+        return
 
     def _write_forsta(
         self,
         dataset: "DataSet",
         path_meta: str,
         path_data: str,
-        schema_vars: Optional[List[str]] = None,
+        schema_vars: list[str | None] = None,
         verbose: bool = False
     ) -> None:
         """Export to Forsta format."""
@@ -230,10 +226,10 @@ class ExternalFormatStrategy(ExportStrategy):
         meta_json = json.dumps(dataset._meta)
         with open(path_meta, 'w') as f:
             f.write(meta_json)
-        
+
         # Export data as CSV
         dataset._data.to_csv(path_data)
-        return None
+        return
 
     def _write_forsta_api(
         self,
@@ -243,11 +239,11 @@ class ExternalFormatStrategy(ExportStrategy):
         idp_url: str,
         client_id: str,
         client_secret: str,
-        schema_vars: Optional[List[str]] = None
+        schema_vars: list[str | None] = None
     ) -> Any:
         """Export to Forsta API."""
         return w_forsta_api(
-            dataset, projectid, public_url, idp_url, 
+            dataset, projectid, public_url, idp_url,
             client_id, client_secret, schema_vars
         )
 
@@ -259,42 +255,40 @@ class MetadataExportStrategy(ExportStrategy):
     """Strategy for metadata export and serialization operations."""
 
     def export(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         **kwargs
     ) -> Any:
         """Execute metadata export operations."""
         if operation == "meta_to_json":
             return self._meta_to_json(dataset, **kwargs)
-        elif operation == "export_meta_subset":
+        if operation == "export_meta_subset":
             return self._export_meta_subset(dataset, **kwargs)
-        elif operation == "serialize_metadata":
+        if operation == "serialize_metadata":
             return self._serialize_metadata(dataset, **kwargs)
-        else:
-            raise ValueError(f"Unknown metadata export operation: {operation}")
+        raise ValueError(f"Unknown metadata export operation: {operation}")
 
     def _meta_to_json(
         self,
         dataset: "DataSet",
-        key: Optional[str] = None,
-        collection: Optional[str] = None,
-        output_path: Optional[str] = None
-    ) -> Union[str, None]:
+        key: str | None = None,
+        collection: str | None = None,
+        output_path: str | None = None
+    ) -> str | None:
         """Save metadata object as JSON."""
         class NumpyEncoder(json.JSONEncoder):
             def default(self, obj):
                 if isinstance(obj, np.integer):
                     return int(obj)
-                elif isinstance(obj, np.floating):
+                if isinstance(obj, np.floating):
                     return float(obj)
-                elif isinstance(obj, np.ndarray):
+                if isinstance(obj, np.ndarray):
                     return obj.tolist()
-                else:
-                    return super(NumpyEncoder, self).default(obj)
+                return super(NumpyEncoder, self).default(obj)
 
         meta = dataset._meta
-        
+
         # Determine what to export
         if key:
             k_suffix = f'@{key}'
@@ -324,20 +318,19 @@ class MetadataExportStrategy(ExportStrategy):
 
         # Serialize to JSON
         json_output = json.dumps(export_data, cls=NumpyEncoder, indent=2)
-        
+
         if output_path:
             with open(output_path, 'w') as f:
                 f.write(json_output)
             return None
-        else:
-            return json_output
+        return json_output
 
     def _export_meta_subset(
         self,
         dataset: "DataSet",
-        variables: List[str],
-        output_path: Optional[str] = None
-    ) -> Union[Dict[str, Any], None]:
+        variables: list[str],
+        output_path: str | None = None
+    ) -> dict[str, Any, None]:
         """Export metadata for specific variables."""
         subset_meta = {
             'info': dataset._meta.get('info', {}),
@@ -358,7 +351,7 @@ class MetadataExportStrategy(ExportStrategy):
         for set_name, set_def in dataset._meta.get('sets', {}).items():
             items = set_def.get('items', [])
             relevant_items = [
-                item for item in items 
+                item for item in items
                 if any(var in item for var in variables)
             ]
             if relevant_items:
@@ -368,8 +361,7 @@ class MetadataExportStrategy(ExportStrategy):
             with open(output_path, 'w') as f:
                 json.dump(subset_meta, f, indent=2)
             return None
-        else:
-            return subset_meta
+        return subset_meta
 
     def _serialize_metadata(
         self,
@@ -382,20 +374,17 @@ class MetadataExportStrategy(ExportStrategy):
             def default(self, obj):
                 if isinstance(obj, np.integer):
                     return int(obj)
-                elif isinstance(obj, np.floating):
+                if isinstance(obj, np.floating):
                     return float(obj)
-                elif isinstance(obj, np.ndarray):
+                if isinstance(obj, np.ndarray):
                     return obj.tolist()
-                else:
-                    return super(NumpyEncoder, self).default(obj)
+                return super(NumpyEncoder, self).default(obj)
 
         if format_type.lower() == 'json':
             if compact:
                 return json.dumps(dataset._meta, cls=NumpyEncoder, separators=(',', ':'))
-            else:
-                return json.dumps(dataset._meta, cls=NumpyEncoder, indent=2)
-        else:
-            raise ValueError(f"Unsupported format type: {format_type}")
+            return json.dumps(dataset._meta, cls=NumpyEncoder, indent=2)
+        raise ValueError(f"Unsupported format type: {format_type}")
 
     def get_strategy_name(self) -> str:
         return "metadata_export"
@@ -405,22 +394,21 @@ class SessionManagementStrategy(ExportStrategy):
     """Strategy for session management and recovery operations."""
 
     def export(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         **kwargs
     ) -> Any:
         """Execute session management operations."""
         if operation == "save_session":
             return self._save_session(dataset, **kwargs)
-        elif operation == "revert_session":
+        if operation == "revert_session":
             return self._revert_session(dataset)
-        elif operation == "backup_dataset":
+        if operation == "backup_dataset":
             return self._backup_dataset(dataset, **kwargs)
-        elif operation == "create_checkpoint":
+        if operation == "create_checkpoint":
             return self._create_checkpoint(dataset, **kwargs)
-        else:
-            raise ValueError(f"Unknown session management operation: {operation}")
+        raise ValueError(f"Unknown session management operation: {operation}")
 
     def _save_session(
         self,
@@ -430,23 +418,23 @@ class SessionManagementStrategy(ExportStrategy):
         """Save current session state."""
         if dataset._data is None and dataset._meta is None:
             warnings.warn("No data/meta components found in the DataSet.")
-            return None
+            return
 
         ds_clone = dataset.clone()
         if 'checkpoints' not in dataset._cache:
             dataset._cache['checkpoints'] = {}
         dataset._cache['checkpoints'][checkpoint_name] = ds_clone.split()
-        return None
+        return
 
     def _revert_session(self, dataset: "DataSet") -> None:
         """Revert to previously saved session state."""
         if 'savepoint' not in dataset._cache:
             warnings.warn("No saved session DataSet file found!")
-            return None
-        
+            return
+
         dataset._meta, dataset._data = dataset._cache['savepoint']
         print(f'Reverted to last savepoint of {dataset.name}')
-        return None
+        return
 
     def _backup_dataset(
         self,
@@ -463,14 +451,14 @@ class SessionManagementStrategy(ExportStrategy):
             'meta': dataset._meta,
             'data': dataset._data.to_dict('records') if dataset._data is not None else None
         }
-        
+
         if include_cache:
             backup_data['cache'] = dict(dataset._cache)
 
         with open(backup_path, 'w') as f:
             json.dump(backup_data, f, indent=2, default=str)
-        
-        return None
+
+        return
 
     def _create_checkpoint(
         self,
@@ -481,16 +469,16 @@ class SessionManagementStrategy(ExportStrategy):
         """Create named checkpoint for recovery."""
         if 'checkpoints' not in dataset._cache:
             dataset._cache['checkpoints'] = {}
-        
+
         checkpoint_data = {
             'meta': dataset._meta,
             'data': dataset._data,
             'timestamp': pd.Timestamp.now(),
             'description': description
         }
-        
+
         dataset._cache['checkpoints'][checkpoint_name] = checkpoint_data
-        return None
+        return
 
     def get_strategy_name(self) -> str:
         return "session_management"
@@ -500,26 +488,25 @@ class ReportGenerationStrategy(ExportStrategy):
     """Strategy for report generation and summary exports."""
 
     def export(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         **kwargs
     ) -> Any:
         """Execute report generation operations."""
         if operation == "dataset_summary":
             return self._dataset_summary(dataset, **kwargs)
-        elif operation == "variable_report":
+        if operation == "variable_report":
             return self._variable_report(dataset, **kwargs)
-        elif operation == "export_codebook":
+        if operation == "export_codebook":
             return self._export_codebook(dataset, **kwargs)
-        else:
-            raise ValueError(f"Unknown report generation operation: {operation}")
+        raise ValueError(f"Unknown report generation operation: {operation}")
 
     def _dataset_summary(
         self,
         dataset: "DataSet",
-        output_path: Optional[str] = None
-    ) -> Union[Dict[str, Any], None]:
+        output_path: str | None = None
+    ) -> dict[str, Any, None]:
         """Generate comprehensive dataset summary report."""
         summary = {
             'dataset_info': {
@@ -551,15 +538,14 @@ class ReportGenerationStrategy(ExportStrategy):
             with open(output_path, 'w') as f:
                 json.dump(summary, f, indent=2, default=str)
             return None
-        else:
-            return summary
+        return summary
 
     def _variable_report(
         self,
         dataset: "DataSet",
-        variables: Optional[List[str]] = None,
-        output_path: Optional[str] = None
-    ) -> Union[Dict[str, Any], None]:
+        variables: list[str | None] = None,
+        output_path: str | None = None
+    ) -> dict[str, Any, None]:
         """Generate detailed variable report."""
         if variables is None:
             variables = dataset.columns() if hasattr(dataset, 'columns') else []
@@ -570,14 +556,14 @@ class ReportGenerationStrategy(ExportStrategy):
                 'type': dataset._get_type(var) if hasattr(dataset, '_get_type') else 'unknown',
                 'label': dataset.text(var) if hasattr(dataset, 'text') else 'N/A',
             }
-            
+
             if dataset._data is not None and var in dataset._data.columns:
                 var_info.update({
                     'dtype': str(dataset._data[var].dtype),
                     'null_count': int(dataset._data[var].isnull().sum()),
                     'unique_count': int(dataset._data[var].nunique())
                 })
-                
+
                 if dataset._data[var].dtype in ['int64', 'float64']:
                     var_info.update({
                         'min': float(dataset._data[var].min()),
@@ -591,8 +577,7 @@ class ReportGenerationStrategy(ExportStrategy):
             with open(output_path, 'w') as f:
                 json.dump(report, f, indent=2, default=str)
             return None
-        else:
-            return report
+        return report
 
     def _export_codebook(
         self,
@@ -636,7 +621,7 @@ class ReportGenerationStrategy(ExportStrategy):
         for var in variables:
             var_type = dataset._get_type(var) if hasattr(dataset, '_get_type') else 'unknown'
             var_label = dataset.text(var) if hasattr(dataset, 'text') else 'N/A'
-            
+
             html_content += f"""
             <div class="variable">
                 <div class="var-name">{var}</div>
@@ -661,7 +646,7 @@ class ReportGenerationStrategy(ExportStrategy):
         """Export codebook as CSV."""
         codebook_data = []
         variables = dataset.columns() if hasattr(dataset, 'columns') else []
-        
+
         for var in variables:
             codebook_data.append({
                 'Variable': var,
@@ -693,7 +678,7 @@ class ExportManager:
     def __init__(self, dataset: "DataSet") -> None:
         """Initialize ExportManager with reference to parent DataSet."""
         self._dataset = dataset
-        self._strategies: Dict[str, ExportStrategy] = {}
+        self._strategies: dict[str, ExportStrategy] = {}
         self._initialize_strategies()
 
     def _initialize_strategies(self) -> None:
@@ -706,15 +691,15 @@ class ExportManager:
             "report_generation": ReportGenerationStrategy(),
         }
 
-    def get_supported_exports(self) -> List[str]:
+    def get_supported_exports(self) -> list[str]:
         """Get list of supported export types."""
         return list(self._strategies.keys())
 
     # Native Export Operations
     def write_quantipy(
         self,
-        path_meta: Optional[str] = None,
-        path_data: Optional[str] = None
+        path_meta: str | None = None,
+        path_data: str | None = None
     ) -> None:
         """
         Write data and meta components to .csv/.json files.
@@ -732,7 +717,7 @@ class ExportManager:
             path_meta=path_meta, path_data=path_data
         )
 
-    def split(self, save: bool = False) -> Tuple[Dict[str, Any], pd.DataFrame]:
+    def split(self, save: bool = False) -> tuple[dict[str, Any], pd.DataFrame]:
         """
         Return meta and data components, optionally saving them.
 
@@ -758,12 +743,12 @@ class ExportManager:
     # External Format Operations
     def write_spss(
         self,
-        path_sav: Optional[str] = None,
+        path_sav: str | None = None,
         index: bool = True,
-        text_key: Optional[str] = None,
+        text_key: str | None = None,
         mrset_tag_style: str = '__',
         drop_delimited: bool = True,
-        from_set: Optional[str] = None,
+        from_set: str | None = None,
         verbose: bool = True
     ) -> None:
         """
@@ -791,9 +776,9 @@ class ExportManager:
 
     def write_dimensions(
         self,
-        path_mdd: Optional[str] = None,
-        path_ddf: Optional[str] = None,
-        text_key: Optional[str] = None,
+        path_mdd: str | None = None,
+        path_ddf: str | None = None,
+        text_key: str | None = None,
         run: bool = True,
         clean_up: bool = True
     ) -> None:
@@ -821,7 +806,7 @@ class ExportManager:
         self,
         path_meta: str,
         path_data: str,
-        schema_vars: Optional[List[str]] = None,
+        schema_vars: list[str | None] = None,
         verbose: bool = False
     ) -> None:
         """
@@ -850,7 +835,7 @@ class ExportManager:
         idp_url: str,
         client_id: str,
         client_secret: str,
-        schema_vars: Optional[List[str]] = None
+        schema_vars: list[str | None] = None
     ) -> Any:
         """
         Export to Forsta API.
@@ -877,10 +862,10 @@ class ExportManager:
     # Metadata Export Operations
     def meta_to_json(
         self,
-        key: Optional[str] = None,
-        collection: Optional[str] = None,
-        output_path: Optional[str] = None
-    ) -> Union[str, None]:
+        key: str | None = None,
+        collection: str | None = None,
+        output_path: str | None = None
+    ) -> str | None:
         """
         Save metadata object as JSON.
 
@@ -900,9 +885,9 @@ class ExportManager:
 
     def export_meta_subset(
         self,
-        variables: List[str],
-        output_path: Optional[str] = None
-    ) -> Union[Dict[str, Any], None]:
+        variables: list[str],
+        output_path: str | None = None
+    ) -> dict[str, Any, None]:
         """
         Export metadata for specific variables.
 
@@ -1012,8 +997,8 @@ class ExportManager:
     # Report Generation Operations
     def dataset_summary(
         self,
-        output_path: Optional[str] = None
-    ) -> Union[Dict[str, Any], None]:
+        output_path: str | None = None
+    ) -> dict[str, Any, None]:
         """
         Generate comprehensive dataset summary report.
 
@@ -1031,9 +1016,9 @@ class ExportManager:
 
     def variable_report(
         self,
-        variables: Optional[List[str]] = None,
-        output_path: Optional[str] = None
-    ) -> Union[Dict[str, Any], None]:
+        variables: list[str | None] = None,
+        output_path: str | None = None
+    ) -> dict[str, Any, None]:
         """
         Generate detailed variable report.
 
@@ -1071,7 +1056,7 @@ class ExportManager:
             output_path=output_path, format_type=format_type
         )
 
-    def get_export_info(self) -> Dict[str, Any]:
+    def get_export_info(self) -> dict[str, Any]:
         """Get information about export capabilities."""
         return {
             "supported_strategies": self.get_supported_exports(),

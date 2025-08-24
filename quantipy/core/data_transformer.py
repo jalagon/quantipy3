@@ -13,11 +13,11 @@ Following Single Responsibility Principle, this module handles:
 """
 
 import warnings
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Tuple
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 if TYPE_CHECKING:
     from quantipy.core.dataset import DataSet
@@ -31,12 +31,12 @@ class TransformationStrategy(ABC):
 
     @abstractmethod
     def transform(
-        self, 
-        dataset: "DataSet", 
-        target: str, 
-        *args, 
+        self,
+        dataset: "DataSet",
+        target: str,
+        *args,
         **kwargs
-    ) -> Union[pd.Series, None]:
+    ) -> pd.Series | None:
         """
         Execute transformation on target variable.
 
@@ -49,44 +49,41 @@ class TransformationStrategy(ABC):
         Returns:
             Transformed series or None for in-place operations
         """
-        pass
 
     @abstractmethod
     def get_strategy_name(self) -> str:
         """Return the name of this transformation strategy."""
-        pass
 
 
 class RecodeStrategy(TransformationStrategy):
     """Strategy for data recoding operations."""
 
     def transform(
-        self, 
-        dataset: "DataSet", 
-        target: str, 
-        mapper: Dict[Any, Any],
-        default: Optional[str] = None,
+        self,
+        dataset: "DataSet",
+        target: str,
+        mapper: dict[Any, Any],
+        default: str | None = None,
         append: bool = False,
-        intersect: Optional[Any] = None,
-        initialize: Optional[str] = None,
-        fillna: Optional[Any] = None,
+        intersect: Any | None = None,
+        initialize: str | None = None,
+        fillna: Any | None = None,
         inplace: bool = True
-    ) -> Union[pd.Series, None]:
+    ) -> pd.Series | None:
         """Execute recode transformation."""
         meta = dataset._meta
         data = dataset._data
-        
+
         recode_series = _recode(
             meta, data, target, mapper, default, append, intersect, initialize, fillna
         )
-        
+
         if inplace:
             dataset._data[target] = recode_series
             if not dataset._is_numeric(target):
                 dataset._verify_data_vs_meta_codes(target)
             return None
-        else:
-            return recode_series
+        return recode_series
 
     def get_strategy_name(self) -> str:
         return "recode"
@@ -96,32 +93,32 @@ class DeriveStrategy(TransformationStrategy):
     """Strategy for derived variable creation operations."""
 
     def transform(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         name: str,
         qtype: str,
         label: str,
-        cond_map: List[Tuple[Any, ...]],
-        text_key: Optional[str] = None
+        cond_map: list[tuple[Any, ...]],
+        text_key: str | None = None
     ) -> None:
         """Execute derive transformation."""
         if not text_key:
             text_key = dataset.text_key
-            
+
         append = qtype == 'delimited set'
         err_msg = (
             "'cond_map' structure not understood. Must pass a list "
             "of 2 (code, logic) / (text, logic) or 3 (code, text label, "
             "logic) element tuples!"
         )
-        
+
         if all(len(cond) == 3 for cond in cond_map):
             categories = [(cond[0], cond[1]) for cond in cond_map]
             idx_mapper = {cond[0]: cond[-1] for cond in cond_map}
         elif all(len(cond) == 2 for cond in cond_map):
             all_int = all(isinstance(cond[0], int) for cond in cond_map)
             all_str = all(isinstance(cond[0], str) for cond in cond_map)
-            
+
             if all_int:
                 # Use codes as provided, generate labels
                 categories = [(cond[0], str(cond[0])) for cond in cond_map]
@@ -137,11 +134,11 @@ class DeriveStrategy(TransformationStrategy):
 
         # Add meta for the new derived variable
         dataset.add_meta(name, qtype, label, categories, text_key=text_key)
-        
+
         # Perform the recode operation
         dataset.recode(name, idx_mapper, append=append, initialize=np.nan)
-        
-        return None
+
+        return
 
     def get_strategy_name(self) -> str:
         return "derive"
@@ -151,8 +148,8 @@ class ConversionStrategy(TransformationStrategy):
     """Strategy for variable type conversion operations."""
 
     def transform(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         name: str,
         to: str
     ) -> None:
@@ -160,7 +157,7 @@ class ConversionStrategy(TransformationStrategy):
         valid_types = ['int', 'float', 'single', 'delimited set', 'string']
         if to not in valid_types:
             raise TypeError(f"Cannot convert to type {to}!")
-            
+
         if to == 'int':
             self._as_int(dataset, name)
         elif to == 'float':
@@ -171,12 +168,12 @@ class ConversionStrategy(TransformationStrategy):
             self._as_delimited_set(dataset, name)
         elif to == 'string':
             self._as_string(dataset, name)
-            
+
         if dataset._is_array_item(name):
             mask_name = dataset._maskname_from_item(name)
             dataset._meta['masks'][mask_name]['subtype'] = to
-            
-        return None
+
+        return
 
     def _as_int(self, dataset: "DataSet", name: str) -> None:
         """Convert variable to int type."""
@@ -184,15 +181,15 @@ class ConversionStrategy(TransformationStrategy):
         if org_type == 'int':
             msg = f"Variable '{name}' is already of type 'int'."
             warnings.warn(msg)
-            return None
-        
+            return
+
         if org_type not in ['single', 'float']:
             msg = f"Cannot convert from type '{org_type}' to 'int'!"
             raise TypeError(msg)
-        
+
         # Convert data
         dataset._data[name] = dataset._data[name].astype('int64')
-        
+
         # Update metadata
         dataset._meta['columns'][name]['type'] = 'int'
         if 'values' in dataset._meta['columns'][name]:
@@ -204,15 +201,15 @@ class ConversionStrategy(TransformationStrategy):
         if org_type == 'float':
             msg = f"Variable '{name}' is already of type 'float'."
             warnings.warn(msg)
-            return None
-            
+            return
+
         if org_type not in ['single', 'int']:
             msg = f"Cannot convert from type '{org_type}' to 'float'!"
             raise TypeError(msg)
-        
+
         # Convert data
         dataset._data[name] = dataset._data[name].astype('float64')
-        
+
         # Update metadata
         dataset._meta['columns'][name]['type'] = 'float'
         if 'values' in dataset._meta['columns'][name]:
@@ -224,15 +221,15 @@ class ConversionStrategy(TransformationStrategy):
         if org_type == 'single':
             msg = f"Variable '{name}' is already of type 'single'."
             warnings.warn(msg)
-            return None
-            
+            return
+
         if org_type not in ['int', 'float', 'delimited set']:
             msg = f"Cannot convert from type '{org_type}' to 'single'!"
             raise TypeError(msg)
-            
+
         # Update metadata
         dataset._meta['columns'][name]['type'] = 'single'
-        
+
         # Ensure values exist for single type
         if 'values' not in dataset._meta['columns'][name]:
             # Generate values from unique data values
@@ -251,12 +248,12 @@ class ConversionStrategy(TransformationStrategy):
         if org_type == 'delimited set':
             msg = f"Variable '{name}' is already of type 'delimited set'."
             warnings.warn(msg)
-            return None
-            
+            return
+
         if org_type != 'single':
             msg = f"Cannot convert from type '{org_type}' to 'delimited set'!"
             raise TypeError(msg)
-            
+
         # Update metadata
         dataset._meta['columns'][name]['type'] = 'delimited set'
 
@@ -266,11 +263,11 @@ class ConversionStrategy(TransformationStrategy):
         if org_type == 'string':
             msg = f"Variable '{name}' is already of type 'string'."
             warnings.warn(msg)
-            return None
-            
+            return
+
         # Convert data to string
         dataset._data[name] = dataset._data[name].astype('str')
-        
+
         # Update metadata
         dataset._meta['columns'][name]['type'] = 'string'
         if 'values' in dataset._meta['columns'][name]:
@@ -284,29 +281,29 @@ class BandingStrategy(TransformationStrategy):
     """Strategy for numeric data banding operations."""
 
     def transform(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         name: str,
-        bands: Union[List[Any], Dict[str, Any]],
-        new_name: Optional[str] = None,
-        label: Optional[str] = None,
-        text_key: Optional[str] = None
+        bands: list[Any] | dict[str, Any],
+        new_name: str | None = None,
+        label: str | None = None,
+        text_key: str | None = None
     ) -> None:
         """Execute banding transformation."""
         if not dataset._is_numeric(name):
             msg = f"Can only band numeric typed data! {name} is {dataset._get_type(name)}."
             raise TypeError(msg)
-            
+
         if not text_key:
             text_key = dataset.text_key
         if not new_name:
             new_name = f'{name}_banded'
         if not label:
             label = dataset.text(name, False, text_key)
-            
+
         franges = []
         labels = []
-        
+
         # Process band definitions
         for i, band in enumerate(bands):
             if isinstance(band, dict):
@@ -321,23 +318,23 @@ class BandingStrategy(TransformationStrategy):
                     labels.append(f"{band[0]}-{band[1]}")
                 else:
                     labels.append(str(band))
-        
+
         # Create condition mapping for derive
         cond_map = []
-        for i, (frange, band_label) in enumerate(zip(franges, labels)):
+        for i, (frange, band_label) in enumerate(zip(franges, labels, strict=False)):
             if isinstance(frange, tuple):
                 # Range condition
                 logic = f"{name} >= {frange[0]} and {name} <= {frange[1]}"
             else:
                 # Single value condition
                 logic = f"{name} == {frange}"
-            
+
             cond_map.append((i + 1, band_label, {name: [logic]}))
-        
+
         # Use derive to create the banded variable
         dataset.derive(new_name, 'single', label, cond_map, text_key=text_key)
-        
-        return None
+
+        return
 
     def get_strategy_name(self) -> str:
         return "banding"
@@ -360,7 +357,7 @@ class DataTransformer:
     def __init__(self, dataset: "DataSet") -> None:
         """Initialize DataTransformer with reference to parent DataSet."""
         self._dataset = dataset
-        self._strategies: Dict[str, TransformationStrategy] = {}
+        self._strategies: dict[str, TransformationStrategy] = {}
         self._initialize_strategies()
 
     def _initialize_strategies(self) -> None:
@@ -372,21 +369,21 @@ class DataTransformer:
             "banding": BandingStrategy(),
         }
 
-    def get_supported_transformations(self) -> List[str]:
+    def get_supported_transformations(self) -> list[str]:
         """Get list of supported transformation types."""
         return list(self._strategies.keys())
 
     def recode(
         self,
         target: str,
-        mapper: Dict[Any, Any],
-        default: Optional[str] = None,
+        mapper: dict[Any, Any],
+        default: str | None = None,
         append: bool = False,
-        intersect: Optional[Any] = None,
-        initialize: Optional[str] = None,
-        fillna: Optional[Any] = None,
+        intersect: Any | None = None,
+        initialize: str | None = None,
+        fillna: Any | None = None,
         inplace: bool = True
-    ) -> Union[pd.Series, None]:
+    ) -> pd.Series | None:
         """
         Create a new or copied series from data, recoded using a mapper.
 
@@ -408,17 +405,17 @@ class DataTransformer:
 
         strategy = self._strategies["recode"]
         return strategy.transform(
-            self._dataset, target, mapper, default, append, 
+            self._dataset, target, mapper, default, append,
             intersect, initialize, fillna, inplace
         )
 
     def derive(
-        self, 
-        name: str, 
-        qtype: str, 
-        label: str, 
-        cond_map: List[Tuple[Any, ...]], 
-        text_key: Optional[str] = None
+        self,
+        name: str,
+        qtype: str,
+        label: str,
+        cond_map: list[tuple[Any, ...]],
+        text_key: str | None = None
     ) -> None:
         """
         Create meta and recode case data by specifying derived category logics.
@@ -456,12 +453,12 @@ class DataTransformer:
         return strategy.transform(self._dataset, name, to)
 
     def band(
-        self, 
-        name: str, 
-        bands: Union[List[Any], Dict[str, Any]], 
-        new_name: Optional[str] = None, 
-        label: Optional[str] = None, 
-        text_key: Optional[str] = None
+        self,
+        name: str,
+        bands: list[Any] | dict[str, Any],
+        new_name: str | None = None,
+        label: str | None = None,
+        text_key: str | None = None
     ) -> None:
         """
         Group numeric data with band definitions treated as group text labels.
@@ -485,13 +482,13 @@ class DataTransformer:
         )
 
     def uncode(
-        self, 
-        target: str, 
-        mapper: Dict[Any, Any], 
-        default: Optional[str] = None, 
-        intersect: Optional[Any] = None, 
+        self,
+        target: str,
+        mapper: dict[Any, Any],
+        default: str | None = None,
+        intersect: Any | None = None,
         inplace: bool = True
-    ) -> Union[pd.Series, None]:
+    ) -> pd.Series | None:
         """
         Create a new or copied series from data, uncoded using a mapper.
 
@@ -509,22 +506,22 @@ class DataTransformer:
             # Handle mask uncoding
             items = self._dataset._get_items(target)
             for item in items:
-                self.recode(item, mapper, default=default, 
+                self.recode(item, mapper, default=default,
                            intersect=intersect, inplace=inplace)
         else:
             # Handle column uncoding
-            return self.recode(target, mapper, default=default, 
+            return self.recode(target, mapper, default=default,
                              intersect=intersect, inplace=inplace)
-        
+
         return None
 
     def transform_custom(
-        self, 
-        strategy_name: str, 
-        target: str, 
-        *args, 
+        self,
+        strategy_name: str,
+        target: str,
+        *args,
         **kwargs
-    ) -> Union[pd.Series, None]:
+    ) -> pd.Series | None:
         """
         Execute custom transformation using specified strategy.
 
@@ -543,7 +540,7 @@ class DataTransformer:
         strategy = self._strategies[strategy_name]
         return strategy.transform(self._dataset, target, *args, **kwargs)
 
-    def get_transformation_info(self) -> Dict[str, Any]:
+    def get_transformation_info(self) -> dict[str, Any]:
         """Get information about available transformations."""
         return {
             "supported_strategies": self.get_supported_transformations(),

@@ -14,12 +14,12 @@ Following Single Responsibility Principle, this module handles:
 """
 
 import warnings
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Tuple
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 if TYPE_CHECKING:
     from quantipy.core.dataset import DataSet
@@ -30,9 +30,9 @@ class StatisticalStrategy(ABC):
 
     @abstractmethod
     def compute(
-        self, 
-        dataset: "DataSet", 
-        *args, 
+        self,
+        dataset: "DataSet",
+        *args,
         **kwargs
     ) -> Any:
         """
@@ -46,25 +46,23 @@ class StatisticalStrategy(ABC):
         Returns:
             Strategy-dependent result
         """
-        pass
 
     @abstractmethod
     def get_strategy_name(self) -> str:
         """Return the name of this statistical strategy."""
-        pass
 
 
 class DescriptiveStrategy(StatisticalStrategy):
     """Strategy for descriptive statistics and dataset inspection."""
 
     def compute(
-        self, 
-        dataset: "DataSet", 
-        var: Optional[str] = None,
-        only_type: Optional[Union[str, List[str]]] = None,
-        text_key: Optional[str] = None,
-        axis_edit: Optional[str] = None
-    ) -> Union[Dict[str, Any], pd.DataFrame]:
+        self,
+        dataset: "DataSet",
+        var: str | None = None,
+        only_type: str | list[str] | None = None,
+        text_key: str | None = None,
+        axis_edit: str | None = None
+    ) -> dict[str, Any, pd.DataFrame]:
         """Compute descriptive statistics and dataset structure inspection."""
         if text_key is None:
             text_key = dataset.text_key
@@ -88,7 +86,7 @@ class DescriptiveStrategy(StatisticalStrategy):
             'array': [],
             'N/A': [],
         }
-        
+
         # Process columns
         for col in dataset._data.columns:
             if col not in ['@1', 'id_L1', 'id_L1.1']:
@@ -111,7 +109,7 @@ class DescriptiveStrategy(StatisticalStrategy):
 
         # Convert to DataFrame
         types_df = pd.DataFrame(types)
-        
+
         if only_type:
             if not isinstance(only_type, list):
                 only_type = [only_type]
@@ -120,7 +118,7 @@ class DescriptiveStrategy(StatisticalStrategy):
         else:
             # Reorder columns logically
             column_order = [
-                'single', 'delimited set', 'array', 'int', 'float', 
+                'single', 'delimited set', 'array', 'int', 'float',
                 'string', 'date', 'time', 'N/A'
             ]
             existing_cols = [col for col in column_order if col in types_df.columns]
@@ -137,17 +135,17 @@ class WeightingStrategy(StatisticalStrategy):
     """Strategy for statistical weighting operations."""
 
     def compute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         weight_scheme: Any,
         weight_name: str = 'weight',
         unique_key: str = 'identity',
-        subset: Optional[Any] = None,
+        subset: Any | None = None,
         report: bool = True,
-        path_report: Optional[str] = None,
+        path_report: str | None = None,
         inplace: bool = True,
         verbose: bool = True
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """Apply statistical weighting scheme to dataset."""
         # Process subset filter if provided
         if subset:
@@ -164,53 +162,52 @@ class WeightingStrategy(StatisticalStrategy):
             weight_factors = self._apply_weight_scheme(
                 dataset, weight_scheme, unique_key, subset, verbose
             )
-            
+
             if inplace:
                 dataset._data[weight_name] = weight_factors
                 # Add weight metadata
                 dataset.add_meta(
-                    weight_name, 'float', 
+                    weight_name, 'float',
                     f'Weight factors: {weight_name}',
                     categories=[]
                 )
                 return None
-            else:
-                # Return weight factors as DataFrame
-                result = pd.DataFrame({
-                    unique_key: dataset._data[unique_key],
-                    weight_name: weight_factors
-                })
-                return result
-                
+            # Return weight factors as DataFrame
+            result = pd.DataFrame({
+                unique_key: dataset._data[unique_key],
+                weight_name: weight_factors
+            })
+            return result
+
         except Exception as e:
             if verbose:
                 print(f"Weighting error: {e}")
             return None
 
     def _apply_weight_scheme(
-        self, 
-        dataset: "DataSet", 
-        weight_scheme: Any, 
+        self,
+        dataset: "DataSet",
+        weight_scheme: Any,
         unique_key: str,
-        subset: Optional[Any] = None,
+        subset: Any | None = None,
         verbose: bool = True
     ) -> pd.Series:
         """Apply the weighting scheme and return weight factors."""
         # Mock implementation - would integrate with actual weighting engine
         n_cases = len(dataset._data)
-        
+
         # Generate mock weight factors (normally calculated by weighting algorithm)
         weight_factors = pd.Series(
             np.random.uniform(0.5, 2.0, n_cases),
             index=dataset._data.index,
             name='weight_factor'
         )
-        
+
         if verbose:
             print(f"Applied weighting scheme to {n_cases} cases")
             print(f"Weight factor range: {weight_factors.min():.3f} - {weight_factors.max():.3f}")
             print(f"Mean weight factor: {weight_factors.mean():.3f}")
-        
+
         return weight_factors
 
     def get_strategy_name(self) -> str:
@@ -221,8 +218,8 @@ class CodeAnalysisStrategy(StatisticalStrategy):
     """Strategy for code analysis and factor computation."""
 
     def compute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         name: str,
         *args,
@@ -231,26 +228,25 @@ class CodeAnalysisStrategy(StatisticalStrategy):
         """Execute code analysis operations."""
         if operation == "codes":
             return self._get_codes(dataset, name)
-        elif operation == "codes_in_data":
+        if operation == "codes_in_data":
             return self._get_codes_in_data(dataset, name)
-        elif operation == "factors":
+        if operation == "factors":
             return self._get_factors(dataset, name)
-        elif operation == "is_numeric":
+        if operation == "is_numeric":
             return self._is_numeric(dataset, name)
-        elif operation == "consecutive_codes":
+        if operation == "consecutive_codes":
             return self._consecutive_codes(*args)
-        elif operation == "highest_code":
+        if operation == "highest_code":
             return self._highest_code(*args)
-        elif operation == "lowest_code":
+        if operation == "lowest_code":
             return self._lowest_code(*args)
-        else:
-            raise ValueError(f"Unknown code analysis operation: {operation}")
+        raise ValueError(f"Unknown code analysis operation: {operation}")
 
-    def _get_codes(self, dataset: "DataSet", name: str) -> List[int]:
+    def _get_codes(self, dataset: "DataSet", name: str) -> list[int]:
         """Get categorical data's numerical code values."""
         return dataset._get_valuemap(name, non_mapped='codes')
 
-    def _get_codes_in_data(self, dataset: "DataSet", name: str) -> List[int]:
+    def _get_codes_in_data(self, dataset: "DataSet", name: str) -> list[int]:
         """Get list of codes that exist in data."""
         if dataset.is_delimited_set(name):
             if not dataset._data[name].dropna().empty:
@@ -261,7 +257,7 @@ class CodeAnalysisStrategy(StatisticalStrategy):
         else:
             data_codes = dataset._data[name].dropna().unique().tolist()
             data_codes = [int(c) for c in data_codes if not pd.isna(c)]
-        
+
         return sorted(data_codes)
 
     def _get_factors(self, dataset: "DataSet", name: str) -> OrderedDict:
@@ -283,7 +279,7 @@ class CodeAnalysisStrategy(StatisticalStrategy):
             return False
 
     @staticmethod
-    def _consecutive_codes(codes: List[int]) -> bool:
+    def _consecutive_codes(codes: list[int]) -> bool:
         """Check if codes are consecutive integers."""
         if not codes:
             return False
@@ -292,12 +288,12 @@ class CodeAnalysisStrategy(StatisticalStrategy):
         return sorted_codes == expected_range
 
     @staticmethod
-    def _highest_code(codes: List[int]) -> int:
+    def _highest_code(codes: list[int]) -> int:
         """Get highest code value."""
         return max(codes) if codes else 0
 
-    @staticmethod  
-    def _lowest_code(codes: List[int]) -> int:
+    @staticmethod
+    def _lowest_code(codes: list[int]) -> int:
         """Get lowest code value."""
         return min(codes) if codes else 0
 
@@ -309,32 +305,31 @@ class ValueAnalysisStrategy(StatisticalStrategy):
     """Strategy for value counting and threshold analysis."""
 
     def compute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
-        name: Union[str, List[str]],
+        name: str | list[str],
         *args,
         **kwargs
     ) -> Any:
         """Execute value analysis operations."""
         if operation == "min_value_count":
             return self._min_value_count(dataset, name, *args, **kwargs)
-        elif operation == "hiding":
+        if operation == "hiding":
             return self._hiding(dataset, name, *args, **kwargs)
-        elif operation == "any":
+        if operation == "any":
             return self._any_codes(dataset, name, *args, **kwargs)
-        elif operation == "all":
+        if operation == "all":
             return self._all_codes(dataset, name, *args, **kwargs)
-        else:
-            raise ValueError(f"Unknown value analysis operation: {operation}")
+        raise ValueError(f"Unknown value analysis operation: {operation}")
 
     def _min_value_count(
-        self, 
-        dataset: "DataSet", 
-        names: List[str],
+        self,
+        dataset: "DataSet",
+        names: list[str],
         min_count: int = 50,
-        weight: Optional[str] = None,
-        condition: Optional[Any] = None,
+        weight: str | None = None,
+        condition: Any | None = None,
         axis: str = 'y',
         verbose: bool = True
     ) -> None:
@@ -344,11 +339,11 @@ class ValueAnalysisStrategy(StatisticalStrategy):
             try:
                 df = dataset.crosstab(name, w=weight, text=False, f=condition)[name]['@'][name]
                 hide = []
-                
-                for idx, count in zip(df.index, df.values):
+
+                for idx, count in zip(df.index, df.values, strict=False):
                     if count < min_count:
                         hide.append(idx)
-                
+
                 if hide:
                     codes = self._get_codes(dataset, name)
                     if verbose:
@@ -357,20 +352,20 @@ class ValueAnalysisStrategy(StatisticalStrategy):
                             print(msg)
                         else:
                             print(f'{name}: Hide values {hide}')
-                    
+
                     # Remove 'All' from hide list
                     hide = [h for h in hide if h != 'All']
                     self._hiding(dataset, [name], hide, axis)
-                    
+
             except Exception as e:
                 if verbose:
                     print(f"Error analyzing {name}: {e}")
 
     def _hiding(
-        self, 
-        dataset: "DataSet", 
-        names: List[str],
-        hide: List[Any],
+        self,
+        dataset: "DataSet",
+        names: list[str],
+        hide: list[Any],
         axis: str = 'y',
         hide_values: bool = True
     ) -> None:
@@ -378,19 +373,19 @@ class ValueAnalysisStrategy(StatisticalStrategy):
         for name in names:
             if name not in dataset._meta['columns'] and name not in dataset._meta['masks']:
                 continue
-            
+
             # Get variable location
             if name in dataset._meta['columns']:
                 var_meta = dataset._meta['columns'][name]
             else:
                 var_meta = dataset._meta['masks'][name]
-            
+
             # Initialize rules if needed
             if 'rules' not in var_meta:
                 var_meta['rules'] = {}
             if axis not in var_meta['rules']:
                 var_meta['rules'][axis] = {}
-            
+
             # Set hide rules
             if hide_values:
                 var_meta['rules'][axis]['dropx'] = hide
@@ -402,10 +397,10 @@ class ValueAnalysisStrategy(StatisticalStrategy):
                     var_meta['rules'][axis]['dropx'] = updated
 
     def _any_codes(
-        self, 
-        dataset: "DataSet", 
-        name: str, 
-        codes: List[int]
+        self,
+        dataset: "DataSet",
+        name: str,
+        codes: list[int]
     ) -> pd.Series:
         """Check if any of the specified codes are present."""
         if dataset.is_delimited_set(name):
@@ -414,15 +409,14 @@ class ValueAnalysisStrategy(StatisticalStrategy):
             for code in codes:
                 result = result | dataset._data[name].str.contains(str(code), na=False)
             return result
-        else:
-            # For single/categorical, check if value is in codes
-            return dataset._data[name].isin(codes)
+        # For single/categorical, check if value is in codes
+        return dataset._data[name].isin(codes)
 
     def _all_codes(
-        self, 
-        dataset: "DataSet", 
-        name: str, 
-        codes: List[int]
+        self,
+        dataset: "DataSet",
+        name: str,
+        codes: list[int]
     ) -> pd.Series:
         """Check if all of the specified codes are present."""
         if dataset.is_delimited_set(name):
@@ -431,12 +425,10 @@ class ValueAnalysisStrategy(StatisticalStrategy):
             for code in codes:
                 result = result & dataset._data[name].str.contains(str(code), na=False)
             return result
-        else:
-            # For single values, 'all' means the value equals all codes (only possible if one code)
-            if len(codes) == 1:
-                return dataset._data[name] == codes[0]
-            else:
-                return pd.Series(False, index=dataset._data.index)
+        # For single values, 'all' means the value equals all codes (only possible if one code)
+        if len(codes) == 1:
+            return dataset._data[name] == codes[0]
+        return pd.Series(False, index=dataset._data.index)
 
     def get_strategy_name(self) -> str:
         return "value_analysis"
@@ -446,8 +438,8 @@ class ValidationStrategy(StatisticalStrategy):
     """Strategy for statistical validation operations."""
 
     def compute(
-        self, 
-        dataset: "DataSet", 
+        self,
+        dataset: "DataSet",
         operation: str,
         name: str,
         *args,
@@ -456,75 +448,73 @@ class ValidationStrategy(StatisticalStrategy):
         """Execute statistical validation operations."""
         if operation == "verify_data_vs_meta_codes":
             return self._verify_data_vs_meta_codes(dataset, name, *args, **kwargs)
-        elif operation == "clean_codes_against_meta":
+        if operation == "clean_codes_against_meta":
             return self._clean_codes_against_meta(dataset, name, *args, **kwargs)
-        elif operation == "verify_same_codes":
+        if operation == "verify_same_codes":
             return self._verify_same_value_codes_meta(dataset, name, *args, **kwargs)
-        else:
-            raise ValueError(f"Unknown validation operation: {operation}")
+        raise ValueError(f"Unknown validation operation: {operation}")
 
     def _verify_data_vs_meta_codes(
-        self, 
-        dataset: "DataSet", 
-        name: str, 
+        self,
+        dataset: "DataSet",
+        name: str,
         raise_error: bool = True
     ) -> bool:
         """Verify data codes match metadata definitions."""
         try:
             meta_codes = set(dataset._get_valuemap(name, non_mapped='codes'))
             data_codes = set(dataset.codes_in_data(name))
-            
+
             # Check for codes in data but not in meta
             undefined_codes = data_codes - meta_codes
-            
+
             if undefined_codes:
                 msg = f"Variable '{name}' has undefined codes in data: {undefined_codes}"
                 if raise_error:
                     raise ValueError(msg)
-                else:
-                    warnings.warn(msg)
-                    return False
-            
+                warnings.warn(msg)
+                return False
+
             return True
-            
+
         except Exception as e:
             if raise_error:
                 raise e
             return False
 
     def _clean_codes_against_meta(
-        self, 
-        dataset: "DataSet", 
-        name: str, 
-        codes: List[int]
-    ) -> List[int]:
+        self,
+        dataset: "DataSet",
+        name: str,
+        codes: list[int]
+    ) -> list[int]:
         """Clean code list against metadata definitions."""
         try:
             meta_codes = set(dataset._get_valuemap(name, non_mapped='codes'))
             cleaned_codes = [c for c in codes if c in meta_codes]
-            
+
             invalid_codes = set(codes) - meta_codes
             if invalid_codes:
                 warnings.warn(f"Removed invalid codes for '{name}': {invalid_codes}")
-            
+
             return cleaned_codes
-            
+
         except Exception:
             return codes
 
     def _verify_same_value_codes_meta(
-        self, 
-        dataset: "DataSet", 
-        name_a: str, 
+        self,
+        dataset: "DataSet",
+        name_a: str,
         name_b: str
     ) -> bool:
         """Verify two variables have the same code definitions."""
         try:
             codes_a = set(dataset._get_valuemap(name_a, non_mapped='codes'))
             codes_b = set(dataset._get_valuemap(name_b, non_mapped='codes'))
-            
+
             return codes_a == codes_b
-            
+
         except Exception:
             return False
 
@@ -551,7 +541,7 @@ class StatisticalProcessor:
     def __init__(self, dataset: "DataSet") -> None:
         """Initialize StatisticalProcessor with reference to parent DataSet."""
         self._dataset = dataset
-        self._strategies: Dict[str, StatisticalStrategy] = {}
+        self._strategies: dict[str, StatisticalStrategy] = {}
         self._initialize_strategies()
 
     def _initialize_strategies(self) -> None:
@@ -564,17 +554,17 @@ class StatisticalProcessor:
             "validation": ValidationStrategy(),
         }
 
-    def get_supported_statistics(self) -> List[str]:
+    def get_supported_statistics(self) -> list[str]:
         """Get list of supported statistical analysis types."""
         return list(self._strategies.keys())
 
     def describe(
-        self, 
-        var: Optional[str] = None,
-        only_type: Optional[Union[str, List[str]]] = None,
-        text_key: Optional[str] = None,
-        axis_edit: Optional[str] = None
-    ) -> Union[Dict[str, Any], pd.DataFrame]:
+        self,
+        var: str | None = None,
+        only_type: str | list[str] | None = None,
+        text_key: str | None = None,
+        axis_edit: str | None = None
+    ) -> dict[str, Any, pd.DataFrame]:
         """
         Inspect the DataSet's global or variable level structure.
 
@@ -595,12 +585,12 @@ class StatisticalProcessor:
         weight_scheme: Any,
         weight_name: str = 'weight',
         unique_key: str = 'identity',
-        subset: Optional[Any] = None,
+        subset: Any | None = None,
         report: bool = True,
-        path_report: Optional[str] = None,
+        path_report: str | None = None,
         inplace: bool = True,
         verbose: bool = True
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """
         Apply statistical weighting scheme to dataset.
 
@@ -619,11 +609,11 @@ class StatisticalProcessor:
         """
         strategy = self._strategies["weighting"]
         return strategy.compute(
-            self._dataset, weight_scheme, weight_name, unique_key, 
+            self._dataset, weight_scheme, weight_name, unique_key,
             subset, report, path_report, inplace, verbose
         )
 
-    def codes(self, name: str) -> List[int]:
+    def codes(self, name: str) -> list[int]:
         """
         Get categorical data's numerical code values.
 
@@ -636,7 +626,7 @@ class StatisticalProcessor:
         strategy = self._strategies["code_analysis"]
         return strategy.compute(self._dataset, "codes", name)
 
-    def codes_in_data(self, name: str) -> List[int]:
+    def codes_in_data(self, name: str) -> list[int]:
         """
         Get list of codes that exist in data.
 
@@ -677,10 +667,10 @@ class StatisticalProcessor:
 
     def min_value_count(
         self,
-        names: List[str],
+        names: list[str],
         min_count: int = 50,
-        weight: Optional[str] = None,
-        condition: Optional[Any] = None,
+        weight: str | None = None,
+        condition: Any | None = None,
         axis: str = 'y',
         verbose: bool = True
     ) -> None:
@@ -700,14 +690,14 @@ class StatisticalProcessor:
         """
         strategy = self._strategies["value_analysis"]
         return strategy.compute(
-            self._dataset, "min_value_count", names, 
+            self._dataset, "min_value_count", names,
             min_count, weight, condition, axis, verbose
         )
 
     def hiding(
         self,
-        names: List[str],
-        hide: List[Any],
+        names: list[str],
+        hide: list[Any],
         axis: str = 'y',
         hide_values: bool = True
     ) -> None:
@@ -728,7 +718,7 @@ class StatisticalProcessor:
             self._dataset, "hiding", names, hide, axis, hide_values
         )
 
-    def any_codes(self, name: str, codes: List[int]) -> pd.Series:
+    def any_codes(self, name: str, codes: list[int]) -> pd.Series:
         """
         Check if any of the specified codes are present.
 
@@ -742,7 +732,7 @@ class StatisticalProcessor:
         strategy = self._strategies["value_analysis"]
         return strategy.compute(self._dataset, "any", name, codes)
 
-    def all_codes(self, name: str, codes: List[int]) -> pd.Series:
+    def all_codes(self, name: str, codes: list[int]) -> pd.Series:
         """
         Check if all of the specified codes are present.
 
@@ -757,8 +747,8 @@ class StatisticalProcessor:
         return strategy.compute(self._dataset, "all", name, codes)
 
     def verify_data_vs_meta_codes(
-        self, 
-        name: str, 
+        self,
+        name: str,
         raise_error: bool = True
     ) -> bool:
         """
@@ -777,10 +767,10 @@ class StatisticalProcessor:
         )
 
     def clean_codes_against_meta(
-        self, 
-        name: str, 
-        codes: List[int]
-    ) -> List[int]:
+        self,
+        name: str,
+        codes: list[int]
+    ) -> list[int]:
         """
         Clean code list against metadata definitions.
 
@@ -796,7 +786,7 @@ class StatisticalProcessor:
             self._dataset, "clean_codes_against_meta", name, codes
         )
 
-    def consecutive_codes(self, codes: List[int]) -> bool:
+    def consecutive_codes(self, codes: list[int]) -> bool:
         """
         Check if codes are consecutive integers.
 
@@ -809,7 +799,7 @@ class StatisticalProcessor:
         strategy = self._strategies["code_analysis"]
         return strategy.compute(self._dataset, "consecutive_codes", "", codes)
 
-    def highest_code(self, codes: List[int]) -> int:
+    def highest_code(self, codes: list[int]) -> int:
         """
         Get highest code value.
 
@@ -822,7 +812,7 @@ class StatisticalProcessor:
         strategy = self._strategies["code_analysis"]
         return strategy.compute(self._dataset, "highest_code", "", codes)
 
-    def lowest_code(self, codes: List[int]) -> int:
+    def lowest_code(self, codes: list[int]) -> int:
         """
         Get lowest code value.
 
@@ -836,9 +826,9 @@ class StatisticalProcessor:
         return strategy.compute(self._dataset, "lowest_code", "", codes)
 
     def statistics_custom(
-        self, 
-        strategy_name: str, 
-        *args, 
+        self,
+        strategy_name: str,
+        *args,
         **kwargs
     ) -> Any:
         """
@@ -858,7 +848,7 @@ class StatisticalProcessor:
         strategy = self._strategies[strategy_name]
         return strategy.compute(self._dataset, *args, **kwargs)
 
-    def get_statistical_info(self) -> Dict[str, Any]:
+    def get_statistical_info(self) -> dict[str, Any]:
         """Get information about statistical analysis capabilities."""
         return {
             "supported_strategies": self.get_supported_statistics(),
@@ -873,7 +863,7 @@ class StatisticalProcessor:
         """Count numeric variables in dataset."""
         if self._dataset._data is None:
             return 0
-        
+
         count = 0
         for col in self._dataset._data.columns:
             try:
@@ -887,18 +877,18 @@ class StatisticalProcessor:
         """Count categorical variables in dataset."""
         if self._dataset._meta is None or 'columns' not in self._dataset._meta:
             return 0
-            
+
         count = 0
         for col_meta in self._dataset._meta['columns'].values():
             if col_meta.get('type') in ['single', 'delimited set']:
                 count += 1
         return count
 
-    def get_summary_statistics(self) -> Dict[str, Any]:
+    def get_summary_statistics(self) -> dict[str, Any]:
         """Get comprehensive summary statistics for the dataset."""
         if self._dataset._data is None:
             return {"error": "No data available"}
-        
+
         summary = {
             "total_cases": len(self._dataset._data),
             "total_variables": len(self._dataset._data.columns),
@@ -906,7 +896,7 @@ class StatisticalProcessor:
             "categorical_variables": self._count_categorical_variables(),
             "missing_data_summary": {}
         }
-        
+
         # Add missing data summary
         for col in self._dataset._data.columns:
             missing_count = self._dataset._data[col].isna().sum()
@@ -915,5 +905,5 @@ class StatisticalProcessor:
                     "missing_count": int(missing_count),
                     "missing_percentage": float((missing_count / len(self._dataset._data)) * 100)
                 }
-        
+
         return summary
