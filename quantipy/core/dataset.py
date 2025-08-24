@@ -18,6 +18,7 @@ import quantipy as qp
 from quantipy.core.helpers.functions import emulate_meta, filtered_set
 from quantipy.core.metadata import MetadataManager
 from quantipy.core.io_manager import IOManager
+from quantipy.core.data_validator import DataValidator
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -121,6 +122,7 @@ class DataSet(object):
         # Modern SOLID-compliant components
         self._metadata_manager = MetadataManager(self)
         self._io_manager = IOManager(self)
+        self._data_validator = DataValidator(self)
         
         return None
 
@@ -195,6 +197,48 @@ class DataSet(object):
     def io_manager(self):
         """Access to the modern IOManager for advanced operations."""
         return self._io_manager
+
+    # =========================================================================
+    # VALIDATION DELEGATION METHODS (Phase 3 SOLID Refactoring)
+    # Delegate to DataValidator for improved maintainability and testing
+    # =========================================================================
+    
+    def validate_complete_modern(self, spss_limits=False, verbose=True):
+        """Modern comprehensive dataset validation (delegates to DataValidator)."""
+        return self._data_validator.validate_complete(spss_limits, verbose)
+    
+    def validate_metadata_structure_modern(self):
+        """Modern metadata structure validation (delegates to DataValidator)."""
+        return self._data_validator.validate_metadata_structure()
+    
+    def validate_variable_modern(self, variable_name):
+        """Modern single variable validation (delegates to DataValidator)."""
+        return self._data_validator.validate_variable_consistency(variable_name)
+    
+    def validate_data_codes_modern(self, variable_name):
+        """Modern data code validation (delegates to DataValidator).""" 
+        return self._data_validator.validate_data_codes(variable_name)
+    
+    def validate_text_keys_modern(self, text_key=None):
+        """Modern text key validation (delegates to DataValidator)."""
+        return self._data_validator.validate_text_key_consistency(text_key)
+    
+    def compare_datasets_modern(self, other_dataset, variables=None, strict=False, text_key=None):
+        """Modern dataset comparison (delegates to DataValidator)."""
+        return self._data_validator.compare_datasets(other_dataset, variables, strict, text_key)
+    
+    def clean_and_validate_codes_modern(self, variable_name, codes):
+        """Modern code cleaning and validation (delegates to DataValidator)."""
+        return self._data_validator.clean_and_validate_codes(variable_name, codes)
+    
+    def get_validation_summary_modern(self):
+        """Modern validation summary (delegates to DataValidator)."""
+        return self._data_validator.get_validation_summary()
+        
+    @property
+    def data_validator(self):
+        """Access to the modern DataValidator for advanced operations."""
+        return self._data_validator
 
     def __contains__(self, name):
         return self.var_exists(name)
