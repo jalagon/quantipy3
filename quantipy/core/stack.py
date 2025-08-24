@@ -27,7 +27,10 @@ import sys
 import time
 import warnings
 from collections import OrderedDict, defaultdict
-from typing import Any
+from typing import TYPE_CHECKING, Any, Iterator, Literal
+
+if TYPE_CHECKING:
+    from quantipy.core.dataset import DataSet
 
 import numpy as np
 import pandas as pd
@@ -242,7 +245,7 @@ class Stack(defaultdict):
         self[data_key].cache = Cache()
         self[data_key]["no_filter"].data = self[data_key].data
 
-    def remove_data(self, data_keys):
+    def remove_data(self, data_keys: str | list[str]) -> None:
         """
         Deletes the data_key(s) and associated data specified in the Stack.
 
@@ -261,7 +264,12 @@ class Stack(defaultdict):
         for data_key in data_keys:
             del self[data_key]
 
-    def variable_types(self, data_key, only_type=None, verbose=True):
+    def variable_types(
+        self,
+        data_key: str,
+        only_type: str | list[str] | None = None,
+        verbose: bool = True
+    ) -> dict[str, list[str]] | list[str]:
         """
         Group variables by data types found in the meta.
 
@@ -307,7 +315,13 @@ class Stack(defaultdict):
             return types[only_type]
         return types
 
-    def apply_meta_edits(self, batch_name, data_key, filter_key=None, freeze=False):
+    def apply_meta_edits(
+        self,
+        batch_name: str,
+        data_key: str,
+        filter_key: str | None = None,
+        freeze: bool = False
+    ) -> None:
         """
         Take over meta_edits from Batch definitions.
 
@@ -344,7 +358,7 @@ class Stack(defaultdict):
         meta["lib"]["default text"] = batch["language"]
         return
 
-    def freeze_master_meta(self, data_key, filter_key=None):
+    def freeze_master_meta(self, data_key: str, filter_key: str | None = None) -> None:
         """
         Save ``.meta`` in ``.master_meta`` for a defined data_key.
 
@@ -362,7 +376,7 @@ class Stack(defaultdict):
         self[data_key].meta = copy.deepcopy(self[data_key].meta)
         return
 
-    def restore_meta(self, data_key, filter_key=None):
+    def restore_meta(self, data_key: str, filter_key: str | None = None) -> None:
         """
         Restore the ``.master_meta`` for a defined data_key if it exists.
 
@@ -385,7 +399,7 @@ class Stack(defaultdict):
             pass
         return
 
-    def get_chain(self, *args, **kwargs):
+    def get_chain(self, *args: Any, **kwargs: Any) -> Chain:
         if qp.OPTIONS["new_chains"]:
             chain = ChainManager(self)
             chain = chain.get(*args, **kwargs)
@@ -917,7 +931,13 @@ class Stack(defaultdict):
                     variables=variables,
                 )
 
-    def describe(self, index=None, columns=None, query=None, split_view_names=False):
+    def describe(
+        self,
+        index: list[str] | None = None,
+        columns: list[str] | None = None,
+        query: str | None = None,
+        split_view_names: bool = False
+    ) -> pd.DataFrame:
         """
         Generates a structured overview of all Link defining Stack elements.
 
@@ -1236,7 +1256,11 @@ class Stack(defaultdict):
         return Stack(add_data={name: {"meta": meta, "data": data}})
 
     @staticmethod
-    def load(path_stack, compression="gzip", load_cache=False):
+    def load(
+        path_stack: str,
+        compression: Literal["gzip", "json"] = "gzip",
+        load_cache: bool = False
+    ) -> 'Stack':
         """
         Load Stack instance from .stack file.
 
@@ -1291,41 +1315,46 @@ class Stack(defaultdict):
 
     # PRIVATE METHODS
 
-    def __get_all_y_keys(self, data_key, the_filter="no_filter"):
+    def __get_all_y_keys(self, data_key: str, the_filter: str = "no_filter") -> list[str]:
         if self.stack_pos == "stack_root":
             return self[data_key].y_variables
         raise KeyError(
             f"get_all_y_keys can only be called from a stack at root level. Current level is '{self.stack_pos}'"
         )
 
-    def __get_all_x_keys(self, data_key, the_filter="no_filter"):
+    def __get_all_x_keys(self, data_key: str, the_filter: str = "no_filter") -> list[str]:
         if self.stack_pos == "stack_root":
             return self[data_key].x_variables
         raise KeyError(
             f"get_all_x_keys can only be called from a stack at root level. Current level is '{self.stack_pos}'"
         )
 
-    def __get_all_x_keys_except(self, data_key, exception):
+    def __get_all_x_keys_except(self, data_key: str, exception: str | list[str]) -> list[str]:
         keys = self.__get_all_x_keys(data_key)
         return [i for i in keys if i != exception[0]]
 
-    def __get_all_y_keys_except(self, data_key, exception):
+    def __get_all_y_keys_except(self, data_key: str, exception: str | list[str]) -> list[str]:
         keys = self.__get_all_y_keys(data_key)
         return [i for i in keys if i != exception[0]]
 
-    def __set_x_key(self, key):
+    def __set_x_key(self, key: str) -> None:
         if self.x_variables is None:
             self.x_variables = set(key)
         else:
             self.x_variables.update(key)
 
-    def __set_y_key(self, key):
+    def __set_y_key(self, key: str) -> None:
         if self.y_variables is None:
             self.y_variables = set(key)
         else:
             self.y_variables.update(key)
 
-    def _set_x_and_y_keys(self, data_key, x, y):
+    def _set_x_and_y_keys(
+        self,
+        data_key: str,
+        x: str | list[str] | None,
+        y: str | list[str] | None
+    ) -> None:
         """
         Sets the x_variables and y_variables in the data part of the stack for this data_key, e.g. stack['Jan'].
         This method can also be used to add to the current lists and it makes sure the list stays unique.
@@ -1535,7 +1564,13 @@ class Stack(defaultdict):
                 if views is not None:
                     views._apply_to(link, weights)
 
-    def _x_and_y_keys_in_file(self, data_key, data, x, y):
+    def _x_and_y_keys_in_file(
+        self,
+        data_key: str,
+        data: pd.DataFrame,
+        x: str | list[str] | None,
+        y: str | list[str] | None
+    ) -> tuple[list[str], list[str]]:
         data_columns = data.columns.tolist()
         if ">" in ",".join(y):
             y = self._clean_from_nests(y)
@@ -1571,7 +1606,7 @@ class Stack(defaultdict):
             raise ValueError(f"data key {data_key}: y: {y_not_found} not found.")
         return None
 
-    def _clean_from_nests(self, variables):
+    def _clean_from_nests(self, variables: list[str]) -> list[str]:
         cleaned = []
         nests = [var for var in variables if ">" in var]
         non_nests = [var for var in variables if ">" not in var]
@@ -1581,7 +1616,7 @@ class Stack(defaultdict):
         non_nests = list(set(non_nests))
         return non_nests
 
-    def __clean_column_names(self, columns):
+    def __clean_column_names(self, columns: list[str]) -> list[str]:
         """
         Remove extra doublequotes if there are any
         """
@@ -1590,7 +1625,7 @@ class Stack(defaultdict):
             cols.append(column.replace('"', ""))
         return cols
 
-    def __generate_key_from_list_of(self, list_of_keys):
+    def __generate_key_from_list_of(self, list_of_keys: list[str]) -> str:
         """
         Generate keys from a list (or tuple).
         """
@@ -1598,7 +1633,7 @@ class Stack(defaultdict):
         list_of_keys.sort()
         return ",".join(list_of_keys)
 
-    def __has_list(self, small):
+    def __has_list(self, small: Any) -> bool:
         """
         Check if object contains a list of strings.
         """
@@ -1611,14 +1646,14 @@ class Stack(defaultdict):
                 return i, i + len(small)
         return False
 
-    def __get_all_combinations(self, list_of_items):
+    def __get_all_combinations(self, list_of_items: list[Any]) -> list[tuple[Any, ...]]:
         """Generates all combinations of items from a list"""
         return [
             itertools.combinations(list_of_items, index + 1)
             for index in range(len(list_of_items))
         ]
 
-    def __get_stack_pointer(self, stack_pos):
+    def __get_stack_pointer(self, stack_pos: str) -> 'Stack':
         """Takes a stack_pos and returns the stack with that location
         raises an exception IF the stack pointer is not found
         """
@@ -1698,7 +1733,11 @@ class Stack(defaultdict):
         if views is not None:
             self._verify_key_types(name="view", keys=views)
 
-    def _verify_key_exists(self, key, stack_path=None):
+    def _verify_key_exists(
+        self,
+        key: str,
+        stack_path: list[str] | None = None
+    ) -> None:
         """
         Verify that the given key exists in the stack at the path targeted.
         """
@@ -1779,7 +1818,7 @@ class Stack(defaultdict):
                 f"Given: {keys}"
             )
 
-    def _find_groups(self, view):
+    def _find_groups(self, view: View) -> dict[str, list[Any]]:
         groups = OrderedDict()
         logic = view._kwargs.get("logic")
         description = view.describe_block()
@@ -1858,7 +1897,13 @@ class Stack(defaultdict):
         df = df.reindex(final_index)
         return df
 
-    def get_frequency_via_stack(self, data_key, the_filter, col, weight=None):
+    def get_frequency_via_stack(
+        self,
+        data_key: str,
+        the_filter: str,
+        col: str,
+        weight: str | None = None
+    ) -> pd.DataFrame:
         weight_notation = "" if weight is None else weight
         vk = f"x|f|:||{weight_notation}|counts"
         try:
@@ -1872,7 +1917,13 @@ class Stack(defaultdict):
                 )
         return f
 
-    def get_descriptive_via_stack(self, data_key, the_filter, col, weight=None):
+    def get_descriptive_via_stack(
+        self,
+        data_key: str,
+        the_filter: str,
+        col: str,
+        weight: str | None = None
+    ) -> pd.DataFrame:
         l = self[data_key][the_filter][col]["@"]
         w = "" if weight is None else weight
         mean_key = [
@@ -1890,10 +1941,10 @@ class Stack(defaultdict):
         d = l[mean_key].dataframe
         return d
 
-    def _is_array_summary(self, meta, x, y):
+    def _is_array_summary(self, meta: dict[str, Any], x: str, y: str) -> bool:
         return x in meta["masks"]
 
-    def _is_transposed_summary(self, meta, x, y):
+    def _is_transposed_summary(self, meta: dict[str, Any], x: str, y: str) -> bool:
         return x == "@" and y in meta["masks"]
 
     def axis_slicer_from_vartype(
@@ -2054,7 +2105,7 @@ class Stack(defaultdict):
         return rules_slicer
 
     @modify(to_list="batches")
-    def _check_batches(self, dk, batches="all"):
+    def _check_batches(self, dk: str, batches: str | list[str] = "all") -> list[str]:
         """
         Returns a list of valid ``qp.Batch`` names.
 
@@ -2079,7 +2130,7 @@ class Stack(defaultdict):
             raise KeyError(msg.format(not_valid))
         return batches
 
-    def _x_y_f_w_map(self, dk, batches="all"):
+    def _x_y_f_w_map(self, dk: str, batches: str | list[str] = "all") -> dict[str, Any]:
         """ """
 
         def _append_loop(mapping, x, fi, w, ys):
@@ -2310,7 +2361,12 @@ class Stack(defaultdict):
         return
 
     @modify(to_list=["on_vars", "_batches"])
-    def cumulative_sum(self, on_vars, _batches="all", verbose=True):
+    def cumulative_sum(
+        self,
+        on_vars: str | list[str],
+        _batches: str | list[str] = "all",
+        verbose: bool = True
+    ) -> None:
         """
         Add cumulative sum view to a specified collection of xks of the stack.
 
@@ -2348,7 +2404,15 @@ class Stack(defaultdict):
             )
         return
 
-    def _add_checking_chain(self, dk, cluster, name, x, y, views):
+    def _add_checking_chain(
+        self,
+        dk: str,
+        cluster: str,
+        name: str,
+        x: str,
+        y: str,
+        views: list[str]
+    ) -> Chain:
         key, view, c_view = views
         if isinstance(cluster, ChainManager):
             c_stack = cluster.stack
@@ -2789,7 +2853,15 @@ class Stack(defaultdict):
         return
 
     @staticmethod
-    def _factor_labs(values, axis, rescale, drop, exclude, factor_labels, has_factors):
+    def _factor_labs(
+        values: Any,
+        axis: str,
+        rescale: bool,
+        drop: bool,
+        exclude: list[Any] | None,
+        factor_labels: str,
+        has_factors: bool
+    ) -> Any:
         if not rescale:
             rescale = {}
         ignore = [
@@ -2831,7 +2903,11 @@ class Stack(defaultdict):
         return values
 
     @staticmethod
-    def _add_factor_meta(dataset, var, options):
+    def _add_factor_meta(
+        dataset: 'DataSet',
+        var: str,
+        options: dict[str, Any]
+    ) -> None:
         if not dataset._has_categorical_data(var):
             return
         rescale = options[0]
@@ -3079,7 +3155,11 @@ class Stack(defaultdict):
         return
 
     @modify(to_list=["_batches"])
-    def add_tests(self, _batches="all", verbose=True):
+    def add_tests(
+        self,
+        _batches: str | list[str] = "all",
+        verbose: bool = True
+    ) -> None:
         """
         Apply coltests for selected batches.
 
@@ -3168,7 +3248,7 @@ class Stack(defaultdict):
             print("Sig-Tests:", time.time() - start)
         return
 
-    def _remove_coltests(self, props=True, means=True):
+    def _remove_coltests(self, props: bool = True, means: bool = True) -> None:
         """
         Remove coltests from stack.
 
