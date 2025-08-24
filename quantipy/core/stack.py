@@ -3,9 +3,7 @@ import copy
 
 # Compression methods
 import gzip
-import io
 import itertools
-import json
 
 # Pickle modules
 import pickle
@@ -546,7 +544,8 @@ class Stack(defaultdict):
                                                         .lstrip()
                                                     )
                                         chain.base_text = base_text
-                                    except:
+                                    except (AttributeError, KeyError, TypeError):
+                                        # base_text processing failed - continue without modification
                                         pass
                                     if views is None:
                                         chain[key][the_filter][x_key][y_key] = self[
@@ -748,7 +747,8 @@ class Stack(defaultdict):
             for dk in data_keys:
                 try:
                     del self[dk]
-                except:
+                except KeyError:
+                    # Data key already removed
                     pass
 
         for dk in list(self.keys()):

@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 import copy
 from collections import OrderedDict
-from operator import add, mul, sub, truediv
+from operator import add, mul, sub
 
 import pandas as pd
-
-import quantipy.core.helpers.functions as helpers
 
 pd.set_option('display.encoding', 'utf-8')
 
@@ -124,7 +122,7 @@ class View(object):
             raise ValueError(err)
         if x_nest and not y_nest:
             err = "Cannot separate index nesting!"
-            raise NotImpementedError(err)
+            raise NotImplementedError(err)
         df = self.dataframe
         levels = df.columns.nlevels / 2
         grouper = df.groupby(axis=1, level=(levels, 1))
