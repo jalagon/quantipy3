@@ -23,6 +23,7 @@ from quantipy.core.data_transformer import DataTransformer
 from quantipy.core.filtering_engine import FilteringEngine
 from quantipy.core.statistical_processor import StatisticalProcessor
 from quantipy.core.array_manager import ArrayManager
+from quantipy.core.export_manager import ExportManager
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -131,6 +132,7 @@ class DataSet(object):
         self._filtering_engine = FilteringEngine(self)
         self._statistical_processor = StatisticalProcessor(self)
         self._array_manager = ArrayManager(self)
+        self._export_manager = ExportManager(self)
         
         return None
 
@@ -518,6 +520,84 @@ class DataSet(object):
     def fully_hidden_arrays_modern(self):
         """Modern fully hidden array detection (delegates to ArrayManager)."""
         return self._array_manager.fully_hidden_arrays()
+    
+    # =========================================================================
+    # EXPORT DELEGATION METHODS (Phase 8 SOLID Refactoring)
+    # Delegate to ExportManager for export and output operations
+    # =========================================================================
+    
+    def write_quantipy_modern(self, path_meta=None, path_data=None):
+        """Modern Quantipy export (delegates to ExportManager)."""
+        return self._export_manager.write_quantipy(path_meta, path_data)
+    
+    def write_spss_modern(self, path_sav=None, index=True, text_key=None, mrset_tag_style='__', 
+                          drop_delimited=True, from_set=None, verbose=True):
+        """Modern SPSS export (delegates to ExportManager)."""
+        return self._export_manager.write_spss(
+            path_sav, index, text_key, mrset_tag_style, drop_delimited, from_set, verbose
+        )
+    
+    def write_dimensions_modern(self, path_mdd=None, path_ddf=None, text_key=None, run=True, clean_up=True):
+        """Modern Dimensions export (delegates to ExportManager)."""
+        return self._export_manager.write_dimensions(path_mdd, path_ddf, text_key, run, clean_up)
+    
+    def write_forsta_modern(self, path_meta, path_data, schema_vars=None, verbose=False):
+        """Modern Forsta export (delegates to ExportManager)."""
+        return self._export_manager.write_forsta(path_meta, path_data, schema_vars, verbose)
+    
+    def write_forsta_api_modern(self, projectid, public_url, idp_url, client_id, client_secret, schema_vars=None):
+        """Modern Forsta API export (delegates to ExportManager)."""
+        return self._export_manager.write_forsta_api(
+            projectid, public_url, idp_url, client_id, client_secret, schema_vars
+        )
+    
+    def meta_to_json_modern(self, key=None, collection=None, output_path=None):
+        """Modern metadata JSON export (delegates to ExportManager)."""
+        return self._export_manager.meta_to_json(key, collection, output_path)
+    
+    def split_modern(self, save=False):
+        """Modern data/meta splitting (delegates to ExportManager)."""
+        return self._export_manager.split(save)
+    
+    def save_modern(self):
+        """Modern session saving (delegates to ExportManager)."""
+        return self._export_manager.save()
+    
+    def export_meta_subset_modern(self, variables, output_path=None):
+        """Modern metadata subset export (delegates to ExportManager)."""
+        return self._export_manager.export_meta_subset(variables, output_path)
+    
+    def serialize_metadata_modern(self, format_type='json', compact=False):
+        """Modern metadata serialization (delegates to ExportManager)."""
+        return self._export_manager.serialize_metadata(format_type, compact)
+    
+    def save_session_modern(self, checkpoint_name='default'):
+        """Modern session state saving (delegates to ExportManager)."""
+        return self._export_manager.save_session(checkpoint_name)
+    
+    def revert_session_modern(self):
+        """Modern session reversion (delegates to ExportManager)."""
+        return self._export_manager.revert_session()
+    
+    def backup_dataset_modern(self, backup_path, include_cache=False):
+        """Modern dataset backup (delegates to ExportManager)."""
+        return self._export_manager.backup_dataset(backup_path, include_cache)
+    
+    def create_checkpoint_modern(self, checkpoint_name, description=""):
+        """Modern checkpoint creation (delegates to ExportManager)."""
+        return self._export_manager.create_checkpoint(checkpoint_name, description)
+    
+    def dataset_summary_modern(self, output_path=None):
+        """Modern dataset summary generation (delegates to ExportManager)."""
+        return self._export_manager.dataset_summary(output_path)
+    
+    def variable_report_modern(self, variables=None, output_path=None):
+        """Modern variable report generation (delegates to ExportManager)."""
+        return self._export_manager.variable_report(variables, output_path)
+    
+    def export_codebook_modern(self, output_path, format_type='html'):
+        """Modern codebook export (delegates to ExportManager)."""
+        return self._export_manager.export_codebook(output_path, format_type)
     
     def statistics_custom_modern(self, strategy_name, *args, **kwargs):
         """Modern custom statistical analysis dispatch (delegates to StatisticalProcessor)."""
