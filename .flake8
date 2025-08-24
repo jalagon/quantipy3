@@ -1,0 +1,16 @@
+[flake8]
+max-line-length = 88
+extend-ignore = 
+    E203,  # whitespace before ':' (conflicts with Black)
+    W503,  # line break before binary operator (conflicts with Black)
+exclude =
+    .venv,
+    .venv37,
+    .venv36,
+    build,
+    dist,
+    .git,
+    __pycache__,
+    .ipynb_checkpoints
+# Habilitar reglas de docstrings (pydocstyle via flake8-docstrings)
+select = C,E,F,W,D

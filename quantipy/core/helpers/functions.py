@@ -1,45 +1,56 @@
-import pandas as pd
-import numpy as np
-import json
-import pickle
-import re
 import copy
 import itertools
+import json
 import math
-import re, string
+import pickle
+import re
+import string
+from collections import OrderedDict
 
-from collections import OrderedDict, defaultdict
-from .constants import DTYPE_MAP
-from .constants import MAPPED_PATTERN
-from itertools import product
+import numpy as np
+import pandas as pd
+
 import quantipy as qp
+from quantipy.core.view import View
+from quantipy.core.view_generators.view_mapper import ViewMapper
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+from .constants import DTYPE_MAP, MAPPED_PATTERN
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def load_json(path_json, hook=OrderedDict):
-    ''' Returns a python object from the json file located at path_json
-    '''
+    '''Returns a python object from the json file located at path_json'''
 
     with open(path_json) as f:
         obj = json.load(f, object_pairs_hook=hook)
 
         return obj
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def loads_json(json_text, hook=OrderedDict):
-    ''' Returns a python object from the json string json_text
-    '''
+    '''Returns a python object from the json string json_text'''
 
     obj = json.loads(json_text, object_pairs_hook=hook)
 
     return obj
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def save_json(obj, path_json):
 
     with open(path_json, 'w+') as f:
         json.dump(obj, f)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def df_to_browser(df, path_html='df.html', **kwargs):
 
     import webbrowser
@@ -49,9 +60,12 @@ def df_to_browser(df, path_html='df.html', **kwargs):
 
     webbrowser.open(path_html, new=2)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_delimited_value_map(ds, ds_split=None, sep=';'):
-    ''' Returns a sorted list of unique values found in ds, being a series
+    '''Returns a sorted list of unique values found in ds, being a series
     storing delimited set data separated by sep
 
     ds - (pandas.Series) a series storing delimited set data
@@ -70,9 +84,9 @@ def get_delimited_value_map(ds, ds_split=None, sep=';'):
     return value_map
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def verify_dtypes_vs_meta(data, meta):
-    ''' Returns a df showing the pandas dtype for each column in data compared
+    '''Returns a df showing the pandas dtype for each column in data compared
     to the type indicated for that variable name in meta plus a 'verified'
     column indicating if quantipy determines the comparison as viable.
 
@@ -82,19 +96,28 @@ def verify_dtypes_vs_meta(data, meta):
 
     dtypes = data.dtypes
     dtypes.name = 'dtype'
-    var_types = pd.DataFrame({k: v['type'] for k, v in meta['columns'].items()}, index=['meta']).T
+    var_types = pd.DataFrame(
+        {k: v['type'] for k, v in meta['columns'].items()}, index=['meta']
+    ).T
     df = pd.concat([var_types, dtypes.astype(str)], axis=1)
 
     missing = df.loc[df['dtype'].isin([np.NaN])]['meta']
-    if missing.size>0:
-        print('\nSome meta not paired to data columns was found (these may be special data types):\n', missing, '\n')
+    if missing.size > 0:
+        print(
+            '\nSome meta not paired to data columns was found (these may be special data types):\n',
+            missing,
+            '\n',
+        )
 
     df = df.dropna(how='any')
     df['verified'] = df.apply(lambda x: x['dtype'] in DTYPE_MAP[x['meta']], axis=1)
 
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def coerce_dtypes_from_meta(data, meta):
 
     data = data.copy()
@@ -109,7 +132,10 @@ def coerce_dtypes_from_meta(data, meta):
 
     return data
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def index_to_dict(index):
 
     if isinstance(index, pd.MultiIndex):
@@ -121,7 +147,10 @@ def index_to_dict(index):
 
     return index_dict
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def has_collapsed_axis(df, axis=0):
     # agg_func =  ('cBase', 'cMean', 'rBase', 'rMean', 'net', 'Promoters' , 'Net')
     agg_func = ('cbase', 'rbase', 'effbase', 'mean', 'net', 'promoters')
@@ -132,123 +161,167 @@ def has_collapsed_axis(df, axis=0):
         if df.T.index.get_level_values(1)[0].startswith(agg_func):
             return True
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_view_slicer(meta, col, values=None):
 
     if values is None:
         slicer = [
             (col, val['value'])
-            for val in emulate_meta(meta, meta['columns'][col]['values'])]
+            for val in emulate_meta(meta, meta['columns'][col]['values'])
+        ]
     else:
-        slicer = [
-            (col, val)
-            for val in values]
+        slicer = [(col, val) for val in values]
 
     return slicer
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def paint_index(meta,
-                index,
-                text_key,
-                display_names=False,
-                transform_names=None,
-                grp_text_map=None):
 
-    single_row = len(index.values)==1
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def paint_index(
+    meta, index, text_key, display_names=False, transform_names=None, grp_text_map=None
+):
+
+    single_row = len(index.values) == 1
     levels = get_index_levels(index)
     col = levels[0]
     values = list(levels[1])
-    if not col in meta['columns']:
+    if col not in meta['columns']:
         return index
     else:
-        col_text = paint_col_text(
-            meta, col, text_key, display_names, transform_names)
-        values_text = paint_col_values_text(
-            meta, col, values, text_key, grp_text_map)
+        col_text = paint_col_text(meta, col, text_key, display_names, transform_names)
+        values_text = paint_col_values_text(meta, col, values, text_key, grp_text_map)
 
         new_index = build_multiindex_from_tuples(
-            col_text,
-            values_text,
-            ['Question', 'Values'],
-            single_row)
+            col_text, values_text, ['Question', 'Values'], single_row
+        )
 
         return new_index
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def paint_view(meta, view, text_key=None, display_names=None,
-               transform_names=False, axes=['x', 'y']):
 
-    if text_key is None: text_key = finish_text_key(meta, {})
-    if display_names is None: display_names = ['x', 'y']
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def paint_view(
+    meta,
+    view,
+    text_key=None,
+    display_names=None,
+    transform_names=False,
+    axes=['x', 'y'],
+):
+
+    if text_key is None:
+        text_key = finish_text_key(meta, {})
+    if display_names is None:
+        display_names = ['x', 'y']
 
     is_array = any(view.meta()[axis]['is_array'] for axis in ['x', 'y'])
 
     if is_array:
-        df = paint_array(
-            meta, view, text_key, display_names, transform_names, axes)
+        df = paint_array(meta, view, text_key, display_names, transform_names, axes)
     else:
         df = view.dataframe.copy()
         grp_text_map = view.meta()['agg']['grp_text_map']
         df = paint_dataframe(
-            meta, df, text_key, display_names, transform_names, axes,
-            grp_text_map)
+            meta, df, text_key, display_names, transform_names, axes, grp_text_map
+        )
 
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def paint_dataframe(meta, df, text_key=None, display_names=None,
-                    transform_names=False, axes=['x', 'y'],
-                    grp_text_map=None):
 
-    if text_key is None: text_key = finish_text_key(meta, {})
-    if display_names is None: display_names = ['x', 'y']
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def paint_dataframe(
+    meta,
+    df,
+    text_key=None,
+    display_names=None,
+    transform_names=False,
+    axes=['x', 'y'],
+    grp_text_map=None,
+):
+
+    if text_key is None:
+        text_key = finish_text_key(meta, {})
+    if display_names is None:
+        display_names = ['x', 'y']
 
     if 'x' in axes:
         display_x_names = 'x' in display_names
 
-        if len(df.index.levels[0])>1:
+        if len(df.index.levels[0]) > 1:
             order = []
             for x in df.index.labels[0]:
                 if x not in order:
                     order.append(x)
             levels = df.index.levels[0]
             it = sorted(zip(levels, order), key=lambda x: x[1])
-            df.index = pd.concat([
-                paint_dataframe(
-                    meta, df.ix[[level], :], text_key, display_names,
-                    transform_names, 'x', grp_text_map)
-                for level, _ in it],
-                axis=0).index
+            df.index = pd.concat(
+                [
+                    paint_dataframe(
+                        meta,
+                        df.ix[[level], :],
+                        text_key,
+                        display_names,
+                        transform_names,
+                        'x',
+                        grp_text_map,
+                    )
+                    for level, _ in it
+                ],
+                axis=0,
+            ).index
         else:
             df.index = paint_index(
-                meta, df.index, text_key['x'],
-                display_x_names, transform_names, grp_text_map)
+                meta,
+                df.index,
+                text_key['x'],
+                display_x_names,
+                transform_names,
+                grp_text_map,
+            )
 
     if 'y' in axes:
         display_y_names = 'y' in display_names
 
-        if len(df.columns.levels[0])>1:
-            df.columns = pd.concat([
-                paint_dataframe(
-                    meta, df.ix[:, [level]], text_key, display_names,
-                    transform_names, 'y', grp_text_map)
-                for level in df.columns.levels[0]],
-                axis=1).columns
+        if len(df.columns.levels[0]) > 1:
+            df.columns = pd.concat(
+                [
+                    paint_dataframe(
+                        meta,
+                        df.ix[:, [level]],
+                        text_key,
+                        display_names,
+                        transform_names,
+                        'y',
+                        grp_text_map,
+                    )
+                    for level in df.columns.levels[0]
+                ],
+                axis=1,
+            ).columns
         else:
             df.columns = paint_index(
-                meta, df.columns, text_key['y'],
-                display_y_names, transform_names)
+                meta, df.columns, text_key['y'], display_y_names, transform_names
+            )
 
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def paint_array(meta, view, text_key, display_names, transform_names, axes):
 
     df = view.dataframe.copy()
     grp_text_map = view.meta()['agg']['grp_text_map']
     columns_on_x = view.meta()['x']['is_array']
-    axes_x = {True: 'x',
-              False: 'y'}
+    axes_x = {True: 'x', False: 'y'}
 
     if 'x' in axes:
         display_x_names = axes_x.get(columns_on_x) in display_names
@@ -256,7 +329,8 @@ def paint_array(meta, view, text_key, display_names, transform_names, axes):
             meta,
             df.index if columns_on_x else df.columns,
             text_key['x'],
-            display_x_names)
+            display_x_names,
+        )
     if 'y' in axes:
         display_y_names = axes_x.get(not columns_on_x) in display_names
         columns = paint_array_values_index(
@@ -264,19 +338,23 @@ def paint_array(meta, view, text_key, display_names, transform_names, axes):
             df.columns if columns_on_x else df.index,
             text_key['y'],
             display_y_names,
-            grp_text_map)
+            grp_text_map,
+        )
 
     df.index = index if columns_on_x else columns
     df.columns = columns if columns_on_x else index
 
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_index_levels(index):
 
     levels = []
     idx_values = index.values
-    single_row = len(idx_values)==1
+    single_row = len(idx_values) == 1
     if single_row:
         unzipped = [idx_values[0]]
         levels.append(unzipped[0][0])
@@ -288,27 +366,35 @@ def get_index_levels(index):
 
     return levels
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def paint_col_text(meta, col, text_key, display_names, transform_names):
 
     col_meta = emulate_meta(meta, meta['columns'][col])
     if display_names:
         try:
             col_name = col
-            if transform_names: col_name = transform_names.get(col, col)
-            col_text = '{}. {}'.format(
-                col_name, get_text(col_meta['text'], text_key))
+            if transform_names:
+                col_name = transform_names.get(col, col)
+            col_text = '{}. {}'.format(col_name, get_text(col_meta['text'], text_key))
         except UnicodeEncodeError:
             col_text = '{}. {}'.format(
-                col_name, qp.core.tools.dp.io.unicoder(
-                    get_text(col_meta['text'], text_key),
-                    like_ascii=True))
+                col_name,
+                qp.core.tools.dp.io.unicoder(
+                    get_text(col_meta['text'], text_key), like_ascii=True
+                ),
+            )
     else:
         col_text = get_text(col_meta['text'], text_key)
 
     return col_text
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def paint_add_text_map(meta, add_text_map, text_key):
 
     if add_text_map is None:
@@ -316,33 +402,42 @@ def paint_add_text_map(meta, add_text_map, text_key):
     else:
         try:
             add_text_map = {
-                key: get_text(text, text_key)
-                for key, text in add_text_map.items()}
+                key: get_text(text, text_key) for key, text in add_text_map.items()
+            }
         except UnicodeEncodeError:
             add_text_map = {
                 key: qp.core.tools.dp.io.unicoder(
-                    get_text(text, text_key, like_ascii=True))
-                for key, text in add_text_map.items()}
+                    get_text(text, text_key, like_ascii=True)
+                )
+                for key, text in add_text_map.items()
+            }
 
     return add_text_map
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def paint_col_values_text(meta, col, values, text_key, add_text_map=None):
     add_text_map = paint_add_text_map(meta, add_text_map, text_key)
     num_col = meta['columns'][col]['type'] in ['int', 'float']
     try:
         has_all = 'All' in values
-        if has_all: values.remove('All')
+        if has_all:
+            values.remove('All')
         if not num_col:
             try:
                 values_map = {
                     val['value']: get_text(val['text'], text_key)
-                    for val in meta['columns'][col]['values']}
+                    for val in meta['columns'][col]['values']
+                }
             except UnicodeEncodeError:
                 values_map = {
                     val['value']: qp.core.tools.dp.io.unicoder(
-                        get_text(val['text'], text_key, like_ascii=True))
-                    for val in meta['columns'][col]['values']}
+                        get_text(val['text'], text_key, like_ascii=True)
+                    )
+                    for val in meta['columns'][col]['values']
+                }
         else:
             values_map = {}
         values_map.update(add_text_map)
@@ -356,30 +451,37 @@ def paint_col_values_text(meta, col, values, text_key, add_text_map=None):
 
     return values_text
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def paint_mask_text(meta, mask, text_key, display_names):
 
     mask_meta = meta['masks'][mask]
     if display_names:
         try:
-            mask_text = '{}. {}'.format(
-                mask, get_text(mask_meta['text'], text_key))
+            mask_text = '{}. {}'.format(mask, get_text(mask_meta['text'], text_key))
         except UnicodeEncodeError:
             mask_text = '{}. {}'.format(
-                mask, qp.core.tools.dp.io.unicoder(
-                    get_text(mask_meta['text'], text_key),
-                    like_ascii=True))
+                mask,
+                qp.core.tools.dp.io.unicoder(
+                    get_text(mask_meta['text'], text_key), like_ascii=True
+                ),
+            )
     else:
         mask_text = get_text(mask_meta['text'], text_key)
 
     return mask_text
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def paint_array_items_text(meta, mask, items, text_key):
 
     try:
         has_all = 'All' in items
-        items = [i for i in items if not i=='All']
+        items = [i for i in items if not i == 'All']
         items_map = {}
         try:
             for item in meta['masks'][mask]['items']:
@@ -389,29 +491,31 @@ def paint_array_items_text(meta, mask, items, text_key):
                     source = item['source'].split('@')[-1]
                     text = get_text(meta['columns'][source]['text'], text_key)
                     text = text.replace(
-                        '{} - '.format(
-                            get_text(meta['masks'][mask]['text'],
-                            text_key)),
-                        '')
+                        '{} - '.format(get_text(meta['masks'][mask]['text'], text_key)),
+                        '',
+                    )
                 items_map.update({item['source'].split('@')[-1]: text})
         except UnicodeEncodeError:
             for item in meta['masks'][mask]['items']:
                 if isinstance(item['text'], dict):
                     text = qp.core.tools.dp.io.unicoder(
-                        get_text(item['text'], text_key),
-                        like_ascii=True)
+                        get_text(item['text'], text_key), like_ascii=True
+                    )
                 else:
                     source = item['source'].split('@')[-1]
                     text = qp.core.tools.dp.io.unicoder(
                         get_text(meta['columns'][source]['text'], text_key),
-                        like_ascii=True)
+                        like_ascii=True,
+                    )
                     text = qp.core.tools.dp.io.unicoder(
                         text.replace(
                             '{} - '.format(
-                                get_text(meta['masks'][mask]['text'],
-                                text_key)),
-                            ''),
-                        like_ascii=True)
+                                get_text(meta['masks'][mask]['text'], text_key)
+                            ),
+                            '',
+                        ),
+                        like_ascii=True,
+                    )
                 items_map.update({item['source'].split('@')[-1]: text})
         items_text = [items_map[i] for i in items]
         if has_all:
@@ -423,7 +527,10 @@ def paint_array_items_text(meta, mask, items, text_key):
 
     return items_text
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def paint_array_values_text(meta, mask, values, text_key, add_text_map=None):
 
     add_text_map = paint_add_text_map(meta, add_text_map, text_key)
@@ -432,17 +539,19 @@ def paint_array_values_text(meta, mask, values, text_key, add_text_map=None):
     values_meta = emulate_meta(meta, meta['masks'][mask]['values'])
     try:
         has_all = 'All' in values
-        if has_all: values.remove('All')
+        if has_all:
+            values.remove('All')
         try:
             values_map = {
-                val['value']: get_text(val['text'], text_key)
-                for val in values_meta}
+                val['value']: get_text(val['text'], text_key) for val in values_meta
+            }
         except UnicodeEncodeError:
             values_map = {
                 val['value']: qp.core.tools.dp.io.unicoder(
-                    get_text(val['text'], text_key,
-                    like_ascii=True))
-                for val in values_meta}
+                    get_text(val['text'], text_key, like_ascii=True)
+                )
+                for val in values_meta
+            }
         values_map.update(add_text_map)
         values_text = [values_map[v] for v in values]
         if has_all:
@@ -454,22 +563,26 @@ def paint_array_values_text(meta, mask, values, text_key, add_text_map=None):
 
     return values_text
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def build_multiindex_from_tuples(l0_text, l1_text, names, single_row):
 
     if single_row:
-        new_index = pd.MultiIndex.from_tuples(
-            [(l0_text, l1_text[0])], names=names)
+        new_index = pd.MultiIndex.from_tuples([(l0_text, l1_text[0])], names=names)
     else:
-        new_index = pd.MultiIndex.from_product(
-            [[l0_text], l1_text], names=names)
+        new_index = pd.MultiIndex.from_product([[l0_text], l1_text], names=names)
 
     return new_index
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def paint_array_items_index(meta, index, text_key, display_names):
 
-    single_row = len(index.values)==1
+    single_row = len(index.values) == 1
     levels = get_index_levels(index)
     mask = levels[0]
     items = levels[1]
@@ -478,38 +591,38 @@ def paint_array_items_index(meta, index, text_key, display_names):
     items_text = paint_array_items_text(meta, mask, items, text_key)
 
     new_index = build_multiindex_from_tuples(
-        mask_text,
-        items_text,
-        ['Array', 'Questions'],
-        single_row)
+        mask_text, items_text, ['Array', 'Questions'], single_row
+    )
 
     return new_index
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def paint_array_values_index(meta, index, text_key, display_names,
-                             grp_text_map=None):
 
-    single_row = len(index.values)==1
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def paint_array_values_index(meta, index, text_key, display_names, grp_text_map=None):
+
+    single_row = len(index.values) == 1
     levels = get_index_levels(index)
     mask = levels[0]
     values = levels[1]
 
     mask_text = paint_mask_text(meta, mask, text_key, display_names)
 
-    values_text = paint_array_values_text(
-        meta, mask, values, text_key, grp_text_map)
+    values_text = paint_array_values_text(meta, mask, values, text_key, grp_text_map)
 
     new_index = build_multiindex_from_tuples(
-        mask_text,
-        values_text,
-        ['Question', 'Values'],
-        single_row)
+        mask_text, values_text, ['Question', 'Values'], single_row
+    )
 
     return new_index
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_rules(meta, col, axis):
-    if col=='@':
+    if col == '@':
         return None
     try:
         if col in meta['columns']:
@@ -517,10 +630,13 @@ def get_rules(meta, col, axis):
         elif col in meta['masks']:
             rules = meta['masks'][col]['rules'][axis]
         return rules
-    except:
+    except BaseException:
         return None
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_rules_slicer(f, rules, copy=True):
 
     if copy:
@@ -529,27 +645,30 @@ def get_rules_slicer(f, rules, copy=True):
     if 'slicex' in rules:
         kwargs = rules['slicex']
         values = kwargs.get('values', None)
-#         if not values is None:
-#             kwargs['values'] = [val for val in values]
+        #         if not values is None:
+        #             kwargs['values'] = [val for val in values]
         f = qp.core.tools.view.query.slicex(f, **kwargs)
 
     if 'sortx' in rules:
         kwargs = rules['sortx']
-        fixed = kwargs.get('fixed', None)
-        sort_on = kwargs.get('sort_on', '@')
-#         if not fixed is None:
-#             kwargs['fixed'] = [fix for fix in fixed]
+        _fixed = kwargs.get('fixed', None)
+        _sort_on = kwargs.get('sort_on', '@')
+        #         if not fixed is None:
+        #             kwargs['fixed'] = [fix for fix in fixed]
         f = qp.core.tools.view.query.sortx(f, **kwargs)
 
     if 'dropx' in rules:
         kwargs = rules['dropx']
-        values = kwargs.get('values', None)
-#         if not values is None:
-#             kwargs['values'] = [v for v in values]
+        _values = kwargs.get('values', None)
+        #         if not values is None:
+        #             kwargs['values'] = [v for v in values]
         f = qp.core.tools.view.query.dropx(f, **kwargs)
     return f.index.values.tolist()
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def apply_rules(df, meta, rules):
     """
     Applies custom rules to df
@@ -563,79 +682,81 @@ def apply_rules(df, meta, rules):
     if isinstance(rules, bool):
         rules = ['x', 'y']
 
-    if 'x' in rules and df.index.levels[1][0]!='@' and 'rules' in col_x:
+    if 'x' in rules and df.index.levels[1][0] != '@' and 'rules' in col_x:
 
         # Get x rules for the x column
         rx = col_x['rules'].get('x', None)
 
-        if not rx is None:
+        if rx is not None:
 
             if 'slicex' in rx:
                 kwargs = rx['slicex']
                 values = kwargs.get('values', None)
-                if not values is None:
+                if values is not None:
                     kwargs['values'] = [str(v) for v in values]
                 df = qp.core.tools.view.query.slicex(df, **kwargs)
 
             if 'sortx' in rx:
                 kwargs = rx['sortx']
                 fixed = kwargs.get('fixed', None)
-                if not fixed is None:
+                if fixed is not None:
                     kwargs['fixed'] = [str(f) for f in fixed]
                 df = qp.core.tools.view.query.sortx(df, **kwargs)
 
             if 'dropx' in rx:
                 kwargs = rx['dropx']
                 values = kwargs.get('values', None)
-                if not values is None:
+                if values is not None:
                     kwargs['values'] = [str(v) for v in values]
                 df = qp.core.tools.view.query.dropx(df, **kwargs)
 
-    if 'y' in rules and df.columns.levels[1][0]!='@' and 'rules' in col_y:
+    if 'y' in rules and df.columns.levels[1][0] != '@' and 'rules' in col_y:
 
         # Get y rules for the y column
         ry = col_y['rules'].get('y', None)
 
-        if not ry is None:
+        if ry is not None:
 
             if 'slicex' in ry:
                 kwargs = ry['slicex']
                 values = kwargs.get('values', None)
-                if not values is None:
+                if values is not None:
                     kwargs['values'] = [str(v) for v in values]
                 df = qp.core.tools.view.query.slicex(df.T, **kwargs).T
 
             if 'sortx' in ry:
                 kwargs = ry['sortx']
                 fixed = kwargs.get('fixed', None)
-                if not fixed is None:
+                if fixed is not None:
                     kwargs['fixed'] = [str(f) for f in fixed]
                 df = qp.core.tools.view.query.sortx(df.T, **kwargs).T
 
             if 'dropx' in ry:
                 kwargs = ry['dropx']
                 values = kwargs.get('values', None)
-                if not values is None:
+                if values is not None:
                     kwargs['values'] = [str(v) for v in values]
                 df = qp.core.tools.view.query.dropx(df.T, **kwargs).T
 
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def rule_viable_axes(meta, vk, x, y):
     viable_axes = ['x', 'y']
     condensed_x = False
     condensed_y = False
 
-    array_summary = (x in meta['masks'] and y == '@')
-    transposed_summary = (y in meta['masks'] and x == '@')
+    array_summary = x in meta['masks'] and y == '@'
+    transposed_summary = y in meta['masks'] and x == '@'
     v_method = vk.split('|')[1]
     relation = vk.split('|')[2]
     s_name = vk.split('|')[-1]
     descriptive = v_method.startswith('.d')
     exp_net = '}+]' in relation
     array_sum_freqs = array_summary and s_name in ['counts', 'c%', 'r%']
-
 
     if transposed_summary:
         x, y = y, x
@@ -646,23 +767,28 @@ def rule_viable_axes(meta, vk, x, y):
     elif relation.split(":")[1].startswith('y'):
         condensed_y = True
     else:
-        if re.search('x\[.+:y$', relation) != None:
+        if re.search('x\\[.+:y$', relation) is not None:
             condensed_x = True
-        elif re.search('x:y\[.+', relation) != None:
+        elif re.search('x:y\\[.+', relation) is not None:
             condensed_y = True
-        if re.search('y\[.+:x$', relation) != None:
+        if re.search('y\\[.+:x$', relation) is not None:
             condensed_y = True
-        elif re.search('y:x\[.+', relation) != None:
+        elif re.search('y:x\\[.+', relation) is not None:
             condensed_x = True
 
-    if condensed_x or x=='@': viable_axes.remove('x')
-    if condensed_y or (y=='@' and not array_sum_freqs): viable_axes.remove('y')
+    if condensed_x or x == '@':
+        viable_axes.remove('x')
+    if condensed_y or (y == '@' and not array_sum_freqs):
+        viable_axes.remove('y')
 
     return viable_axes
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_text(text, text_key, axis=None):
-    """ Uses text_key on text if it is a dictionary, pulling out the targeted
+    """Uses text_key on text if it is a dictionary, pulling out the targeted
     text. Either way, the resulting text (given directly or pulled out a
     dictionary) is type-checked to ensure <str> or <unicode>
 
@@ -711,10 +837,13 @@ def get_text(text, text_key, axis=None):
             " of <str> or <unicode>. Found: {}".format(text)
         )
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def finish_text_key(meta, text_key):
 
-    #add default to text_key
+    # add default to text_key
     default_text = meta['lib'].get('default text', 'None')
     if text_key is None:
         text_key = {}
@@ -734,7 +863,10 @@ def finish_text_key(meta, text_key):
 
     return text_key
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_values(var_meta, meta):
 
     values = []
@@ -748,7 +880,10 @@ def get_values(var_meta, meta):
 
     return values
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def flatten_list(the_list, deep_flatten=False):
 
     if deep_flatten:
@@ -765,9 +900,12 @@ def flatten_list(the_list, deep_flatten=False):
 
     return flat
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def is_mapped_meta(item):
-    """ Returns True if item is a string conforming to recognised mapped meta
+    """Returns True if item is a string conforming to recognised mapped meta
     syntax.
     """
 
@@ -778,9 +916,12 @@ def is_mapped_meta(item):
 
     return False
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_mapped_meta(meta, mapped):
-    """ Returns a subset of the meta object as indicated by the given mapped
+    """Returns a subset of the meta object as indicated by the given mapped
     meta syntax.
 
     mapped should be a mapped meta string.
@@ -801,11 +942,17 @@ def get_mapped_meta(meta, mapped):
 
     return meta
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def create_multi_index(item_1, item_2, names=None):
     return pd.MultiIndex.from_product([[item_1], item_2], names=names)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def apply_multi_index_items(view, multi_index_items=None, names=None):
     if multi_index_items is not None:
         for key in multi_index_items:
@@ -813,14 +960,16 @@ def apply_multi_index_items(view, multi_index_items=None, names=None):
             multi_index = create_multi_index(item[0], item[1], names=names)
             setattr(view, key, multi_index)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def emulate_meta(meta, item):
-    """ Returns a fully emulated version of item with all mapped meta
+    """Returns a fully emulated version of item with all mapped meta
     components recursively discovered and replaced.
 
     item can be either a meta object or a mapped meta string.
     """
-
 
     if is_mapped_meta(item):
         item = get_mapped_meta(meta, item)
@@ -841,9 +990,14 @@ def emulate_meta(meta, item):
     else:
         return item
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def as_datetime64(data, date_format='dmy', date_sep='/', time_format='hm', time_sep=':'):
-    """ Converts data, a dtype 'object' Series storing date or datetime
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def as_datetime64(
+    data, date_format='dmy', date_sep='/', time_format='hm', time_sep=':'
+):
+    """Converts data, a dtype 'object' Series storing date or datetime
     as text, to a numpy.datetime64 Series object.
 
     The default argument values work for a Series in the format:
@@ -864,25 +1018,37 @@ def as_datetime64(data, date_format='dmy', date_sep='/', time_format='hm', time_
         time = pd.Series(date_time[1])
         date = pd.Series(date_time[0])
 
-    date = date.str.split(date_sep).apply(lambda x: '-'.join([x[p] for p in date_reorder]))
+    date = date.str.split(date_sep).apply(
+        lambda x: '-'.join([x[p] for p in date_reorder])
+    )
 
     if has_time:
-        date_time = (date +' '+ time).astype(np.datetime64)
+        date_time = (date + ' ' + time).astype(np.datetime64)
 
     return date_time
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_time_from_datetime(data):
-    """ Returns a timedelta64 series the form "hh:mm:ss" from data, being a
+    """Returns a timedelta64 series the form "hh:mm:ss" from data, being a
     datetime64 series
     """
 
-    time = data.apply(lambda x: np.timedelta64(x.hour, 'h') + np.timedelta64(x.minute, 'm') + np.timedelta64(x.second, 's'))
+    time = data.apply(
+        lambda x: np.timedelta64(x.hour, 'h')
+        + np.timedelta64(x.minute, 'm')
+        + np.timedelta64(x.second, 's')
+    )
     return time
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def summarize_time(data, raw_output=True):
-    """ Summary statistics function for timedelta64, returns a DataFrame
+    """Summary statistics function for timedelta64, returns a DataFrame
     with the following index:
 
     min
@@ -893,13 +1059,7 @@ def summarize_time(data, raw_output=True):
     """
 
     index_list = ['min', 'median', 'mean', 'mode', 'max']
-    summary = [
-        data.min(),
-        data.median(),
-        data.mean(),
-        data.mode(),
-        data.max()
-    ]
+    summary = [data.min(), data.median(), data.mean(), data.mode(), data.max()]
 
     s_describe = data.describe()
     df = pd.DataFrame(pd.concat(summary))
@@ -909,33 +1069,54 @@ def summarize_time(data, raw_output=True):
     df.columns = ['Total']
 
     if not raw_output:
-        df.index = pd.MultiIndex.from_product([[data.name], df.index], names=['Question', 'Values'])
+        df.index = pd.MultiIndex.from_product(
+            [[data.name], df.index], names=['Question', 'Values']
+        )
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def single_value_counts(data):
-    ''' Replacement for the pandas value_counts() dataframe method. Supports
+    '''Replacement for the pandas value_counts() dataframe method. Supports
     aggregation over a 'values' vector to either produce the abs. unweighted distribution (=1)
     or an abs. weighted distribution (=weight factors).
     '''
     margin = data.dropna()[data.columns[1]].sum()
     data = data.dropna()
-    df = pd.DataFrame({c: data[data[data.columns[0]] == c][data.columns[1]].sum() for c in data[data.columns[0]].astype(int).unique()}, index = ['@1'])
+    df = pd.DataFrame(
+        {
+            c: data[data[data.columns[0]] == c][data.columns[1]].sum()
+            for c in data[data.columns[0]].astype(int).unique()
+        },
+        index=['@1'],
+    )
     if margin == 0:
         df = pd.DataFrame(0, ['nan'], ['nan']).T
         df = df.T
     df['All'] = margin
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def single_value_counts_groups(data, groupby):
-    ''' Wrapper for groupby sub-sample aggregation.
-    '''
+    '''Wrapper for groupby sub-sample aggregation.'''
     if groupby:
         grouped = data.dropna().groupby(groupby)
         groups = sorted(grouped.groups.keys())
         if list(grouped.groups.keys()):
-            df = pd.concat([single_value_counts(group_data[1][[data.columns[0], data.columns[2]]]) for group_data in grouped], axis=0).T
+            df = pd.concat(
+                [
+                    single_value_counts(
+                        group_data[1][[data.columns[0], data.columns[2]]]
+                    )
+                    for group_data in grouped
+                ],
+                axis=0,
+            ).T
             df.columns = [int(g) for g in groups]
         else:
             df = pd.DataFrame(0, ['nan'], ['nan']).T
@@ -946,7 +1127,7 @@ def single_value_counts_groups(data, groupby):
         pass
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def calc_margins(data, multi=False):
     '''
     For future development: method that is used to compute the correct margins for the
@@ -959,32 +1140,54 @@ def calc_margins(data, multi=False):
     if multi:
         pass
     else:
-        #margin_values = data
+        # margin_values = data
         margin_values = data[data[data.columns[0]].notnull()][data.columns[1]].sum()
-        #margin_values = data[data[data.columns[0]].notnull()][data.columns[1]].sum()
+        # margin_values = data[data[data.columns[0]].notnull()][data.columns[1]].sum()
 
     return margin_values
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def delimited_set_value_counts(data, value_map=None):
-    ''' Now supports weighted aggregation.
-    '''
+    '''Now supports weighted aggregation.'''
     if value_map is None:
         value_map = get_delimited_value_map(data[data.columns[0]])
     margin = data.dropna()[data.columns[1]].sum()
     data = data.dropna()
-    df = pd.DataFrame({k: data[data[data.columns[0]].str.contains("(^{k};)|(;{k};)".format(k=k), regex=True)][data.columns[1]].sum() for k in value_map}, index=['@1'])
+    df = pd.DataFrame(
+        {
+            k: data[
+                data[data.columns[0]].str.contains(
+                    "(^{k};)|(;{k};)".format(k=k), regex=True
+                )
+            ][data.columns[1]].sum()
+            for k in value_map
+        },
+        index=['@1'],
+    )
     df['All'] = margin
     return df.T
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def delimited_set_value_counts_groups(data, groupby, value_map=None):
-    ''' Wrapper for groupby sub-sample aggregation.
-    '''
+    '''Wrapper for groupby sub-sample aggregation.'''
     grouped = data.dropna().groupby(groupby)
     groups = sorted(grouped.groups.keys())
     if list(grouped.groups.keys()):
-        df = pd.concat([delimited_set_value_counts(group_data[1][[data.columns[0], data.columns[2]]], value_map) for group_data in grouped], axis=1)
+        df = pd.concat(
+            [
+                delimited_set_value_counts(
+                    group_data[1][[data.columns[0], data.columns[2]]], value_map
+                )
+                for group_data in grouped
+            ],
+            axis=1,
+        )
         df.columns = [int(g) for g in groups]
         if len(df.index) == 1:
             df = pd.DataFrame(0, ['nan'], ['nan'])
@@ -996,30 +1199,53 @@ def delimited_set_value_counts_groups(data, groupby, value_map=None):
         df = df.T
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def dichotomous_set_value_counts(data):
-    ''' Now supports weighted aggregation.
-    '''
-    cdata = data[data.columns[:-1]].replace(2, np.NAN).mul(data[data.columns[-1]], axis=0)
-    df = pd.DataFrame(pd.concat([cdata.sum(), pd.Series({'All': cdata.T.count().count()})]))
+    '''Now supports weighted aggregation.'''
+    cdata = (
+        data[data.columns[:-1]].replace(2, np.NAN).mul(data[data.columns[-1]], axis=0)
+    )
+    df = pd.DataFrame(
+        pd.concat([cdata.sum(), pd.Series({'All': cdata.T.count().count()})])
+    )
     df.columns = ['@1']
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def array_value_counts(data, array_name, array_items, weight='@1', aggfunc='sum'):
 
-    ndf = pd.concat([data.pivot_table(values=weight, index=[p], margins=True, aggfunc=aggfunc) for p in array_items], axis=1, keys=array_items)
-    ndf.index = pd.MultiIndex.from_product([[array_name], ndf.index], names=['Array', 'Values'])
-    ndf.columns = pd.MultiIndex.from_product([[array_name], ndf.columns], names=['Array', 'Item'])
+    ndf = pd.concat(
+        [
+            data.pivot_table(values=weight, index=[p], margins=True, aggfunc=aggfunc)
+            for p in array_items
+        ],
+        axis=1,
+        keys=array_items,
+    )
+    ndf.index = pd.MultiIndex.from_product(
+        [[array_name], ndf.index], names=['Array', 'Values']
+    )
+    ndf.columns = pd.MultiIndex.from_product(
+        [[array_name], ndf.columns], names=['Array', 'Item']
+    )
     return ndf
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_views(qp_structure):
-    ''' Generator replacement for nested loops to return all view objects
-        stored in a given qp container structure.
-        Currently supports chain-classed shapes and cluster objects natively.
-        To return views from a stack object instance provide input container as per
-        qp_structure = < stack[data_key]['data'] >
+    '''Generator replacement for nested loops to return all view objects
+    stored in a given qp container structure.
+    Currently supports chain-classed shapes and cluster objects natively.
+    To return views from a stack object instance provide input container as per
+    qp_structure = < stack[data_key]['data'] >
     '''
 
     for k, v in qp_structure.items():
@@ -1029,13 +1255,16 @@ def get_views(qp_structure):
         else:
             yield v
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_links(qp_structure):
-    ''' Generator replacement for nested loops to return all link objects
-        stored in a given qp container structure.
-        Currently supports chain-classed shapes and cluster objects natively.
-        To return views from a stack object instance provide input container as per
-        qp_structure = < stack[data_key]['data'] >
+    '''Generator replacement for nested loops to return all link objects
+    stored in a given qp container structure.
+    Currently supports chain-classed shapes and cluster objects natively.
+    To return views from a stack object instance provide input container as per
+    qp_structure = < stack[data_key]['data'] >
     '''
 
     for k, v in qp_structure.items():
@@ -1045,36 +1274,55 @@ def get_links(qp_structure):
         else:
             yield v
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def create_combinations_from_array(array):
-    """ Takes an array and creates a list of combinations from it.
+    """Takes an array and creates a list of combinations from it.
 
-        Unlike itertools.combinations, this creates both xs of combinations
-        example:
-            >>>list(itertools.combinations(['A', 'B', 'C'])):
-            [('A', 'B'),
-             ('A', 'C'),
-             ('B', 'C')]
-            >>>create_combinations_from_array(['A', 'B', 'C'])
-            [('A', 'B'),
-             ('A', 'C'),
-             ('B', 'A'),
-             ('B', 'C'),
-             ('C', 'A'),
-             ('C', 'B')]
+    Unlike itertools.combinations, this creates both xs of combinations
+    example:
+        >>>list(itertools.combinations(['A', 'B', 'C'])):
+        [('A', 'B'),
+         ('A', 'C'),
+         ('B', 'C')]
+        >>>create_combinations_from_array(['A', 'B', 'C'])
+        [('A', 'B'),
+         ('A', 'C'),
+         ('B', 'A'),
+         ('B', 'C'),
+         ('C', 'A'),
+         ('C', 'B')]
     """
-    return [ (item_1, item_2) for item_1 in array for item_2 in array if item_1 is not item_2]
+    return [
+        (item_1, item_2) for item_1 in array for item_2 in array if item_1 is not item_2
+    ]
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def array_items_from_meta(meta, variable):
     if variable in meta['masks']:
-        return [var['source'].split('@')[1] for var in meta['masks'][variable]['items'] if 'source' in var ]
+        return [
+            var['source'].split('@')[1]
+            for var in meta['masks'][variable]['items']
+            if 'source' in var
+        ]
     else:
         return []
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_numeric_indexcodes(source_df, axis='x'):
-    codes = source_df.index.get_level_values(-1) if axis == 'x' else source_df.T.index.get_level_values(-1)
+    codes = (
+        source_df.index.get_level_values(-1)
+        if axis == 'x'
+        else source_df.T.index.get_level_values(-1)
+    )
     if codes.all() == 'total':
         codes = [1]
     elif codes.all() == 'None':
@@ -1083,9 +1331,12 @@ def get_numeric_indexcodes(source_df, axis='x'):
         codes = codes.astype(int).tolist()
     return codes
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def default_meta(link, view_df, dtypes, weights=None):
-    ''' Used to define the view meta information organized as a dictionary.
+    '''Used to define the view meta information organized as a dictionary.
     Gets called in base.py. Will ( --- currently --- ) only work if there is
     meta data related to the qp input dataframe.
     '''
@@ -1101,34 +1352,46 @@ def default_meta(link, view_df, dtypes, weights=None):
         method = 'default'
     else:
         datatype = dtypes[0]
-        method = 'default'
+        _method = 'default'
 
     default_meta = {
-                    'agg': {'method': 'default',
-                            'name': 'default',
-                            'datatype': datatype,
-                            'viewtype': 'quantipy.DefaultView',
-                            'is_weighted': True if not weights is None else False,
-                            'weights': weights
-                            },
-                    'x': {
-                        'name': link.x,
-                        'is_multi': True if dtypes[0] in ['dichotomous set', 'categorical set', 'delimited set'] and not link.x == '@' else False,
-                        'is_nested': True if ">" in link.x else False
-                        },
-                    'y': {
-                        'name': link.y,
-                        'is_multi': True if dtypes[1] in ['dichotomous set', 'categorical set', 'delimited set'] and not link.y == '@' else False,
-                        'is_nested': True if ">" in link.y else False
-                        },
-                    'shape' : view_df.shape
-                    }
+        'agg': {
+            'method': 'default',
+            'name': 'default',
+            'datatype': datatype,
+            'viewtype': 'quantipy.DefaultView',
+            'is_weighted': True if weights is not None else False,
+            'weights': weights,
+        },
+        'x': {
+            'name': link.x,
+            'is_multi': True
+            if dtypes[0] in ['dichotomous set', 'categorical set', 'delimited set']
+            and not link.x == '@'
+            else False,
+            'is_nested': True if ">" in link.x else False,
+        },
+        'y': {
+            'name': link.y,
+            'is_multi': True
+            if dtypes[1] in ['dichotomous set', 'categorical set', 'delimited set']
+            and not link.y == '@'
+            else False,
+            'is_nested': True if ">" in link.y else False,
+        },
+        'shape': view_df.shape,
+    }
 
     return default_meta
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def update_view_meta(view_df, meta, method_name, name, fullname, method_type, label='', source=None):
-    ''' Updates the view meta information based on the selected view methods
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def update_view_meta(
+    view_df, meta, method_name, name, fullname, method_type, label='', source=None
+):
+    '''Updates the view meta information based on the selected view methods
     used in the QuantipyViewss class. Gets called in core.viewgenerators.view_maps.py.
     Will only work if there is meta data related
     to the qp input dataframe.
@@ -1142,17 +1405,22 @@ def update_view_meta(view_df, meta, method_name, name, fullname, method_type, la
 
     return meta
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def create_NA_view(x, y):
-    ''' Creates an empty view without data and meta.
-    '''
-    df = pd.DataFrame(data = ['N/A'], index = [x], columns=[y])
-    view = View(df, meta = 'unavailable')
+    '''Creates an empty view without data and meta.'''
+    df = pd.DataFrame(data=['N/A'], index=[x], columns=[y])
+    view = View(df, meta='unavailable')
     return view
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def describe(data, x, weights=None):
-    ''' Replacment of (wrapper around) the df.describe() method that can deal with
+    '''Replacment of (wrapper around) the df.describe() method that can deal with
     weighted data. Weight vectors are allowed to be non-normalized, i.e.
     sum of weights <> number of cases in sample. Quartile information currently
     dropped from output, variance is unbiased variance.
@@ -1163,31 +1431,36 @@ def describe(data, x, weights=None):
     desc_df = data[x].describe()
     desc_df.rename(
         {
-        'count': 'Count',
-        'min': 'Min',
-        'max': 'Max',
-        'mean': 'Mean',
-        'std': 'StdDev',
-        '25%': 'Lower quartile',
-        '50%': 'Median',
-        '75%': 'Upper quartile'
+            'count': 'Count',
+            'min': 'Min',
+            'max': 'Max',
+            'mean': 'Mean',
+            'std': 'StdDev',
+            '25%': 'Lower quartile',
+            '50%': 'Median',
+            '75%': 'Upper quartile',
         },
-        inplace=True)
+        inplace=True,
+    )
     # percentile information (incorrect for weighted data!) excluded for now...
     # desc_df.drop(['Lower quartile', 'Median', 'Upper quartile'], inplace=True)
     if not len(data.index) == 0:
         if not weights == '@1':
             count = data[weights].sum()
-            norm_wvector_coef = 1 if len(data.index) == count else len(data.index)/count
-            w_squared_sum = (data[weights]**2).sum()
-            eff_count = count**2/w_squared_sum
+            norm_wvector_coef = (
+                1 if len(data.index) == count else len(data.index) / count
+            )
+            w_squared_sum = (data[weights] ** 2).sum()
+            eff_count = count ** 2 / w_squared_sum
             mean = data[x].mul(data[weights].mul(norm_wvector_coef)).mean()
-            var = data[weights].mul((data[x].sub(mean))**2).sum()/(data[weights].sum()-1)
+            var = data[weights].mul((data[x].sub(mean)) ** 2).sum() / (
+                data[weights].sum() - 1
+            )
             try:
                 stddev = math.sqrt(var)
                 if abs(stddev) == 0.00:
                     stddev = np.NaN
-            except:
+            except BaseException:
                 stddev = np.NaN
             desc_df['Count'] = count
             desc_df['Eff. count'] = eff_count
@@ -1198,23 +1471,39 @@ def describe(data, x, weights=None):
             desc_df['Eff. count'] = desc_df['Count']
             desc_df['Weights squared sum'] = 1.00
 
-        desc_df['Efficiency'] = desc_df['Eff. count']/desc_df['Count']*100
+        desc_df['Efficiency'] = desc_df['Eff. count'] / desc_df['Count'] * 100
 
-    return pd.DataFrame(desc_df[['Count', 'Eff. count', 'Min', 'Max', 'Mean', 'StdDev', 'Weights squared sum', 'Efficiency']])
+    return pd.DataFrame(
+        desc_df[
+            [
+                'Count',
+                'Eff. count',
+                'Min',
+                'Max',
+                'Mean',
+                'StdDev',
+                'Weights squared sum',
+                'Efficiency',
+            ]
+        ]
+    )
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_var_nest_combo(var):
-    ''' Returns the y var and it's nest if nested
+    '''Returns the y var and it's nest if nested
 
-        example a:
-            var, nest = get_var_nest_combo(var="A>B>C>D")
-            # var is 'A'
-            # nest is 'B>C>D'
+    example a:
+        var, nest = get_var_nest_combo(var="A>B>C>D")
+        # var is 'A'
+        # nest is 'B>C>D'
 
-        example b:
-            var, nest = get_var_nest_combo(var="A")
-            # var is 'A'
-            # nest is None
+    example b:
+        var, nest = get_var_nest_combo(var="A")
+        # var is 'A'
+        # nest is None
     '''
     if '>' in var:
         split = var.split('>')
@@ -1222,78 +1511,134 @@ def get_var_nest_combo(var):
     else:
         return (var, None)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def create_multiindex_from_length(name, length, names=['Question', 'Values'], margins=True):
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def create_multiindex_from_length(
+    name, length, names=['Question', 'Values'], margins=True
+):
     if margins:
-        multiindex = pd.MultiIndex(levels=[[name], [str(s) for s in range(1, length + 1)] + ['All']],
-                                   labels=[[0]*(length + 1), list(range(length + 1))],
-                                    names=names)
+        multiindex = pd.MultiIndex(
+            levels=[[name], [str(s) for s in range(1, length + 1)] + ['All']],
+            labels=[[0] * (length + 1), list(range(length + 1))],
+            names=names,
+        )
     else:
-        multiindex = pd.MultiIndex(levels=[[name], [str(s) for s in range(1, length + 1)]],
-                                   labels=[[0]*length, list(range(length))],
-                                    names=names)
+        multiindex = pd.MultiIndex(
+            levels=[[name], [str(s) for s in range(1, length + 1)]],
+            labels=[[0] * length, list(range(length))],
+            names=names,
+        )
     return multiindex
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def cast_index_levels_as_str(df, x_eq_y=False):
     index_levels = [[str(item) for item in level] for level in df.index.levels]
     df.index.set_levels(index_levels, inplace=True)
 
-    column_levels = index_levels if x_eq_y else [[str(item) for item in level] for level in df.columns.levels]
+    column_levels = (
+        index_levels
+        if x_eq_y
+        else [[str(item) for item in level] for level in df.columns.levels]
+    )
     df.columns.set_levels(column_levels, inplace=True)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def create_nested_multiindex_from_array(array, data, meta, names=['Question', 'Values'], margins=True):
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def create_nested_multiindex_from_array(
+    array, data, meta, names=['Question', 'Values'], margins=True
+):
     if len(names) <= len(array):
         names = names * len(array)
-    product = [list(item) for sublist in [[[x], get_values_from_categorical(meta['columns'][x]['values'], meta)] for x in array] for item in sublist]
+    product = [
+        list(item)
+        for sublist in [
+            [[x], get_values(meta['columns'][x], meta)]
+            for x in array
+        ]
+        for item in sublist
+    ]
     if margins:
         product[-1].append('All')
 
     return pd.MultiIndex.from_product(product, names=names)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def create_nest_meta(x, y, data, meta=None):
-    """ Creates dictionary with information about unique sizes of variables in the data
+    """Creates dictionary with information about unique sizes of variables in the data
 
-        Note : Skip var if `var not in data.columns`
+    Note : Skip var if `var not in data.columns`
 
-        Example:
-            input:
-                x = "A>B>C"
-                y = "D>E>F"
-                data = <<pandas.DataFrame>>
+    Example:
+        input:
+            x = "A>B>C"
+            y = "D>E>F"
+            data = <<pandas.DataFrame>>
 
-            output: (random values)
-                dict =
-                {
-                    'A':{'items': [1, 2, 3, 4]}
-                    'B':{'items': ['Jon', 'Atli']}
-                    'C':{'items': [1, 2, 3, 4, 5]}
-                    'D':{'items': ['Jan', 'Feb', 'Mar']}
-                    'E':{'items': [1, 2, 3, 4]}
-                    'F':{'items': [1, 2]}
-                }
+        output: (random values)
+            dict =
+            {
+                'A':{'items': [1, 2, 3, 4]}
+                'B':{'items': ['Jon', 'Atli']}
+                'C':{'items': [1, 2, 3, 4, 5]}
+                'D':{'items': ['Jan', 'Feb', 'Mar']}
+                'E':{'items': [1, 2, 3, 4]}
+                'F':{'items': [1, 2]}
+            }
     """
-#    return {var:{'items':sorted(data[var].unique())
-#                 'length':len(data[var].unique())} for var in x.split('>') + y.split('>') }
+    #    return {var:{'items':sorted(data[var].unique())
+    #                 'length':len(data[var].unique())} for var in x.split('>') + y.split('>') }
     if meta is None:
         return None
-    if x in list(meta['columns'].keys()) and not meta['columns'][x]['type'] in ['int', 'float'] and not meta['columns'][y]['type'] in ['int', 'float']:
-        return {var:{'items': get_values_from_categorical(meta['columns'][var]['values'], meta)} for var in x.split('>') + y.split('>') if var in data}
+    if (
+        x in list(meta['columns'].keys())
+        and not meta['columns'][x]['type'] in ['int', 'float']
+        and not meta['columns'][y]['type'] in ['int', 'float']
+    ):
+        return {
+            var: {
+                'items': get_values(meta['columns'][var], meta)
+            }
+            for var in x.split('>') + y.split('>')
+            if var in data
+        }
     else:
-        return {var:{'items': sorted(data[var].unique())} for var in x.split('>') + y.split('>') if var in data}
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        return {
+            var: {'items': sorted(data[var].unique())}
+            for var in x.split('>') + y.split('>')
+            if var in data
+        }
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def is_nested_with_arrays(link):
     if '>' in link.y + link.x:
         meta = link.get_meta()
         masks = meta['masks']
         variables = link.y.split('>') + link.x.split('>')
-        variable_masks = [mask for mask in [key for key in masks if 'array' in masks[key]['type']] if mask in variables]
+        variable_masks = [
+            mask
+            for mask in [key for key in masks if 'array' in masks[key]['type']]
+            if mask in variables
+        ]
         return len(variable_masks) > 0
     return False
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def deep_drop(df, targets, axes=[0, 1]):
 
     if not isinstance(targets, (list, tuple)):
@@ -1311,7 +1656,10 @@ def deep_drop(df, targets, axes=[0, 1]):
 
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_unique_level_values(index):
     """
     Returns the unique values for all levels of an Index object, in the
@@ -1327,10 +1675,13 @@ def get_unique_level_values(index):
     list of lists
     """
     return [
-        index.get_level_values(i).unique().tolist()
-        for i in range(len(index.levels))]
+        index.get_level_values(i).unique().tolist() for i in range(len(index.levels))
+    ]
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def translate(items, text_keys):
 
     transmap = qp.View()._metric_name_map()
@@ -1342,15 +1693,18 @@ def translate(items, text_keys):
                 try:
                     translation = transmap[text_key][item]
                     found = True
-                except:
+                except BaseException:
                     translation = item
         translations.append(translation)
 
     return translations
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def recode_into(data, col_from, col_to, assignment, multi=False):
-    ''' Recodes one column based on the values of another column
+    '''Recodes one column based on the values of another column
     codes = [([10, 11], 1), ([8, 9], 2), ([1, 2, 3, 5, 6, 7, ], 3)]
     data = recode_into(data, 'CONNECTIONS4', 'CONNECTIONS4_nps', codes)
     '''
@@ -1363,34 +1717,36 @@ def recode_into(data, col_from, col_to, assignment, multi=False):
     data[col_to] = s
     return data
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def create_column(name, type_name, text='', values=None):
-    ''' Returns a column object that can be stored into a Quantipy meta
+    '''Returns a column object that can be stored into a Quantipy meta
     document.
     '''
 
-    column = {
-        'name': name,
-        'type': type_name,
-        'text': text
-    }
+    column = {'name': name, 'type': type_name, 'text': text}
 
-    if not values is None:
+    if values is not None:
         column['values'] = values
 
     return column
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def find_variable_level(levels, variable):
-    """ Returns the first level found for variable in a MultiIndexLevel
+    """Returns the first level found for variable in a MultiIndexLevel
 
-        Example:
-            >> df.columns.levels
-                FrozenList([[u'aldurflo'], [u'1.0', u'2.0', u'3.0', u'All']])
-            >> level = find_variable_level(df.columns.levels, 'All')
-               # level is 1
+     Example:
+         >> df.columns.levels
+             FrozenList([[u'aldurflo'], [u'1.0', u'2.0', u'3.0', u'All']])
+         >> level = find_variable_level(df.columns.levels, 'All')
+            # level is 1
 
-       Warning: It will crash if the variable is not in the MultiIndex.Level
+    Warning: It will crash if the variable is not in the MultiIndex.Level
     """
     for idx, level in enumerate(levels):
         if variable in level:
@@ -1398,9 +1754,12 @@ def find_variable_level(levels, variable):
     return None
     # return [idx for idx, level in enumerate(levels) if variable in level][0]
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def categorical_value_counts(df, is_single=False, x_is_multi=False, y_is_multi=False):
-    """ Given a pd.DataFrame with x/y variables and a values vector (i.e. @1 vs. weights),
+    """Given a pd.DataFrame with x/y variables and a values vector (i.e. @1 vs. weights),
     this method produces basic frequency tables for single- and multi-coded categorical data.
     If the three optional arguments are omitted, x/y/values with single-coded data columns is assumed.
 
@@ -1432,88 +1791,171 @@ def categorical_value_counts(df, is_single=False, x_is_multi=False, y_is_multi=F
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if is_single:
         if len(df.dropna().index) == 0:
-            ct = pd.DataFrame(0,['@1'],['nan']).T
+            ct = pd.DataFrame(0, ['@1'], ['nan']).T
             margin = 0
         else:
             margin = df.dropna()[df.columns[-1]].sum()
             if x_is_multi:
-                ct = pd.DataFrame(df[df.columns[0]].str.get_dummies(';').astype(int).mul(df[df.columns[-1]], axis=0).sum(axis=0),
-                                  columns=['@1'])
+                ct = pd.DataFrame(
+                    df[df.columns[0]]
+                    .str.get_dummies(';')
+                    .astype(int)
+                    .mul(df[df.columns[-1]], axis=0)
+                    .sum(axis=0),
+                    columns=['@1'],
+                )
             else:
-                ct = pd.DataFrame(pd.get_dummies(df[df.columns[0]].dropna().astype(int)).mul(df[df.columns[-1]], axis=0).sum(axis=0),
-                                  columns=['@1'])
-
+                ct = pd.DataFrame(
+                    pd.get_dummies(df[df.columns[0]].dropna().astype(int))
+                    .mul(df[df.columns[-1]], axis=0)
+                    .sum(axis=0),
+                    columns=['@1'],
+                )
 
     # 2D links, bivariate aggregates
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     else:
         if len(df.dropna().index) == 0:
-            ct = pd.DataFrame(0,['nan'],['nan']).T
+            ct = pd.DataFrame(0, ['nan'], ['nan']).T
             margin = 0
         else:
             if x_is_multi and y_is_multi:
                 df = df.dropna()
-                dummy_x_df = df[df.columns[0]].str.get_dummies(';').astype(int).mul(df[df.columns[-1]], axis=0)
+                dummy_x_df = (
+                    df[df.columns[0]]
+                    .str.get_dummies(';')
+                    .astype(int)
+                    .mul(df[df.columns[-1]], axis=0)
+                )
                 dummy_y_df = df[df.columns[1]].str.get_dummies(';').astype(int)
                 dummy_y_df_columns = dummy_y_df.columns
-                dummy_y_df.columns = [df.columns[1] + '_' + code for code in dummy_y_df.columns]
-                dummy_full_df = pd.concat([dummy_x_df,dummy_y_df, df[df.columns[-1]]], axis=1)
-                margin = [dummy_full_df[dummy_full_df[code] == 1][df.columns[-1]].sum(axis=0) for code in dummy_y_df.columns]
-                ct = pd.concat([dummy_full_df[dummy_full_df[code]==1][dummy_x_df.columns].sum(axis=0) for code in dummy_y_df.columns], axis=1)
+                dummy_y_df.columns = [
+                    df.columns[1] + '_' + code for code in dummy_y_df.columns
+                ]
+                dummy_full_df = pd.concat(
+                    [dummy_x_df, dummy_y_df, df[df.columns[-1]]], axis=1
+                )
+                margin = [
+                    dummy_full_df[dummy_full_df[code] == 1][df.columns[-1]].sum(axis=0)
+                    for code in dummy_y_df.columns
+                ]
+                ct = pd.concat(
+                    [
+                        dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
+                            axis=0
+                        )
+                        for code in dummy_y_df.columns
+                    ],
+                    axis=1,
+                )
                 ct.columns = dummy_y_df_columns
 
             elif y_is_multi:
-                dummy_x_df = pd.DataFrame(pd.get_dummies(df[df.columns[0]]).mul(df[df.columns[-1]], axis=0))
+                dummy_x_df = pd.DataFrame(
+                    pd.get_dummies(df[df.columns[0]]).mul(df[df.columns[-1]], axis=0)
+                )
                 dummy_y_df = df[df.columns[1]].str.get_dummies(';').astype(int)
                 dummy_y_df_columns = dummy_y_df.columns
-                dummy_y_df.columns = [df.columns[1] + '_' + code for code in dummy_y_df.columns]
-                dummy_full_df =  pd.concat([dummy_x_df,dummy_y_df], axis=1)
-                ct = pd.concat([dummy_full_df[dummy_full_df[code]==1][dummy_x_df.columns].sum(axis=0) for code in dummy_y_df.columns], axis=1)
+                dummy_y_df.columns = [
+                    df.columns[1] + '_' + code for code in dummy_y_df.columns
+                ]
+                dummy_full_df = pd.concat([dummy_x_df, dummy_y_df], axis=1)
+                ct = pd.concat(
+                    [
+                        dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
+                            axis=0
+                        )
+                        for code in dummy_y_df.columns
+                    ],
+                    axis=1,
+                )
                 ct.index = ct.index.astype(int)
                 margin = ct.sum(axis=0).values
                 ct.columns = dummy_y_df_columns
 
             elif x_is_multi:
                 df = df.dropna()
-                dummy_x_df = df[df.columns[0]].str.get_dummies(';').astype(int).mul(df[df.columns[-1]], axis=0)
+                dummy_x_df = (
+                    df[df.columns[0]]
+                    .str.get_dummies(';')
+                    .astype(int)
+                    .mul(df[df.columns[-1]], axis=0)
+                )
                 dummy_y_df = pd.DataFrame(pd.get_dummies(df[df.columns[1]].astype(int)))
                 dummy_y_df_columns = dummy_y_df.columns
-                dummy_y_df.columns = [df.columns[1] + '_' + str(code) for code in dummy_y_df.columns]
-                dummy_full_df = pd.concat([dummy_x_df,dummy_y_df, df[df.columns[-1]]], axis=1)
-                margin = [dummy_full_df[dummy_full_df[code] == 1][df.columns[-1]].sum(axis=0) for code in dummy_y_df.columns]
-                ct = pd.concat([dummy_full_df[dummy_full_df[code]==1][dummy_x_df.columns].sum(axis=0) for code in dummy_y_df.columns], axis=1)
+                dummy_y_df.columns = [
+                    df.columns[1] + '_' + str(code) for code in dummy_y_df.columns
+                ]
+                dummy_full_df = pd.concat(
+                    [dummy_x_df, dummy_y_df, df[df.columns[-1]]], axis=1
+                )
+                margin = [
+                    dummy_full_df[dummy_full_df[code] == 1][df.columns[-1]].sum(axis=0)
+                    for code in dummy_y_df.columns
+                ]
+                ct = pd.concat(
+                    [
+                        dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
+                            axis=0
+                        )
+                        for code in dummy_y_df.columns
+                    ],
+                    axis=1,
+                )
                 ct.columns = dummy_y_df_columns
 
             else:
                 df = df.dropna()
-                ct = pd.crosstab(index=df[df.columns[0]].astype(int), columns=df[df.columns[1]].astype(int), values=df[df.columns[2]],aggfunc='sum')
+                ct = pd.crosstab(
+                    index=df[df.columns[0]].astype(int),
+                    columns=df[df.columns[1]].astype(int),
+                    values=df[df.columns[2]],
+                    aggfunc='sum',
+                )
                 margin = ct.sum(axis=0)
 
     # create All = margin index/column
     ct = ct.T
     ct['All'] = margin
     ct = ct.T
-    ct['All'] = ct.sum(axis=1) # the row margins are currently incorrect for all multicode data
+    # the row margins are currently incorrect for all multicode data
+    ct['All'] = ct.sum(axis=1)
 
-    # apply multiindex confirming the Question/Values convention for both index and column axis
-    ct.index = pd.MultiIndex.from_product([[df.columns[0]], ct.index.astype(str)], names=['Question','Values'])
-    ct.columns = pd.MultiIndex.from_product([[df.columns[-2]], ct.columns.astype(str)], names=['Question','Values'])
+    # apply multiindex confirming the Question/Values convention for both
+    # index and column axis
+    ct.index = pd.MultiIndex.from_product(
+        [[df.columns[0]], ct.index.astype(str)], names=['Question', 'Values']
+    )
+    ct.columns = pd.MultiIndex.from_product(
+        [[df.columns[-2]], ct.columns.astype(str)], names=['Question', 'Values']
+    )
 
     return ct
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def flatten(stack, separator='-', prefix=''):
-    """ Will return a one-level dictionary of all stack keys
+    """Will return a one-level dictionary of all stack keys
     seperated by '-' matched to their concluding value.
     Example: data_key-data-no_filter-x_key-y_key-view_key : View.View
     (This is straight from stackoverflow.com)
     """
-    return {prefix + separator + k if prefix else k : v
+    return (
+        {
+            prefix + separator + k if prefix else k: v
             for kk, vv in list(stack.items())
             for k, v in list(flatten(vv, separator, kk).items())
-            } if isinstance(stack, dict) else {prefix : stack}
+        }
+        if isinstance(stack, dict)
+        else {prefix: stack}
+    )
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def create_range_as_list(rng, as_type=str):
     """
 
@@ -1535,14 +1977,17 @@ def create_range_as_list(rng, as_type=str):
     for sub_rng in rng.split(','):
         if '-' in sub_rng:
             lo, hi = sub_rng.split('-')
-            res.extend([i for i in range(int(lo), int(hi)+1)])
+            res.extend([i for i in range(int(lo), int(hi) + 1)])
         else:
             res.append(sub_rng)
-    if as_type==str:
+    if as_type == str:
         return res
     return list(map(as_type, res))
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def add_combined_codes_view(create_method, source, combine_codes, label):
     """
     Returns a view object
@@ -1562,31 +2007,42 @@ def add_combined_codes_view(create_method, source, combine_codes, label):
     -------
     quantipy.ViewMapper
     """
-    view=ViewMapper()
+    view = ViewMapper()
     if isinstance(combine_codes[0], list):
         for i in range(max(len(combine_codes), len(label))):
-            name = 'net_%s_%s_%s_%s' % (combine_codes[i][0],
-                                        combine_codes[i][-1],
-                                        source,
-                                        re.sub(r'['+string.punctuation+']', '',label[i]))
-            view.add_method(name.replace(' ', ''),
-                            create_method,
-                            kwargs={'source': source,
-                                    'combine_codes': combine_codes[i],
-                                    'label': label[i]})
+            name = 'net_%s_%s_%s_%s' % (
+                combine_codes[i][0],
+                combine_codes[i][-1],
+                source,
+                re.sub(r'[' + string.punctuation + ']', '', label[i]),
+            )
+            view.add_method(
+                name.replace(' ', ''),
+                create_method,
+                kwargs={
+                    'source': source,
+                    'combine_codes': combine_codes[i],
+                    'label': label[i],
+                },
+            )
     else:
-        name = 'net_%s_%s_%s_%s' % (combine_codes[0],
-                                    combine_codes[-1],
-                                    source,
-                                    re.sub(r'['+string.punctuation+']', '',label))
-        view.add_method(name.replace(' ', ''),
-                        create_method,
-                        kwargs={'source': source,
-                                'combine_codes': combine_codes,
-                                'label': label})
+        name = 'net_%s_%s_%s_%s' % (
+            combine_codes[0],
+            combine_codes[-1],
+            source,
+            re.sub(r'[' + string.punctuation + ']', '', label),
+        )
+        view.add_method(
+            name.replace(' ', ''),
+            create_method,
+            kwargs={'source': source, 'combine_codes': combine_codes, 'label': label},
+        )
     return view
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def hide_codes_x(x, codes_to_hide, views, exclude_from_base=False):
     """
 
@@ -1609,13 +2065,20 @@ def hide_codes_x(x, codes_to_hide, views, exclude_from_base=False):
     for y in x:
         for view in views:
             if view in x[y]:
-                x[y][view].meta.update({'x_hidden_codes': create_range_as_list(codes_to_hide),
-                                             'x_hidden_in_views': views,
-                                             'x_exclude_from_base': exclude_from_base})
+                x[y][view].meta.update(
+                    {
+                        'x_hidden_codes': create_range_as_list(codes_to_hide),
+                        'x_hidden_in_views': views,
+                        'x_exclude_from_base': exclude_from_base,
+                    }
+                )
             else:
                 print('hide_codes_x(): %s not found --> ignored.' % (view))
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def reorder_codes_x(x, new_order, views):
     """
 
@@ -1634,19 +2097,31 @@ def reorder_codes_x(x, new_order, views):
     for y in x:
         for view in views:
             if view in x[y]:
-                x[y][view].meta.update({'x_new_order': create_range_as_list(new_order),
-                                             'x_new_order_in_views': views})
+                x[y][view].meta.update(
+                    {
+                        'x_new_order': create_range_as_list(new_order),
+                        'x_new_order_in_views': views,
+                    }
+                )
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def define_multicodes(varlist, meta):
     multicodes = {}
     for var in varlist:
-        multicodes.update({var: [mrs_q for mrs_q in meta['columns'] if mrs_q.startswith(var + '_')]})
+        multicodes.update(
+            {var: [mrs_q for mrs_q in meta['columns'] if mrs_q.startswith(var + '_')]}
+        )
 
     return multicodes
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def create_delimited_from_single(data, meta = None, mrs_spec = {}):
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def create_delimited_from_single(data, meta=None, mrs_spec={}):
     df = data.copy()
     mrs_data = []
     mrs_meta = None
@@ -1658,12 +2133,12 @@ def create_delimited_from_single(data, meta = None, mrs_spec = {}):
         mrs_df = df[mrs_q]
         for col in mrs_df.columns:
             mrs_df[col].replace(np.NaN, 0, inplace=True)
-            mrs_df[col].replace(1, col.split('_')[1]+';', inplace=True)
+            mrs_df[col].replace(1, col.split('_')[1] + ';', inplace=True)
         mrs_df[mrs_name] = mrs_df.replace(0, '').sum(axis=1)
 
         mrs_data.append(mrs_df[mrs_name])
 
-        if not meta is None:
+        if meta is not None:
             q_lab = meta['columns'][mrs_q[0]]['text'].split('-', 2)[1].strip()
             values = []
 
@@ -1672,15 +2147,21 @@ def create_delimited_from_single(data, meta = None, mrs_spec = {}):
                 text = meta['columns'][q]['text'].split('-', 2)[-1].strip()
                 values.append({'value': value, 'text': text})
 
-            meta['columns'][mrs_name] = create_column(mrs_name, type_name='delimited set', text=q_lab, values = values)
+            meta['columns'][mrs_name] = create_column(
+                mrs_name, type_name='delimited set', text=q_lab, values=values
+            )
 
     data = pd.concat([df] + mrs_data, axis=1)
     return data, meta
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def slice_stack(stack, dks=None, fks=None, xks=None, yks=None,
-                          vks=None, att_xks=False, att_yks=True):
-    ''' This function will return a copy of stack, keeping only the parts of
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def slice_stack(
+    stack, dks=None, fks=None, xks=None, yks=None, vks=None, att_xks=False, att_yks=True
+):
+    '''This function will return a copy of stack, keeping only the parts of
     it that were specified, given a lazy rule of everything when nothing is
     specified.
 
@@ -1702,20 +2183,20 @@ def slice_stack(stack, dks=None, fks=None, xks=None, yks=None,
 
     for d in dks:
 
-        if not d in list(stack.keys()):
+        if d not in list(stack.keys()):
             del stack[d]
         else:
             if all_fks:
                 fks = list(stack[d]['data'].keys())
 
             for f in list(stack[d]['data'].keys()):
-                if not f in fks:
+                if f not in fks:
                     del stack[d]['data'][f]
                 else:
                     if all_xks:
                         xks = list(stack[d]['data'][f].keys())
 
-                    if att_xks and not '@' in xks:
+                    if att_xks and '@' not in xks:
                         xks.append('@')
 
                     for x in list(stack[d]['data'][f].keys()):
@@ -1725,7 +2206,7 @@ def slice_stack(stack, dks=None, fks=None, xks=None, yks=None,
                             if all_yks:
                                 yks = list(stack[d]['data'][f][x].keys())
 
-                            if att_yks and not '@' in yks:
+                            if att_yks and '@' not in yks:
                                 yks.append('@')
 
                             for y in list(stack[d]['data'][f][x].keys()):
@@ -1741,9 +2222,12 @@ def slice_stack(stack, dks=None, fks=None, xks=None, yks=None,
 
     return stack
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def map_multiindex(index, levels_map=None, names_map=None):
-    ''' This function will map the levels and names of the given MultiIndex
+    '''This function will map the levels and names of the given MultiIndex
     using the maps provided. It is used to map the index labels and names to
     new labels and names. Note that in Pandas the MultiIndex 'levels' are
     what we would normally think of as the labels.
@@ -1791,28 +2275,40 @@ def map_multiindex(index, levels_map=None, names_map=None):
         if not levels_map:
             mapped_levels = index.levels
         else:
-            if not len(levels_map)==len(index.levels):
-                raise IndexError((
-                    "The levels_map passed is not the same length as "
-                    "the target levels (given %s, expected %s)"
-                    ) % (len(levels_map), len(index.levels)))
+            if not len(levels_map) == len(index.levels):
+                raise IndexError(
+                    (
+                        "The levels_map passed is not the same length as "
+                        "the target levels (given %s, expected %s)"
+                    )
+                    % (len(levels_map), len(index.levels))
+                )
             else:
-                mapped_levels = [[levels_map[l][i] if i in list(levels_map[l].keys()) else i for i in level] for l, level in enumerate(index.levels)]
+                mapped_levels = [
+                    [
+                        levels_map[level_idx][i] if i in list(levels_map[level_idx].keys()) else i
+                        for i in level
+                    ]
+                    for level_idx, level in enumerate(index.levels)
+                ]
 
         if not names_map:
             mapped_names = index.names
         else:
-            mapped_names = [names_map[n] if n in list(names_map.keys()) else n for n in index.names]
+            mapped_names = [
+                names_map[n] if n in list(names_map.keys()) else n for n in index.names
+            ]
 
         mapped_index = pd.MultiIndex(
-            levels=mapped_levels,
-            labels=index.labels,
-            names=mapped_names
+            levels=mapped_levels, labels=index.labels, names=mapped_names
         )
 
         return mapped_index
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def cat_to_dummies(data, limit_to=None, as_df=False):
     '''
     Creates a dichotomously 1/0-coded version of the incoming pd.Series with the answer codes
@@ -1846,11 +2342,19 @@ def cat_to_dummies(data, limit_to=None, as_df=False):
         # i.e. Quantipy multicode data
         dummy_df = data.str.get_dummies(';')
         dummy_df.columns = [int(col) for col in dummy_df.columns]
-        dummy_df.sort_index(axis=1).rename(columns={col: str(col) for col in dummy_df.columns}, inplace=True)
+        dummy_df.sort_index(axis=1).rename(
+            columns={col: str(col) for col in dummy_df.columns}, inplace=True
+        )
     else:
         data = data.copy().dropna()
         dummy_df = pd.get_dummies(data)
-        dummy_df.rename(columns={col: str(int(col)) if float(col).is_integer() else str(col) for col in dummy_df.columns}, inplace=True)
+        dummy_df.rename(
+            columns={
+                col: str(int(col)) if float(col).is_integer() else str(col)
+                for col in dummy_df.columns
+            },
+            inplace=True,
+        )
 
     if limit_to:
         dummy_df = limit_dummy_df(dummy_df, limit_to)
@@ -1859,9 +2363,12 @@ def cat_to_dummies(data, limit_to=None, as_df=False):
     else:
         return dummy_df.values, dummy_df.columns.tolist()
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#if limit_to is None else data.str.get_dummies(';')[[str(code) for code in limit_to]]
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# if limit_to is None else data.str.get_dummies(';')[[str(code) for code in limit_to]]
 # if limit_to is None else pd.get_dummies(data)[limit_to]
+
+
 def limit_dummy_df(dummy_df, codes):
     '''
     Limits a 1/0 dummy pd.DataFrame to the given list of column codes.
@@ -1886,7 +2393,10 @@ def limit_dummy_df(dummy_df, codes):
     else:
         return dummy_df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def df_to_value_matrix(data, x, y=None, limit_x=None, limit_y=None, weights=None):
     '''
     Transforms a pd.DataFrame into a np.array representation consiting of:
@@ -1916,14 +2426,14 @@ def df_to_value_matrix(data, x, y=None, limit_x=None, limit_y=None, weights=None
     tuple : value_matrix as np.array, list of x codes, list of y codes
     '''
     values = weights if weights else '@1'
-    if not y is None:
+    if y is not None:
         # two variable case, x and y specified
         data = data.copy().replace('', np.NaN).dropna(subset=[x, y])
         wg_vec = data[values].values.reshape(len(data.index), 1)
-        x_matrix, x_codes = cat_to_dummies(data = data[x], limit_to=limit_x)
-        y_matrix, y_codes = cat_to_dummies(data = data[y], limit_to=limit_y)
+        x_matrix, x_codes = cat_to_dummies(data=data[x], limit_to=limit_x)
+        y_matrix, y_codes = cat_to_dummies(data=data[y], limit_to=limit_y)
         if weights:
-            value_matrix = np.concatenate((wg_vec, x_matrix*wg_vec, y_matrix), axis=1)
+            value_matrix = np.concatenate((wg_vec, x_matrix * wg_vec, y_matrix), axis=1)
         else:
             value_matrix = np.concatenate((wg_vec, x_matrix, y_matrix), axis=1)
     else:
@@ -1933,14 +2443,17 @@ def df_to_value_matrix(data, x, y=None, limit_x=None, limit_y=None, weights=None
         x_matrix, x_codes = cat_to_dummies(data[x], limit_to=limit_x)
         y_codes = None
         if weights:
-            value_matrix = np.concatenate((wg_vec, x_matrix*wg_vec), axis=1)
+            value_matrix = np.concatenate((wg_vec, x_matrix * wg_vec), axis=1)
         else:
             value_matrix = np.concatenate((wg_vec, x_matrix), axis=1)
 
     return value_matrix, x_codes, y_codes
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def aggregate_matrix(value_matrix,  x_def, y_def, calc_bases=True, as_df=True):
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def aggregate_matrix(value_matrix, x_def, y_def, calc_bases=True, as_df=True):
     '''
     Uses a np.array containing dichotomous values and lists of column codes
     to aggregate frequency tables (and bases if requested) to create basic categorical
@@ -1973,16 +2486,26 @@ def aggregate_matrix(value_matrix,  x_def, y_def, calc_bases=True, as_df=True):
         freq, cb, rb, tb = np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1)
     else:
         empty = False
-        xcodes = len(x_def)+1
-        if not y_def is None:
+        xcodes = len(x_def) + 1
+        if y_def is not None:
             # bivariate calculation (cross-tabulation)
-            ycodes = reversed(range(1, len(y_def)+1))
-            freq = np.array([np.sum(value_matrix[value_matrix[:, -ycode] == 1][:, 1:xcodes], axis=0)
-                       for ycode in ycodes])
+            ycodes = reversed(range(1, len(y_def) + 1))
+            freq = np.array(
+                [
+                    np.sum(
+                        value_matrix[value_matrix[:, -ycode] == 1][:, 1:xcodes], axis=0
+                    )
+                    for ycode in ycodes
+                ]
+            )
             if calc_bases:
-                ycodes = reversed(range(1, len(y_def)+1))
-                cb = np.array([np.sum(value_matrix[value_matrix[:, -ycode] == 1][:, :1])
-                            for ycode in ycodes])
+                ycodes = reversed(range(1, len(y_def) + 1))
+                cb = np.array(
+                    [
+                        np.sum(value_matrix[value_matrix[:, -ycode] == 1][:, :1])
+                        for ycode in ycodes
+                    ]
+                )
                 rb = np.sum(value_matrix[:, 1:xcodes], axis=0)
                 tb = np.sum(value_matrix[:, [0]], axis=0)
         else:
@@ -2000,7 +2523,7 @@ def aggregate_matrix(value_matrix,  x_def, y_def, calc_bases=True, as_df=True):
         else:
             ixnames = ['None']
             colnames = ['None']
-        freq_df = pd.DataFrame(data=freq.T, index = ixnames, columns=colnames)
+        freq_df = pd.DataFrame(data=freq.T, index=ixnames, columns=colnames)
         if calc_bases:
             cb_df = pd.DataFrame(data=[cb], index=['All'], columns=colnames)
             agg_df = pd.concat([freq_df, cb_df], axis=0)
@@ -2015,7 +2538,10 @@ def aggregate_matrix(value_matrix,  x_def, y_def, calc_bases=True, as_df=True):
         else:
             return freq
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def apply_viewdf_layout(df, x, y):
     '''
     Takes a pd.DataFrames and applies Quantipy's Question/Values
@@ -2044,7 +2570,9 @@ def apply_viewdf_layout(df, x, y):
 
     return df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 def make_default_cat_view(data, x, y=None, weights=None):
     '''
@@ -2077,7 +2605,10 @@ def make_default_cat_view(data, x, y=None, weights=None):
 
     return view_df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def make_default_num_view(data, x, y=None, weights=None, get_only=None):
     '''
     This function is creates Quantipy's default numeric aggregations:
@@ -2102,7 +2633,7 @@ def make_default_num_view(data, x, y=None, weights=None, get_only=None):
     -------
     view_df : pd.Dataframe (multiindexed)
     '''
-    weight = weights if not weights is None else '@1'
+    weight = weights if weights is not None else '@1'
     if y is None or y == '@':
         df = describe(data, x, weight)
         df.columns = ['@']
@@ -2114,17 +2645,32 @@ def make_default_num_view(data, x, y=None, weights=None, get_only=None):
         else:
             # changing column naming for x==y aggregations
             if not data.columns.is_unique:
-                data.columns = [x, y+'_', weight]
+                data.columns = [x, y + '_', weight]
             if data[y].dtype == 'object':
                 # for Quantipy multicoded data on the y axis
                 dummy_y = cat_to_dummies(data[y], as_df=True)
                 dummy_y_data = pd.concat([data[[x, weight]], dummy_y], axis=1)
-                df = pd.concat([describe(dummy_y_data[dummy_y_data[y_code] == 1], x, weight) for y_code in dummy_y.columns], axis=1)
+                df = pd.concat(
+                    [
+                        describe(dummy_y_data[dummy_y_data[y_code] == 1], x, weight)
+                        for y_code in dummy_y.columns
+                    ],
+                    axis=1,
+                )
                 df.columns = dummy_y.columns
             else:
-                y_codes =  sorted(data[y].unique())
-                df = pd.concat([describe(data[data[y] == y_code], x, weight) for y_code in y_codes], axis=1)
-                df.columns = [str(int(y_code)) if float(y_code).is_integer() else str(y_code) for y_code in y_codes]
+                y_codes = sorted(data[y].unique())
+                df = pd.concat(
+                    [
+                        describe(data[data[y] == y_code], x, weight)
+                        for y_code in y_codes
+                    ],
+                    axis=1,
+                )
+                df.columns = [
+                    str(int(y_code)) if float(y_code).is_integer() else str(y_code)
+                    for y_code in y_codes
+                ]
 
     if get_only is None:
         df['All'] = describe(data, x, weight).values
@@ -2138,7 +2684,10 @@ def make_default_num_view(data, x, y=None, weights=None, get_only=None):
     else:
         return df.T[get_only].T
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def set_names_to_values(df, names, axis='x'):
     '''
     Changes the inner index's elements to the names specified in the view method definition.
@@ -2164,16 +2713,20 @@ def set_names_to_values(df, names, axis='x'):
         names = [names]
     if axis == 'x':
         for name in enumerate(names):
-            df.rename(index={df.index.get_level_values(-1)[name[0]]: name[1]}, inplace=True)
+            df.rename(
+                index={df.index.get_level_values(-1)[name[0]]: name[1]}, inplace=True
+            )
         return df.index
     else:
         for name in enumerate(names):
-            df.rename(columns={df.columns.get_level_values(-1)[name[0]]: name[1]}, inplace=True)
+            df.rename(
+                columns={df.columns.get_level_values(-1)[name[0]]: name[1]},
+                inplace=True,
+            )
         return df.columns
 
 
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def partition_view_df(view, values=False, data_only=False, axes_only=False):
     '''
     Disassembles a view dataframe object into its
@@ -2201,7 +2754,9 @@ def partition_view_df(view, values=False, data_only=False, axes_only=False):
     '''
     df = view.copy()
     index = df.index.droplevel() if isinstance(df.index, pd.MultiIndex) else df.index
-    columns = df.columns.droplevel() if isinstance(df.columns, pd.MultiIndex) else df.columns
+    columns = (
+        df.columns.droplevel() if isinstance(df.columns, pd.MultiIndex) else df.columns
+    )
     data = df if not values else df.values
 
     if data_only:
@@ -2210,6 +2765,7 @@ def partition_view_df(view, values=False, data_only=False, axes_only=False):
         return index.tolist(), columns.tolist()
     else:
         return data, index.tolist(), columns.tolist()
+
 
 def inherit_axis_codes(df, from_source, to='y'):
     '''
@@ -2235,15 +2791,26 @@ def inherit_axis_codes(df, from_source, to='y'):
     '''
     codes = partition_view_df(from_source, axes_only=True)
     if to == 'x':
-        df.rename(index={code[0]: code[1] for code in enumerate(codes[0])}, inplace=True)
-        df.rename(columns={code[0]: code[1] for code in enumerate(codes[1])}, inplace=True)
+        df.rename(
+            index={code[0]: code[1] for code in enumerate(codes[0])}, inplace=True
+        )
+        df.rename(
+            columns={code[0]: code[1] for code in enumerate(codes[1])}, inplace=True
+        )
     elif to == 'y':
-        df.rename(columns={code[0]: code[1] for code in enumerate(codes[1])}, inplace=True)
+        df.rename(
+            columns={code[0]: code[1] for code in enumerate(codes[1])}, inplace=True
+        )
     elif to == 'both':
-        df.rename(index={code[0]: code[1] for code in enumerate(codes[0])}, inplace=True)
-        df.rename(columns={code[0]: code[1] for code in enumerate(codes[1])}, inplace=True)
+        df.rename(
+            index={code[0]: code[1] for code in enumerate(codes[0])}, inplace=True
+        )
+        df.rename(
+            columns={code[0]: code[1] for code in enumerate(codes[1])}, inplace=True
+        )
 
     return df
+
 
 def set_qp_multiindex(df, x, y):
     '''
@@ -2273,7 +2840,10 @@ def set_qp_multiindex(df, x, y):
 
     return df
 
-def set_view_df_layout(df, x, y, new_names=None, names_to=None, inherit_codes_from=None, codes_to=None):
+
+def set_view_df_layout(
+    df, x, y, new_names=None, names_to=None, inherit_codes_from=None, codes_to=None
+):
     '''
     Main function to rebuild the Quantipy view dataframe structure after
     calculations have been processed inside a view method. This functions is
@@ -2314,16 +2884,19 @@ def set_view_df_layout(df, x, y, new_names=None, names_to=None, inherit_codes_fr
     -------
     layouted_df : pd.DataFrame (Quantipy convention, multiindexed)
     '''
-    if not new_names is None:
+    if new_names is not None:
         set_names_to_values(df, new_names, names_to)
-    if not inherit_codes_from is None:
+    if inherit_codes_from is not None:
         df = inherit_axis_codes(df, inherit_codes_from, codes_to)
 
     layouted_df = set_qp_multiindex(df, x, y)
 
     return layouted_df
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def get_default_num_stat(default_num_view, stat, drop_bases=True, as_df=True):
     '''
     Is used to extract a specific statistical figure from
@@ -2359,7 +2932,10 @@ def get_default_num_stat(default_num_view, stat, drop_bases=True, as_df=True):
     else:
         df.values
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def calc_net_values(link, source_view, combine_codes, force_raw_sum=False):
     '''
     Used to compute (categorical) net code figures from a given Quantipy link definition,
@@ -2392,38 +2968,56 @@ def calc_net_values(link, source_view, combine_codes, force_raw_sum=False):
         Stores the calculated net values
     '''
     if not source_view.meta['x']['is_multi'] or force_raw_sum:
-        boolmask = [int(index_val[1]) in combine_codes
-                    for index_val in source_view.index
-                    if not (isinstance(index_val[1], str)
-                    and index_val[1] == 'None')]
+        boolmask = [
+            int(index_val[1]) in combine_codes
+            for index_val in source_view.index
+            if not (isinstance(index_val[1], str) and index_val[1] == 'None')
+        ]
         if any(boolmask):
             net_values = np.array(source_view[boolmask].values.sum(axis=0))
         else:
             net_values = np.zeros(1)
     else:
         if not link.y == '@':
-            matrix, x_def, y_def = df_to_value_matrix(data=link.get_data(), x=link.x, y=link.y,
-                                                      limit_x=combine_codes,
-                                                      weights=source_view.meta['agg']['weights'])
-            xcodes = len(x_def)+1
-            ycodes = reversed(range(1, len(y_def)+1))
-            net_values = np.array([matrix[(matrix[:, 1:xcodes].sum(axis=1) > 0) & (matrix[:, -ycode] == 1)][:, 0].sum() for ycode in ycodes])
+            matrix, x_def, y_def = df_to_value_matrix(
+                data=link.get_data(),
+                x=link.x,
+                y=link.y,
+                limit_x=combine_codes,
+                weights=source_view.meta['agg']['weights'],
+            )
+            xcodes = len(x_def) + 1
+            ycodes = reversed(range(1, len(y_def) + 1))
+            net_values = np.array(
+                [
+                    matrix[
+                        (matrix[:, 1:xcodes].sum(axis=1) > 0) & (matrix[:, -ycode] == 1)
+                    ][:, 0].sum()
+                    for ycode in ycodes
+                ]
+            )
         else:
-            matrix, x_def, y_def = df_to_value_matrix(data=link.get_data(), x=link.x, y=None,
-                                                      limit_x=combine_codes,
-                                                      weights=source_view.meta['agg']['weights'])
-            xcodes = len(x_def)+1
+            matrix, x_def, y_def = df_to_value_matrix(
+                data=link.get_data(),
+                x=link.x,
+                y=None,
+                limit_x=combine_codes,
+                weights=source_view.meta['agg']['weights'],
+            )
+            xcodes = len(x_def) + 1
             net_values = np.sum(matrix[matrix[:, 1:xcodes].sum(axis=1) > 0][:, 0])
         if net_values.size == 0:
             net_values = np.zeros(1)
 
     return net_values
 
+
 def calc_pct(source, base):
-    return pd.DataFrame(np.divide(source.values, base.values)*100)
+    return pd.DataFrame(np.divide(source.values, base.values) * 100)
+
 
 def get_variable_types(data, meta):
-    """ Returns a dict of variable types to lists of variable names.
+    """Returns a dict of variable types to lists of variable names.
 
     Parameters
     ----------
@@ -2444,7 +3038,7 @@ def get_variable_types(data, meta):
         'string': [],
         'date': [],
         'time': [],
-        'array': []
+        'array': [],
     }
 
     for col in data.columns[1:]:
@@ -2455,8 +3049,9 @@ def get_variable_types(data, meta):
 
     return types
 
+
 def make_delimited_from_dichotmous(df, use_col_values=False):
-    """ Returns a delimited set from the incoming dichotomous
+    """Returns a delimited set from the incoming dichotomous
     set dataframe.
     """
 
@@ -2474,15 +3069,14 @@ def make_delimited_from_dichotmous(df, use_col_values=False):
         for i, col in enumerate(df.columns, start=1):
             df[col] = df[col].replace(1, i)
 
-    delimited_series = df.replace(0, np.NaN).apply(
-        make_delimited_from_series,
-        axis=1
-    )
+    delimited_series = df.replace(0, np.NaN).apply(make_delimited_from_series, axis=1)
 
     return delimited_series
 
-def filtered_set(meta, based_on, masks=True, included=None, excluded=None,
-                 strings=None):
+
+def filtered_set(
+    meta, based_on, masks=True, included=None, excluded=None, strings=None
+):
     if included is None and excluded is None:
         included = []
         for set_item in meta['sets'][based_on]['items']:
@@ -2498,9 +3092,8 @@ def filtered_set(meta, based_on, masks=True, included=None, excluded=None,
     elif isinstance(included, str):
         included = [included]
     if not isinstance(included, (list, tuple, set)):
-        raise ValueError (
-            "'included' must be either a string or a list, tuple or"
-            " set of strings."
+        raise ValueError(
+            "'included' must be either a string or a list, tuple or" " set of strings."
         )
 
     if excluded is None:
@@ -2508,36 +3101,34 @@ def filtered_set(meta, based_on, masks=True, included=None, excluded=None,
     elif isinstance(excluded, str):
         excluded = [excluded]
     elif not isinstance(excluded, (list, tuple, set)):
-        raise ValueError (
-            "'excluded' must be either a string or a list, tuple or"
-            " set of strings."
+        raise ValueError(
+            "'excluded' must be either a string or a list, tuple or" " set of strings."
         )
 
     if strings is None:
         strings = 'keep'
     else:
-        if not strings in ['keep', 'drop', 'only']:
-            raise ValueError (
-                "'strings' must be either None, 'keep', 'drop' or"
-                "'only'."
+        if strings not in ['keep', 'drop', 'only']:
+            raise ValueError(
+                "'strings' must be either None, 'keep', 'drop' or" "'only'."
             )
 
-    pattern = "\[(.*?)\]"
+    pattern = "\\[(.*?)\\]"
 
     items = []
     for item in set(included) - set(excluded) - set(['@']):
         # Account for special strings instruction
-        if strings=='keep':
+        if strings == 'keep':
             allow = True
         elif item in meta['columns']:
-            is_string = meta['columns'][item]['type']=='string'
-            if not is_string and not strings=='only':
+            is_string = meta['columns'][item]['type'] == 'string'
+            if not is_string and not strings == 'only':
                 allow = True
-            elif not is_string and strings=='only':
+            elif not is_string and strings == 'only':
                 allow = False
-            elif is_string and strings=='drop':
+            elif is_string and strings == 'drop':
                 allow = False
-            elif is_string and strings=='only':
+            elif is_string and strings == 'only':
                 allow = True
 
         if not allow:
@@ -2552,8 +3143,11 @@ def filtered_set(meta, based_on, masks=True, included=None, excluded=None,
             try:
                 if item in meta['columns'] and meta['columns'][item]['parent']:
                     items.append(list(meta['columns'][item]['parent'].keys())[0])
-            except:
-                if 'masks@{}'.format(re.sub(pattern, '', item)) in meta['sets'][based_on]['items']:
+            except BaseException:
+                if (
+                    'masks@{}'.format(re.sub(pattern, '', item))
+                    in meta['sets'][based_on]['items']
+                ):
                     items.append('masks@{}'.format(re.sub(pattern, '', item)))
 
     fset = {'items': []}
@@ -2566,16 +3160,19 @@ def filtered_set(meta, based_on, masks=True, included=None, excluded=None,
                 fset['items'].append(item)
     return fset
 
+
 def cpickle_copy(obj):
     copy = pickle.loads(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
     return copy
 
+
 def parrot():
-    from IPython.display import Image
-    from IPython.display import display
     import os
+
+    from IPython.display import Image, display
+
     filename = os.path.dirname(__file__) + '\\parrot.gif'
     try:
         return display(Image(filename=filename, format='png'))
-    except:
+    except BaseException:
         print(':sad_parrot: Looks like the parrot is not available!')
