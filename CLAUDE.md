@@ -17,11 +17,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 quantipy3 is a Python 3 port of the Quantipy library - a data processing, analysis and reporting software for "people data" (survey/market research data). It builds on pandas/numpy and offers specialized handling of survey data types, metadata, weights, and statistical analysis. We will be updating it to newer Python (3.10-3.12) and package versions.
 
 ## Development Commands
-- `check-gates.md`: run enhanced linting and code formatting (flake8 + autopep8 + Black + isort + pytest)
-- `KISS-SOLID-check.md`: check design principles
+
+### Modern Tooling (Week 2+) - **RECOMMENDED**
+- `check-gates-modern.md`: Modern quality gates using ruff + mypy + pytest (Python 3.10+)
+- `code-review-modern.md`: Enhanced architecture assessment including ruff/mypy readiness
+
+### Legacy Tooling (Week 1)  
+- `check-gates.md`: Legacy quality gates (flake8 + autopep8 + Black + isort) - for Python 3.6 compatibility
 - `code-review.md`: **MODERNIZATION STANDARDS** - SOLID/DRY/KISS/YAGNI + CI/lint/types + Python 3.10-3.12 + pytest/coverage/ruff/mypy
-- `document_feature.md`: generate documentation for new feature both developer and user-facing
-- `document_feature_advanced.md`: generate intelligent, multi-dimensional documentation with AI-powered analysis, accessibility compliance, and automated quality assurance
+
+### Architecture & Documentation
+- `KISS-SOLID-check.md`: SOLID design principles validation
+- `document_feature.md`: Feature documentation generation  
+- `document_feature_advanced.md`: AI-powered comprehensive documentation with accessibility compliance
+
+### Environment Usage
+**Modern Development**: `source /Users/jorgealagon/miniforge3_x86/bin/activate quantipy_modern`
+**Legacy Compatibility**: `/Users/jorgealagon/miniforge3_x86/envs/qp_legacy36/bin/python`
 
 ### Review Standards (code-review.md)
 **TARGET ARCHITECTURE**:
@@ -279,7 +291,20 @@ These reports provide detailed SOLID principle analysis, refactoring recommendat
 - **TYPE SAFETY**: Type hints needed across codebase (modernization target)
 - **TEST COVERAGE**: Current 17%, target 80%
 
-**CURRENT STATUS**: **SOLID FOUNDATION ESTABLISHED** - Ready for Week 2 modern tooling (ruff, mypy, pytest)
+**CURRENT STATUS**: **MODERN TOOLING INFRASTRUCTURE COMPLETE** - Week 2 Success! Ready for Week 3 type system implementation
+
+#### ✅ **Week 2 Complete: Modern Tooling Implementation** 
+🏆 **TOOLING INFRASTRUCTURE SUCCESS**:
+- **Environment**: Fresh Python 3.10 (`quantipy_modern`) with modern dependencies
+- **Linting**: ruff 0.12.10 with automated Python 3.10+ modernization (103 auto-fixes applied)
+- **Type Checking**: mypy 1.17.1 baseline established (1,051 issues = Week 3 roadmap)  
+- **Testing**: pytest 8.4.1 + coverage integration (80% threshold configured)
+- **Dependencies**: Modern versions compatible with Python 3.10-3.12
+
+**MODERNIZATION EVIDENCE**: 
+- `io.py`: 13 ruff auto-fixes (f-strings, modern syntax)
+- `functions.py`: 90 ruff auto-fixes (Python 3.10+ patterns)
+- **Environment Strategy**: Clean separation from legacy, no dependency conflicts
 
 ## 🚀 **Comprehensive Modernization Plan** 
 *Python 3.10-3.12 + Modern Tooling + Review Standards*
