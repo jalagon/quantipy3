@@ -16,6 +16,7 @@ import pandas as pd
 
 import quantipy as qp
 from quantipy.core.helpers.functions import emulate_meta, filtered_set
+from quantipy.core.metadata import MetadataManager
 from quantipy.core.tools.dp.io import read_ascribe as r_ascribe
 from quantipy.core.tools.dp.io import read_decipher as r_decipher
 from quantipy.core.tools.dp.io import read_dimensions as r_dimensions
@@ -102,6 +103,7 @@ class DataSet(object):
     """
 
     def __init__(self, name, dimensions_comp=True):
+        # Legacy properties for backward compatibility
         self.path = None
         self.name = name
         self.filtered = 'no_filter'
@@ -114,7 +116,45 @@ class DataSet(object):
         self._cache = Cache()
         self._dimensions_comp = dimensions_comp
         self._dimensions_suffix = '_grid'
+        
+        # Modern SOLID-compliant components
+        self._metadata_manager = MetadataManager(self)
+        
         return None
+
+    # =========================================================================
+    # METADATA DELEGATION METHODS (Phase 1 SOLID Refactoring)
+    # Delegate to MetadataManager for improved maintainability and testing
+    # =========================================================================
+    
+    def get_variable_text_modern(self, name, shorten=True, text_key=None, axis_edit=None):
+        """Modern type-safe variable text retrieval (delegates to MetadataManager)."""
+        return self._metadata_manager.get_variable_text(name, shorten, text_key, axis_edit)
+    
+    def set_variable_text_modern(self, name, new_text, text_key=None, axis_edit=None):
+        """Modern type-safe variable text setting (delegates to MetadataManager).""" 
+        return self._metadata_manager.set_variable_text(name, new_text, text_key, axis_edit)
+    
+    def get_value_texts_modern(self, name, text_key=None, axis_edit=None):
+        """Modern type-safe value text retrieval (delegates to MetadataManager)."""
+        return self._metadata_manager.get_value_texts(name, text_key, axis_edit)
+    
+    def set_value_texts_modern(self, name, renamed_vals, text_key=None, axis_edit=None):
+        """Modern type-safe value text setting (delegates to MetadataManager)."""
+        return self._metadata_manager.set_value_texts(name, renamed_vals, text_key, axis_edit)
+    
+    def validate_metadata_modern(self, spss_limits=False, verbose=True):
+        """Modern comprehensive metadata validation (delegates to MetadataManager)."""
+        return self._metadata_manager.validate_metadata(spss_limits, verbose)
+    
+    def get_text_keys_used_modern(self):
+        """Modern text key discovery (delegates to MetadataManager)."""
+        return self._metadata_manager.get_text_keys_used()
+        
+    @property
+    def metadata_manager(self):
+        """Access to the modern MetadataManager for advanced operations."""
+        return self._metadata_manager
 
     def __contains__(self, name):
         return self.var_exists(name)
