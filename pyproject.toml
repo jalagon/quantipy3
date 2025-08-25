@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantipy3"
-version = "0.2.15"
-description = "Python 3 port of Quantipy - survey data processing, analysis and reporting"
+version = "0.3.0-sprint2"
+description = "Python 3 port of Quantipy - survey data processing, analysis and reporting with modern Python 3.10+ features"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
@@ -25,29 +25,35 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 dependencies = [
-    "pandas>=1.5.0,<2.3.0",
-    "numpy>=1.21.0,<2.0.0", 
-    "scipy>=1.9.0,<2.0.0",
-    "pyreadstat>=1.2.0",
+    "pandas>=2.0.0,<2.4.0",  # Updated to modern pandas
+    "numpy>=2.0.0,<3.0.0",   # Updated to modern numpy
+    "scipy>=1.10.0,<2.0.0",  # Updated for Python 3.10+ compatibility
+    "pyreadstat>=1.3.0",     # Updated for savReaderWriter replacement
     "ftfy>=6.0.0",
     "requests>=2.28.0",
     "xlsxwriter>=3.0.0",
-    "python-pptx>=0.6.21"
+    "python-pptx>=0.6.21",
+    "lxml>=4.9.0",           # Added explicit dependency
+    "decorator>=5.0.0"       # Added explicit dependency
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "mypy>=1.5.0",
-    "ruff>=0.0.285",
-    "black>=23.0.0",
-    "isort>=5.12.0"
+    "pytest>=8.0.0",         # Updated to modern pytest
+    "pytest-cov>=6.0.0",     # Updated coverage plugin
+    "mypy>=1.17.0",          # Updated to latest mypy
+    "ruff>=0.12.0",          # Updated to modern ruff
+    "black>=25.0.0",         # Updated to latest black
+    "isort>=6.0.0",          # Updated isort
+    "pandas-stubs>=2.3.0",   # Added type stubs
+    "types-requests>=2.32.0", # Added type stubs
+    "types-decorator>=5.2.0", # Added type stubs
+    "coverage>=7.0.0"        # Added explicit coverage
 ]
 test = [
-    "pytest>=7.0.0", 
-    "pytest-cov>=4.0.0",
-    "pytest-xdist>=3.0.0"
+    "pytest>=8.0.0",         # Updated to modern pytest
+    "pytest-cov>=6.0.0",     # Updated coverage plugin
+    "pytest-xdist>=3.0.0"    # Parallel testing
 ]
 
 [project.urls]

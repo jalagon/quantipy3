@@ -1,7 +1,14 @@
 
-from __future__ import (
-    absolute_import, division, print_function, unicode_literals
-)
+"""PowerPoint chart helper functions for quantipy3.
+
+This module provides utility functions for converting between pandas DataFrames
+and PowerPoint chart data structures, enabling seamless integration between
+quantipy data analysis and PowerPoint presentation generation.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -9,9 +16,22 @@ from pptx.chart.data import CategoryChartData
 from pptx.enum.chart import XL_CHART_TYPE
 
 
-def ChartData_from_DataFrame(df, number_format="0%", xl_number_format='0.00%'):
-    """
-    Return a CategoryChartData instance from the given Pandas DataFrame.
+def ChartData_from_DataFrame(df: Any, number_format: str = "0%", xl_number_format: str = '0.00%') -> CategoryChartData:
+    """Return a CategoryChartData instance from the given Pandas DataFrame.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The source DataFrame with hierarchical index and column structure
+    number_format : str, default "0%"
+        Number format string for chart data values
+    xl_number_format : str, default '0.00%'
+        Excel-style number format for chart display
+
+    Returns
+    -------
+    CategoryChartData
+        Configured chart data instance ready for PowerPoint charts
     """
 
     def get_parent(sub_categories, line, pos):
@@ -22,6 +42,7 @@ def ChartData_from_DataFrame(df, number_format="0%", xl_number_format='0.00%'):
         for subcat in sub_categories:
             if subcat.label == line[pos]:
                 return subcat
+        return None
 
 
     cd = CategoryChartData(number_format=number_format)
@@ -29,9 +50,9 @@ def ChartData_from_DataFrame(df, number_format="0%", xl_number_format='0.00%'):
     if isinstance(df.index, pd.MultiIndex):
         cats = []
         for line in df.index.unique().tolist():
-            for l, lvl in enumerate(line):
-                if l == 0:
-                    if not any([lvl == cat.label for cat in cats]):
+            for level_idx, lvl in enumerate(line):
+                if level_idx == 0:
+                    if not any(lvl == cat.label for cat in cats):
                         cats.append(cd.add_category(lvl))
                 else:
                     parent = get_parent(cats, line, 0)
@@ -73,9 +94,9 @@ def DataFrame_from_ChartData(cd):
         idx = pd.Index(tuples)
     cols = pd.Index([series.name for series in cd])
     data = list(zip(*[
-        [value if value != None else np.NaN for value in series.values]
+        [value if value is not None else np.NaN for value in series.values]
         for series in cd
-    ]))
+    ], strict=False))
 
     df = pd.DataFrame(data, index=idx, columns=cols)
 
@@ -105,7 +126,7 @@ def get_category_tuples(categories):
         record = [category.label]
         get_sub_category_tuples(category.sub_categories, records, record)
 
-    if all([len(record) == 1 for record in records]):
+    if all(len(record) == 1 for record in records):
         records = [record[0] for record in records]
 
     return tuple(records)
@@ -133,7 +154,7 @@ def verify_ChartData_vs_DataFrame(cd, df):
     Print a comparison of the given ChartData and DataFrame.
     """
 
-    print((df.fillna('') == DataFrame_from_ChartData(cd).fillna('')))
+    print(df.fillna('') == DataFrame_from_ChartData(cd).fillna(''))
 
 
 def verify_DataFrame_vs_DataFrame(df1, df2):
@@ -141,7 +162,7 @@ def verify_DataFrame_vs_DataFrame(df1, df2):
     Print a comparison of the two given DataFrames.
     """
 
-    print((df1.fillna('') == df2.fillna('')))
+    print(df1.fillna('') == df2.fillna(''))
 
 def example_dataframe(hierarchical):
     """

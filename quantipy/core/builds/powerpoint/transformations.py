@@ -1,20 +1,22 @@
-# encoding: utf-8
 
-'''
+"""PowerPoint data transformations for quantipy3.
+
+This module provides simplified access to and manipulation of pandas DataFrames
+for PowerPoint presentation generation, containing various helper functions for
+data processing, formatting, and visualization preparation.
+
 @author: Majeed.sahebzadha
-'''
+"""
 
+from __future__ import annotations
+
+import re
+from math import ceil
 
 import numpy as np
 import pandas as pd
-from math import ceil
-import re
-import operator
-from quantipy.core.helpers import functions as helpers
 
-''' Simplified access to, and manipulation of, the pandas dataframe.
-    Contains various helper functions.
-'''
+from quantipy.core.helpers import functions as helpers
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -65,14 +67,14 @@ def drop_null_rows(old_df, axis_type=1):
     drop rows with all columns having value 0
     '''
 
-    new_df = old_df.loc[(df!=0).any(axis=axis_type)]
+    new_df = old_df.loc[(old_df!=0).any(axis=axis_type)]
 
     return new_df
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
-def auto_sort(df, fixed_categories=[], column_position=0, ascend=True):
+def auto_sort(df, fixed_categories=None, column_position=0, ascend=True):
     '''
     Sorts a flattened (non multiindexed) panda dataframe whilst excluding given rows
 
@@ -89,6 +91,8 @@ def auto_sort(df, fixed_categories=[], column_position=0, ascend=True):
     '''
 
     # ensure df is not empty
+    if fixed_categories is None:
+        fixed_categories = []
     if not df.empty:
 
         # ensure df is not multiindexed
@@ -197,10 +201,7 @@ def df_splitter(df, min_rows, max_rows):
     mods = rows % maxs
     splitter = maxs[mods >= min_rows].max()
 
-    if row_count <= max_rows:
-        splitter = 1
-    else:
-        splitter = ceil(row_count/float(splitter))
+    splitter = 1 if row_count <= max_rows else ceil(row_count / float(splitter))
 
     size = int(ceil(float(len(df)) / splitter))
 
@@ -301,8 +302,7 @@ def color_setter(numofseries, color_order='reverse'):
     color_set = color_set[0:numofseries]
     if color_order == 'reverse':
         return color_set[::-1]
-    else:
-        return color_set
+    return color_set
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -322,7 +322,7 @@ def place_vals_in_labels(old_df, base_position=0, orientation='side', drop_posit
         index_labels = old_df.index
 
         new_labels_list = {}
-        for x,y in zip(index_labels, flatten_col_vals):
+        for x,y in zip(index_labels, flatten_col_vals, strict=False):
             new_labels_list.update({x : x + " (n=" + str(y) +")"})
 
         new_df = old_df.rename(index=new_labels_list, inplace=False)
@@ -336,11 +336,10 @@ def place_vals_in_labels(old_df, base_position=0, orientation='side', drop_posit
         #row_vals returns a list of list which needs flattening
         flatten_col_vals = [item for sublist in row_vals for item in sublist]
         #grab row labels
-        col_labels = df.columns
 
         #rename rows one by one.
         new_labels_list = {}
-        for x,y in zip(index_labels, flatten_col_vals):
+        for x,y in zip(index_labels, flatten_col_vals, strict=False):
             new_labels_list.update({x : x + " (n=" + str(y) +")"})
 
         new_df = old_df.rename(columns=new_labels_list, inplace=False)
@@ -375,7 +374,7 @@ def get_qestion_labels(cluster_name, meta, table_name=None):
 #         question_label_dict[table] = question_label
 
         qname = vdf.index.get_level_values(0).tolist()[0]
-        vdf_meta = meta['columns'].get(qname, '%s not in the columns set in the meta' % (qname))
+        vdf_meta = meta['columns'].get(qname, f'{qname} not in the columns set in the meta')
 
         question_label_dict[table] = vdf_meta['text'][text_key]
 
@@ -383,8 +382,7 @@ def get_qestion_labels(cluster_name, meta, table_name=None):
 
     if table_name:
         return question_label_dict[table_name]
-    else:
-        return question_label_dict
+    return question_label_dict
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -394,10 +392,10 @@ def validate_cluster_orientations(cluster):
     Make sure that the chains follow the rule:
         - All chains must have the same orientation, x or y.
     '''
-    if len(set([
+    if len({
         cluster[chain_name].orientation
         for chain_name in list(cluster.keys())
-    ])) != 1:
+    }) != 1:
         raise Exception(
             "Chain orientations must be consistent. Please review chain "
             "specification"
@@ -416,12 +414,14 @@ def get_base(df, base_description, is_mask):
     df: pandas dataframe
     base_description: str
     '''
-    num_to_str = lambda string: str(int(round(string)))
-    base_text_format = lambda txt, num: '{} ({})'.format(txt, num_to_str(num))
+    def num_to_str(string):
+        return str(int(round(string)))
+    def base_text_format(txt, num):
+        return f'{txt} ({num_to_str(num)})'
 
     #standardise all index/column elements as unicode
-    df_index_labels = df.index.map(str)
-    df_col_labels = df.columns.map(str)
+    df.index.map(str)
+    df.columns.map(str)
 
     # get col labels and row values
     top_members = df.columns.values
@@ -429,7 +429,7 @@ def get_base(df, base_description, is_mask):
 
     # count row/col
     numofcols = len(df.columns)
-    numofrows = len(df.index)
+    len(df.index)
 
     #if base description is empty then
     if base_description:
@@ -439,7 +439,7 @@ def get_base(df, base_description, is_mask):
         #grab the label for base from the df
         base_label = df.index[0]
         #put them together
-        base_description = '{}: {}'.format(base_label, description)
+        base_description = f'{base_label}: {description}'
     else:
         base_description = df.index.values[0]
     base_description = base_description.strip()
@@ -454,7 +454,7 @@ def get_base(df, base_description, is_mask):
         #     base_text = base_text_format(base_description, base_values[0][0])
         # else:
         if not is_mask:
-            it = list(zip(top_members, base_values[0]))
+            it = list(zip(top_members, base_values[0], strict=False))
             base_texts = ', '.join([base_text_format(x, y) for x, y in it])
             base_text = ' - '.join([base_description, base_texts])
         else:
@@ -471,7 +471,7 @@ def replace_decimal_point_with(df, replacer=","):
     '''
 
     for col in df.columns:
-        df[col] = pd.Series(["{0}".format(val) for val in df[col]], index = df.index)
+        df[col] = pd.Series([f"{val}" for val in df[col]], index = df.index)
     return df
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -512,10 +512,7 @@ def reverse_order(old_df, orientation='side'):
     Will reverse the order of rows or columns
     '''
 
-    if orientation == 'side':
-        df = old_df.iloc[::-1]
-    else:
-        df = old_df[old_df.columns[::-1]]
+    df = old_df.iloc[::-1] if orientation == 'side' else old_df[old_df.columns[::-1]]
 
     return df
 
@@ -552,10 +549,7 @@ def del_by_label(df, label_to_del, orientation='side'):
     if not isinstance(label_to_del, list):
         label_to_del = [label_to_del]
 
-    if orientation=='side':
-        orientation=0
-    else:
-        orientation=1
+    orientation = 0 if orientation == 'side' else 1
 
     df = df.drop([label_to_del], axis=orientation, inplace=True)
 
@@ -657,10 +651,9 @@ def partition_view_df(view, values=False, data_only=False, axes_only=False):
 
     if data_only:
         return data
-    elif axes_only:
+    if axes_only:
         return index.tolist(), columns.tolist()
-    else:
-        return data, index.tolist(), columns.tolist()
+    return data, index.tolist(), columns.tolist()
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -676,9 +669,6 @@ def is_grid_element(table_name, table_pattern):
 
     matches = table_pattern.findall(table_name)
 
-    if (len(matches)>0 and len(matches[0])==2):
-        matched = True
-    else:
-        matched = False
+    matched = bool(len(matches) > 0 and len(matches[0]) == 2)
 
     return matched

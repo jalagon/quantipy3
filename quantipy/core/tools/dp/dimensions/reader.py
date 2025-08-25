@@ -1,20 +1,23 @@
-"""
-Created on 20 Nov 2014
+"""Dimensions file reader for quantipy3.
 
-@author: JamesG
+This module provides functionality for reading and parsing Dimensions survey
+data files, extracting both data and metadata structures for quantipy
+compatibility with support for hierarchical data and multiple response sets.
 """
 
-import json
+from __future__ import annotations
+
+import builtins
+import contextlib
+import re
+import sqlite3
+import warnings
+
 import numpy as np
 import pandas as pd
-import quantipy as qp
-import warnings
-from io import StringIO
 from lxml import etree
-import sqlite3
-import re
-from quantipy.core.helpers.functions import load_json
-import json
+
+import quantipy as qp
 
 DAYS_TO_MS = 24 * 60 * 60 * 1000
 DDF_TYPES_MAP = {
@@ -44,9 +47,18 @@ XPATH_GRIDS = '//design//fields//grid'
 XPATH_CATEGORYMAP = '//categorymap'
 
 
-def ddf_to_pandas(path_ddf):
-    """ Returns a dict of pandas DataFrames from the given Dimensions
-    case data file (DDF), which is a sqlite file.
+def ddf_to_pandas(path_ddf: str) -> dict[str, pd.DataFrame]:
+    """Return a dict of pandas DataFrames from the given Dimensions case data file.
+
+    Parameters
+    ----------
+    path_ddf : str
+        Path to the Dimensions case data file (DDF), which is a sqlite file.
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        Dictionary containing pandas DataFrames from the DDF file.
     """
 
     with sqlite3.connect(path_ddf) as conn:
@@ -81,7 +93,6 @@ def ddf_to_pandas(path_ddf):
     levels = sql['Levels']
     table_name_map = dict(levels['DSCTableName'])
     table_name_map['L1'] = 'HDATA'
-    level_id_map = {}
     new_levels_index = ['HDATA']
     for table_name in levels.index[1:]:
         new_table_name = levels.ix[table_name,'DSCTableName']
@@ -93,18 +104,18 @@ def ddf_to_pandas(path_ddf):
     ddf['Levels']['ParentName'] = ddf['Levels']['ParentName'].map(
         table_name_map
     )
-    ddf['Levels']['ParentName'] = ['None'] + [v for v in ddf['Levels']['ParentName'][1:]]
+    ddf['Levels']['ParentName'] = ['None'] + list(ddf['Levels']['ParentName'][1:])
 
     return ddf
 
 
-def timestamp_to_ISO8610(timestamp, offset_date="1900-01-01",
-                         as_string=False, adjuster=None):
+def timestamp_to_ISO8610(timestamp: float, offset_date: str = "1900-01-01",
+                         as_string: bool = False, adjuster: int | None = None) -> str | np.datetime64:
 
     offset = np.datetime64(offset_date).astype("float") * DAYS_TO_MS
     day = timestamp * DAYS_TO_MS
     date = (day + offset).astype("datetime64[ms]")
-    if not adjuster is None:
+    if adjuster is not None:
         date = date - adjuster
     if as_string:
         date = str(date)
@@ -112,7 +123,7 @@ def timestamp_to_ISO8610(timestamp, offset_date="1900-01-01",
     return date
 
 
-def get_datetime_values(var_df, adjuster, as_string=True):
+def get_datetime_values(var_df: pd.DataFrame, adjuster: int | None, as_string: bool = True) -> pd.Series:
 
     dates = var_df.astype(float).apply(
         timestamp_to_ISO8610, args=(
@@ -123,16 +134,15 @@ def get_datetime_values(var_df, adjuster, as_string=True):
     )
     if as_string:
         return list(dates.str.encode('utf-8').values)
-    else:
-        return dates
+    return dates
 
 
-def quantipy_clean(ddf):
+def quantipy_clean(ddf: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
 
     clean = {}
     data_table_keys = [
         k for k in list(ddf.keys())
-        if not k in ['table_info','Levels']
+        if k not in ['table_info','Levels']
     ]
 
     for n_tab in data_table_keys:
@@ -185,7 +195,7 @@ def quantipy_clean(ddf):
                     if isinstance(columns, str):
                         columns = [columns]
                     for column in columns:
-                        if not ddf[n_tab][column].dtype in [
+                        if ddf[n_tab][column].dtype not in [
                                 np.int64, np.float64
                                 ]:
                             str_col = ddf[n_tab][column].str.strip(";")
@@ -299,10 +309,7 @@ def get_var_type(var):
 
     mdd_type = MDD_TYPES_MAP[var.get('type')]
     if mdd_type=='categorical':
-        if var.get('max')=='1':
-            mdd_type = 'single'
-        else:
-            mdd_type = 'delimited set'
+        mdd_type = 'single' if var.get('max') == '1' else 'delimited set'
 
     return mdd_type
 
@@ -310,8 +317,8 @@ def get_var_type(var):
 def get_text_dict(source):
 
     text = {
-        l.get('{http://www.w3.org/XML/1998/namespace}lang'): l.text
-        for l in source
+        label.get('{http://www.w3.org/XML/1998/namespace}lang'): label.text
+        for label in source
     }
     for tk in list(text.keys()):
         if text[tk] is None:
@@ -330,17 +337,16 @@ def get_meta_values(xml, column, data, map_values=True):
         var_name = column['name']
 
     column_values = []
-    column_factors = []
 
     if is_grid:
         # this protects against the scenario where multiple grids
         # contain the same-named field. in this situation the variable
         # (the field) needs to be identified by its ref id as taken
         # from the grid/loop definition
-        xpath_grid = "//design//grid[@name='{}']".format(grid_name)
+        xpath_grid = f"//design//grid[@name='{grid_name}']"
         if not xml.xpath(xpath_grid):
-            xpath_grid = "//design//loop[@name='{}']".format(grid_name)
-        xpath_field = xpath_grid+"//variable[@name='{}']".format(var_name)
+            xpath_grid = f"//design//loop[@name='{grid_name}']"
+        xpath_field = xpath_grid+f"//variable[@name='{var_name}']"
         field = xml.xpath(xpath_field)[0]
         field_ref = field.get('ref')
         xpath_var = XPATH_DEFINITION+"//variable[@id='"+field_ref+"']"
@@ -384,18 +390,18 @@ def get_meta_values(xml, column, data, map_values=True):
             byName = False
         try:
             byName_values = [int(v.replace('minus', '-')) for v in byName_values]
-        except:
+        except (ValueError, TypeError):
             byName = False
 
     if not byName and byProperty:
-        if all(['NativeValue' in bpv for bpv in byProperty_values]):
+        if all('NativeValue' in bpv for bpv in byProperty_values):
             byProperty_key = 'NativeValue'
             byProperty_values = [bpv['NativeValue'] for bpv in byProperty_values]
             if len(byProperty_values) != len(set(byProperty_values)):
                 byProperty = False
                 byProperty_values = []
                 byProperty_key = None
-        elif all(['Value' in bpv for bpv in byProperty_values]):
+        elif all('Value' in bpv for bpv in byProperty_values):
             byProperty_key = 'Value'
             byProperty_values = [bpv['Value'] for bpv in byProperty_values]
             if len(byProperty_values) != len(set(byProperty_values)):
@@ -409,13 +415,12 @@ def get_meta_values(xml, column, data, map_values=True):
 
     if byName:
         values = [int(v) for v in byName_values]
-        msg = 'Category values for {} will be taken byName.'.format(var_name)
+        msg = f'Category values for {var_name} will be taken byName.'
     elif byProperty:
         try:
             if "NULL" not in byProperty_values:
                 values = [int(v) for v in byProperty_values]
-                msg = 'Category values for {} will be taken byProperty using {}.'.format(
-                        var_name, byProperty_key)
+                msg = f'Category values for {var_name} will be taken byProperty using {byProperty_key}.'
             else:
                 values = []
                 for v in byProperty_values:
@@ -423,16 +428,15 @@ def get_meta_values(xml, column, data, map_values=True):
                         values.append(-1)
                     else:
                         values.append(int(v))
-                msg = 'Null in category values for {} will be replaced with empty value.'.format(
-                        var_name)
-        except Exception as e:
+                msg = f'Null in category values for {var_name} will be replaced with empty value.'
+        except Exception:
             values = range(1, len(categories)+1)
-            msg = 'NULL in values for {} will be replaced with empty value'.format(var_name)
-            warnings.warn(msg)
+            msg = f'NULL in values for {var_name} will be replaced with empty value'
+            warnings.warn(msg, stacklevel=2)
     else:
         values = list(range(1, len(categories)+1))
-        msg = 'Category values for {} will be taken byPosition'.format(var_name)
-        warnings.warn(msg)
+        msg = f'Category values for {var_name} will be taken byPosition'
+        warnings.warn(msg, stacklevel=2)
 
     # handy trouble-shooting printout for figuring out where category values
     # have come from.
@@ -443,10 +447,8 @@ def get_meta_values(xml, column, data, map_values=True):
         value = {}
         cat_name = cat.get('name')
 
-        try:
+        with contextlib.suppress(builtins.BaseException):
             value['factor'] = float(cat.get('factor-value'))
-        except:
-            pass
 
         xpath_category = xpath_categories+"[@name='"+cat_name+"']"
         xpath_category_label_text = xpath_category+"//labels//text"
@@ -487,13 +489,13 @@ def remap_values(data, column, value_map):
                 "Unknown category ids {} for '{}' found in the ddf."
                 " The data for these category ids will not be converted "
                 "because there is no corresponding metadata.").format
-            warnings.warn(msg(missing, column['name']))
+            warnings.warn(msg(missing, column['name']), stacklevel=2)
 
         data[column['name']] = data[column['name']].map(value_map)
 
         return data[column['name']].copy()
 
-    elif column['type'] in ['delimited set']:
+    if column['type'] in ['delimited set']:
         temp = data[column['name']][data[column['name']].notnull()]
         if temp.size>0:
             value_map = {str(k): str(v) for k, v in value_map.items()}
@@ -520,7 +522,7 @@ def map_delimited_values(y, value_map, col_name):
         return y
 
     # add artificial leading ; to help secure matching
-    y = ';{}'.format(y)
+    y = f';{y}'
 
     # seek ;-bound matches
     # replace with ;_X_; bounded secure edits (prevents compound edits)
@@ -532,7 +534,7 @@ def map_delimited_values(y, value_map, col_name):
             # replace values with secure edits
             y = y.replace(seek(value), repl(value_map[value]))
         else:
-            warnings.warn(msg(value, col_name))
+            warnings.warn(msg(value, col_name), stacklevel=2)
             # tag all data to be removed
             y = y.replace(seek(value), ';X;')
 
@@ -541,7 +543,8 @@ def map_delimited_values(y, value_map, col_name):
     # remove deleted data
     y = y.replace('X;', '')
     # remove aritifial leading ; if there are any responses left
-    if y.startswith(';') and len(y) > 1: y = y[1:]
+    if y.startswith(';') and len(y) > 1:
+        y = y[1:]
 
     return y
 
@@ -553,7 +556,7 @@ def begin_column(xml, col_name, data):
     xpath_var = XPATH_DEFINITION+"//variable[@name='"+col_name+"']"
     try:
         var = xml.xpath(xpath_var)[0]
-    except Exception as e:
+    except Exception:
         column['name'] = col_name
         column['properties'] = get_meta_properties(xml, xpath_var)
         column['type'] = 'string'
@@ -590,7 +593,7 @@ def get_meta_properties(xml, xpath_var, exclude=None):
         properties = {
             e.get('name'): e.get('value')
             for e in xml.xpath(xpath_var+"//properties")[0]
-            if not e.get('name') in exclude
+            if e.get('name') not in exclude
         }
     except IndexError:
         properties = {}
@@ -608,34 +611,25 @@ def map_cols_from_grid(xml, data):
                 l1 = c[1].split("~")
                 l1_grid_name = l1[0]
                 l1_element_name = xml.xpath(
-                    "//categorymap//categoryid[@value='%s']" % l1[1].rstrip(';')
+                    "//categorymap//categoryid[@value='{}']".format(l1[1].rstrip(';'))
                 )[0].get('name')
                 field_name = c[0]
-                mapped_columns[c] = '%s[{%s}].%s' % (
-                    l1_grid_name,
-                    l1_element_name,
-                    field_name
-                )
+                mapped_columns[c] = f'{l1_grid_name}[{{{l1_element_name}}}].{field_name}'
             elif len(c)==3:
                 l1 = c[1].split("~")
                 l1_grid_name = l1[0]
                 l1_element_name = xml.xpath(
-                    "//categorymap//categoryid[@value='%s']" % l1[1].rstrip(';')
+                    "//categorymap//categoryid[@value='{}']".format(l1[1].rstrip(';'))
                 )[0].get('name')
                 l2 = c[2].split("~")
                 l2_grid_name = l2[0]
                 l2_element_name = xml.xpath(
-                    "//categorymap//categoryid[@value='%s']" % l2[1].rstrip(';')
+                    "//categorymap//categoryid[@value='{}']".format(l2[1].rstrip(';'))
                 )[0].get('name')
                 field_name = c[0]
-                mapped_columns[c] = '%s[{%s}].%s[{%s}].%s' % (
-                    l1_grid_name,
-                    l1_element_name,
-                    l2_grid_name,
-                    l2_element_name,
-                    field_name
-                )
-            if not needs_mapping: needs_mapping = True
+                mapped_columns[c] = f'{l1_grid_name}[{{{l1_element_name}}}].{l2_grid_name}[{{{l2_element_name}}}].{field_name}'
+            if not needs_mapping:
+                needs_mapping = True
         else:
             mapped_columns[c] = c
 
@@ -683,7 +677,7 @@ def get_columns_meta(xml, meta, data, map_values=True):
             column = begin_column(xml, tmap[-1], data)
             column['name'] = col_name
 
-            if not mm_name in meta['lib']['values']:
+            if mm_name not in meta['lib']['values']:
                 column_values, value_map = get_meta_values(
                     xml, column, data, map_values
                 )
@@ -691,9 +685,9 @@ def get_columns_meta(xml, meta, data, map_values=True):
                 if map_values:
                     meta['lib']['values']['ddf'][mm_name] = value_map
 
-            values_mapper = 'lib@values@%s' % mm_name
+            values_mapper = f'lib@values@{mm_name}'
             column['values'] = values_mapper
-            parent_map = {'masks@{}'.format(mm_name): {'type': 'array'}}
+            parent_map = {f'masks@{mm_name}': {'type': 'array'}}
             column['parent'] = parent_map
 
             if map_values and column['type'] in ['single', 'delimited set']:
@@ -701,12 +695,12 @@ def get_columns_meta(xml, meta, data, map_values=True):
                     data, column, meta['lib']['values']['ddf'][mm_name]
                 )
 
-            if not mm_name in meta['masks']:
+            if mm_name not in meta['masks']:
 #                 xpath_grid = "//design//grid[@name='%s']" % mm_name
-                xpath_grid = "//design//grid[@name='%s']" % mm_name.split('.')[0]
+                xpath_grid = "//design//grid[@name='{}']".format(mm_name.split('.')[0])
                 if not xml.xpath(xpath_grid):
-                    xpath_grid = "//design//loop[@name='%s']" % mm_name.split('.')[0]
-                xpath_grid_text = '%s//labels//text' % xpath_grid
+                    xpath_grid = "//design//loop[@name='{}']".format(mm_name.split('.')[0])
+                xpath_grid_text = f'{xpath_grid}//labels//text'
                 try:
                     texts = [
                         text
@@ -714,7 +708,7 @@ def get_columns_meta(xml, meta, data, map_values=True):
                         if text.getparent().getparent().tag in ['grid', 'loop']
                     ]
                     grid_text = get_text_dict(texts)
-                except:
+                except Exception:
                     grid_text = column['text']
                 meta['masks'].update({
                     mm_name: {
@@ -728,26 +722,26 @@ def get_columns_meta(xml, meta, data, map_values=True):
                     })
 
             try:
-                xpath_properties = "//design//category[@name='%s']//properties" % (tmap[1])
+                xpath_properties = f"//design//category[@name='{tmap[1]}']//properties"
                 xpath_elements = xpath_grid+"//categories//category"
                 elem_name = None
                 for element in xml.xpath(xpath_elements):
                     if element.get('name').lower() == tmap[1].lower():
                         elem_name = element.get('name')
                 if elem_name is None:
-                    raise KeyError("Grid element '{}' not gound in grid '{}'.".format(tmap[1], col_name))
-                xpath_labels = xpath_elements+"[@name='%s']//labels//text" % (elem_name)
+                    raise KeyError(f"Grid element '{tmap[1]}' not gound in grid '{col_name}'.")
+                xpath_labels = xpath_elements+f"[@name='{elem_name}']//labels//text"
                 sources = xml.xpath(xpath_labels)
                 element_text = {
                     source.get('{http://www.w3.org/XML/1998/namespace}lang'):
                     "" if source.text is None else source.text
                     for source in sources}
-            except:
+            except Exception:
                 element_text = tmap[1]
             if element_text is None:
                 element_text = ""
             meta['masks'][mm_name]['items'].append({
-                'source': 'columns@%s' % col_name,
+                'source': f'columns@{col_name}',
                 'text': element_text,
                 'properties': get_meta_properties(xml, xpath_properties)
             })
@@ -839,27 +833,20 @@ def mdd_to_quantipy(path_mdd, data, map_values=True):
             for l1_element in [e for e in l1_elements if e.tag=='category']:
                 l1_element_name = l1_element.get('name')
                 xpath_category_label_text = (
-                    "%s//category[@name='%s']//labels//text" % (
-                        xpath_l1_categories,
-                        l1_element_name
-                    )
+                    f"{xpath_l1_categories}//category[@name='{l1_element_name}']//labels//text"
                 )
                 l1_element_text = get_text_dict(
                     xml.xpath(xpath_category_label_text)
                 )
 
-                full_name = '%s[{%s}].%s' % (
-                    tmap[0],
-                    l1_element_name.lower(),
-                    tmap[1]
-                )
-                array_set.append('columns@%s' % full_name)
+                full_name = f'{tmap[0]}[{{{l1_element_name.lower()}}}].{tmap[1]}'
+                array_set.append(f'columns@{full_name}')
 
-                if not full_name in data.columns:
+                if full_name not in data.columns:
                     data[full_name] = np.NaN
                     meta['columns'][full_name] = {
                         'name': full_name,
-                        'values': 'lib@values@%s' % (k),
+                        'values': f'lib@values@{k}',
                         'type': 'single'
                     }
 
@@ -892,20 +879,14 @@ def mdd_to_quantipy(path_mdd, data, map_values=True):
                         "//category[@name='"+l2_element_name+"']//labels//text"
                     )[0].text
 
-                    full_name = '%s[{%s}].%s[{%s}].%s' % (
-                        tmap[0],
-                        l1_element_name.lower(),
-                        tmap[1],
-                        l2_element_name.lower(),
-                        tmap[2]
-                    )
-                    array_set.append('columns@%s' % full_name)
+                    full_name = f'{tmap[0]}[{{{l1_element_name.lower()}}}].{tmap[1]}[{{{l2_element_name.lower()}}}].{tmap[2]}'
+                    array_set.append(f'columns@{full_name}')
 
-                    if not full_name in data.columns:
+                    if full_name not in data.columns:
                         data[full_name] = np.NaN
                         meta['columns'][full_name] = {
                             'name': full_name,
-                            'values': 'lib@values@%s' % (k),
+                            'values': f'lib@values@{k}',
                             'type': 'single'
                         }
                     meta['columns'][full_name]['text'] = " - ".join([
@@ -922,19 +903,17 @@ def mdd_to_quantipy(path_mdd, data, map_values=True):
         if e.tag in ('variable','loop','grid')
         and (
             e.get('name') in data.columns
-            or any([
-                m.startswith(e.get('name'))
-                for m in list(meta['masks'].keys())
-            ])
+            or any(m.startswith(e.get('name'))
+                for m in list(meta['masks'].keys()))
         )
     ]
     updated_design_set = []
     for name in design_set:
         if name in data.columns:
-            updated_design_set.append('columns@%s' % name)
+            updated_design_set.append(f'columns@{name}')
         for k in list(meta['masks'].keys()):
-            if k.startswith('%s.' % name):
-                updated_design_set.append('masks@%s' % k)
+            if k.startswith(f'{name}.'):
+                updated_design_set.append(f'masks@{k}')
                 set_items = meta['sets'][k]['items']
                 mask_items = meta['masks'][k]['items']
                 mask_items = [
@@ -969,6 +948,7 @@ def get_mask_item(mask, source, k):
     for item in mask['items']:
         if item['source']==source:
             return item
+    return None
 
 
 def quantipy_from_dimensions(path_mdd, path_ddf, fields='all', grids=None):
@@ -978,7 +958,7 @@ def quantipy_from_dimensions(path_mdd, path_ddf, fields='all', grids=None):
     L1.drop('LevelId_HDATA', axis=1, inplace=True)
 #     L1.dropna(axis=1, how='all', inplace=True)
 
-    if isinstance(fields, (list, tuple)):
+    if isinstance(fields, list | tuple):
         L1 = L1[['id_HDATA']+fields]
 
     if grids is None:
@@ -990,7 +970,7 @@ def quantipy_from_dimensions(path_mdd, path_ddf, fields='all', grids=None):
         empty_grids = []
         for grid_name in grids:
             if not any(levels['ParentName'].isin([grid_name])):
-                parent_name = levels.loc[grid_name, 'ParentName']
+                levels.loc[grid_name, 'ParentName']
                 if grid_name in list(ddf.keys()):
                     single_level.append(as_L1(child=ddf[grid_name]))
                 else:
@@ -1010,7 +990,7 @@ def quantipy_from_dimensions(path_mdd, path_ddf, fields='all', grids=None):
         if two_level:
             L1 = L1.join(pd.concat(two_level, axis=1))
         if empty_grids:
-            print('\n*** Empty grids %s ignored ***\n' % (', '.join(empty_grids)))
+            print('\n*** Empty grids {} ignored ***\n'.format(', '.join(empty_grids)))
 
     meta, ddf = mdd_to_quantipy(path_mdd, data=L1)
 
@@ -1018,7 +998,7 @@ def quantipy_from_dimensions(path_mdd, path_ddf, fields='all', grids=None):
         meta['masks'][mask]['items'] = [
             item
             for item in meta['masks'][mask]['items']
-            if not item is None
+            if item is not None
         ]
 
     # clean datafile set
@@ -1033,7 +1013,7 @@ def quantipy_from_dimensions(path_mdd, path_ddf, fields='all', grids=None):
                     datafile.remove(s)
         elif parents and list(parents.keys())[0].split('@')[1] in meta['masks']:
             parent = list(parents.keys())[0].split('@')[1]
-            if not parent in datafile:
+            if parent not in datafile:
                 idx = datafile.index(item)
                 datafile[idx] = parent
             while item in datafile:
@@ -1059,7 +1039,7 @@ def verify_columns(mdd, ddf):
 
     droplist = []
     for col in list(mdd['columns'].keys()):
-        if not col in ddf.columns:
+        if col not in ddf.columns:
             droplist.append(col)
             del mdd['columns'][col]
 

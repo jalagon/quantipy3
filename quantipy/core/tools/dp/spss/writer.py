@@ -1,44 +1,61 @@
 
-import numpy as np
-import pandas as pd
-import quantipy as qp
-from quantipy.core.helpers.functions import emulate_meta
-import savReaderWriter as srw
+"""SPSS file writer for quantipy3.
+
+This module provides functionality for writing quantipy data structures to SPSS
+.sav files, including proper handling of metadata, variable types, multiple
+response sets, and dichotomous variables for SPSS compatibility.
+"""
+
+from __future__ import annotations
+
+import builtins
+import contextlib
 import copy
 import json
+
+import numpy as np
+import pandas as pd
+
+import quantipy as qp
+import pyreadstat
+from quantipy.core.helpers.functions import emulate_meta
+from quantipy.core.tools.dp.spss.modern_io import write_sav as modern_write_sav
+
 
 def write_sav(path_sav, data, **kwargs):
     """
     Write the given records to a SAV file at path_sav.
 
-    Using the various definitions indicated by the packed kwargs, write
-    the given set of records to a SAV file at the location indicated by
-    path_sav.
-
-    For a full explanation of the kwargs used please see the
-    savReaderWriter library documentation here:
-    http://pythonhosted.org/savReaderWriter/
+    This function now uses pyreadstat instead of savReaderWriter for
+    Python 3.10+ compatibility. The interface remains the same for
+    backward compatibility.
 
     Parameters
     ----------
     path_sav : str
         The full path, including extension, indicating where the output
         file should be saved.
-    records : list
-        A list of records (so a list of lists) holding the row data to
-        be saved in the output SAV file.
+    data : pd.DataFrame
+        The data to be saved in the output SAV file.
     **kwargs : various
-        Remaining keyword arguments passed to
-        savReaderWriter.SavWriter().
+        Additional parameters for SPSS file writing.
+        Supported kwargs include:
+        - var_labels: Variable labels dictionary
+        - value_labels: Value labels dictionary
+        - formats: Variable formats dictionary
+        - column_widths: Column widths for string variables
+        - measure: Measurement levels dictionary
 
     Returns
     -------
     None
     """
-    with srw.SavWriter(path_sav, ioUtf8=True, **kwargs) as writer:
-        records = data.fillna(writer.sysmis).values.tolist()
-        for record in records:
-            writer.writerow(record)
+    # Use modern pyreadstat implementation
+    modern_write_sav(
+        filepath=path_sav,
+        data=data,
+        **kwargs
+    )
 
 
 def split_series(series, sep, columns=None):
@@ -67,7 +84,7 @@ def split_series(series, sep, columns=None):
     """
 
     df = pd.DataFrame(series.astype('str').str.split(sep).tolist())
-    if not columns is None:
+    if columns is not None:
         df.columns = columns
     return df
 
@@ -92,9 +109,7 @@ def get_savwriter_integer_format(series):
         The format string describing the given integer series.
     """
 
-    fmt = 'F%s' % (
-        len(str(series.dropna().astype('int').max()))
-    )
+    fmt = 'F{}'.format(len(str(series.dropna().astype('int').max())))
     return fmt
 
 
@@ -132,15 +147,7 @@ def get_savwriter_float_format(series):
         )
         w_int = len(str(df['int'].max()))
         w_dec = len(str(df['dec'].max()))
-        if df['dec'].max()!='0':
-            fmt = 'F%s.%s' %(
-                w_int + w_dec,
-                w_dec
-            )
-        else:
-            fmt = 'F%s' %(
-                w_int
-            )
+        fmt = f'F{w_int + w_dec}.{w_dec}' if df['dec'].max() != '0' else f'F{w_int}'
     return fmt
 
 
@@ -174,17 +181,11 @@ def get_value_text(values, value, text_key):
                 text = val['text'][text_key]
                 return text
             except KeyError:
-                print((
-                    "The text key '%s' was not found in the text object: %s" % (
-                        text_key,
-                        json.dumps(val)
-                    )
-                ))
+                print(
+                    f"The text key '{text_key}' was not found in the text object: {json.dumps(val)}"
+                )
     raise ValueError(
-            "The value '%s' was not found in the values object: %s" % (
-                value,
-                json.dumps(values)
-            )
+            f"The value '{value}' was not found in the values object: {json.dumps(values)}"
         )
 
 
@@ -216,12 +217,12 @@ def list_known_columns(meta, from_set):
     for col in meta['sets'][from_set ]['items']:
         pointer, name = col.split('@')
         if pointer=='columns':
-            if name in meta['columns'] and not name in column_names:
+            if name in meta['columns'] and name not in column_names:
                 column_names.append(name)
         elif pointer=='masks':
             for item in meta['masks'][name]['items']:
                 name =  item['source'].split('@')[1]
-                if name in meta['columns'] and not name in column_names:
+                if name in meta['columns'] and name not in column_names:
                     column_names.append(name)
     return column_names
 
@@ -243,7 +244,7 @@ def stringify_dates(dates):
 
     def stringify_date(date):
 
-        try:
+        with contextlib.suppress(builtins.BaseException):
             date = ' '.join([
                 '-'.join([
                     str(date.year),
@@ -253,8 +254,6 @@ def stringify_dates(dates):
                     str(date.hour).zfill(2),
                     str(date.minute).zfill(2),
                     str(date.second).zfill(2)])])
-        except:
-            pass
 
         return date
 
@@ -319,7 +318,7 @@ def save_sav(path_sav, meta, data, index=False, text_key=None,
         from_set = 'data file'
     if from_set not in meta['sets']:
         raise KeyError(
-            "The set '{}' was not found in meta.".format(from_set)
+            f"The set '{from_set}' was not found in meta."
         )
 
     # There is an issue converting numpy dates to SAV so dates
@@ -341,15 +340,14 @@ def save_sav(path_sav, meta, data, index=False, text_key=None,
 #             pass
 
     for key, val in meta['columns'].items():
-        if val['type'] == 'string':
-            if key in data.columns:
-                data[key].fillna('', inplace=True)
+        if val['type'] == 'string' and key in data.columns:
+            data[key].fillna('', inplace=True)
 
     if index:
         if data.index.name not in data.columns:
             # Put the index into the first column of data
             data.insert(0, data.index.name, data.index)
-        mapper = 'columns@%s' % (data.index.name)
+        mapper = f'columns@{data.index.name}'
         if mapper not in meta['sets'][from_set]['items']:
             # Add the index meta-mapper to the set
             meta['sets'][from_set]['items'].insert(0, mapper)
@@ -362,23 +360,22 @@ def save_sav(path_sav, meta, data, index=False, text_key=None,
     known_columns = list_known_columns(meta, from_set)
     for col in data.columns:
         if col not in known_columns and col:
-            if col != '@1':
-                if verbose:
-                    print((
-                        "Data column '{}' not included in"
-                        " the '{}' set, it will be excluded"
-                        " from the SAV file."
-                    ).format(col, from_set))
+            if col != '@1' and verbose:
+                print(
+                    f"Data column '{col}' not included in"
+                    f" the '{from_set}' set, it will be excluded"
+                    " from the SAV file."
+                )
             data.drop(columns=col, axis=1, inplace=True)
 
     # Remove columns from meta not found in data
     for col in known_columns:
         if col not in data.columns:
             if verbose:
-                print((
-                    'Meta column "%s" not found in data, it will '
+                print(
+                    f'Meta column "{col}" not found in data, it will '
                     'be excluded from the SAV file.'
-                ) % (col))
+                )
             if col in meta['columns']:
                 del meta['columns'][col]
 
@@ -392,13 +389,10 @@ def save_sav(path_sav, meta, data, index=False, text_key=None,
     for varName in varNames:
         new_name = varName
         if varName[0] in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]:
-            new_name = '_%s' % (new_name)
+            new_name = f'_{new_name}'
         for i, char in enumerate(new_name):
             if char in ['[', ']', '{', '}', '.']:
-                new_name = '%s_%s' % (
-                    new_name[:i],
-                    new_name[i+1:]
-                )
+                new_name = f'{new_name[:i]}_{new_name[i+1:]}'
         new_names.append(new_name)
         column_mapper[varName] = new_name
     for old_name, new_name in column_mapper.items():
@@ -439,13 +433,13 @@ def save_sav(path_sav, meta, data, index=False, text_key=None,
 
         dichot.columns = dichot.columns.astype(int)
         dichot.sort_index(axis=1, inplace=True)
-        dsNames = ['%s%s%s' % (ds_name, mrset_tag_style, val) for val in values]
+        dsNames = [f'{ds_name}{mrset_tag_style}{val}' for val in values]
         ds_index = varNames.index(ds_name)
         varNames[ds_index+1:ds_index+1] = dsNames
         varNames.pop(ds_index)
 
         cols = [
-            '%s%s%s' % (ds_name, mrset_tag_style, c) for c in dichot.columns]
+            f'{ds_name}{mrset_tag_style}{c}' for c in dichot.columns]
         dichot.columns = cols
         # Synch dichotomous columns with varName order
         dichot = dichot[dsNames]
@@ -538,14 +532,8 @@ def save_sav(path_sav, meta, data, index=False, text_key=None,
         v: sav_formatter[meta['columns'][v]['type']](data[v])
         for v in numerics
     }
-    string_formats = {
-        s: 'A1000'
-        for s in strings
-    }
-    date_formats = {
-        d: 'EDATE40'
-        for d in dates
-    }
+    string_formats = dict.fromkeys(strings, 'A1000')
+    date_formats = dict.fromkeys(dates, 'EDATE40')
     formats = {}
     formats.update(numeric_formats)
     formats.update(string_formats)

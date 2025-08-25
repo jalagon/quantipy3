@@ -39,7 +39,8 @@ from quantipy.core.tools.qp_decorators import lazy_property
 from operator import add, sub, mul
 from operator import truediv as div
 
-from scipy.stats.stats import _ttest_finish as get_pval
+# Modern replacement for deprecated _ttest_finish
+from scipy.stats import t as tdist
 from scipy.stats import chi2 as chi2dist
 from scipy.stats import f as fdist
 from itertools import combinations, chain, product
@@ -59,6 +60,21 @@ import re
 
 
 from quantipy.core.rules import Rules
+
+# Modern replacement for deprecated _ttest_finish
+def get_pval(dof, teststat):
+    """Modern replacement for deprecated scipy.stats._ttest_finish.
+    
+    Parameters:
+    dof : degrees of freedom
+    teststat : test statistic value
+    
+    Returns:
+    tuple : (teststat, pvalue)
+    """
+    import numpy as np
+    pvalue = 2 * (1 - tdist.cdf(np.abs(teststat), dof))
+    return teststat, pvalue
 
 _TOTAL = '@'
 _AXES = ['x', 'y']

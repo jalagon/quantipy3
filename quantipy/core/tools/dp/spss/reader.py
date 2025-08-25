@@ -1,14 +1,27 @@
-import numpy as np
-import pandas as pd
-import savReaderWriter as sr
-import pyreadstat
+"""SPSS file reader for quantipy3.
 
-from collections import defaultdict
-from quantipy.core.tools.dp.prep import start_meta, condense_dichotomous_set
+This module provides functionality for reading and parsing SPSS .sav files,
+extracting both data and metadata to create quantipy-compatible data structures
+with support for multiple response sets and dichotomous variables.
+"""
+
+from __future__ import annotations
+
+import builtins
+import contextlib
 import os
 
+import numpy as np
+import pandas as pd
+import pyreadstat
+
+# savReaderWriter import removed - using pyreadstat exclusively
+from quantipy.core.tools.dp.prep import condense_dichotomous_set, start_meta
+from quantipy.core.tools.dp.spss.modern_io import read_sav as modern_read_sav
+
+
 def parse_sav_file(filename, path=None, name="", ioLocale="en_US.UTF-8", ioUtf8=True, dichot=None,
-                   dates_as_strings=False, text_key="en-GB", engine='savReaderWriter'):
+                   dates_as_strings=False, text_key="en-GB", engine='pyreadstat'):
     """ Parses a .sav file and returns a touple of Data and Meta
 
         Parameters
@@ -34,49 +47,58 @@ dates_as_strings : bool, default=False
     """
     filepath="{}{}".format(path or '', filename)
     filepath = os.path.abspath(filepath)
-    data = extract_sav_data(filepath, ioLocale=ioLocale, ioUtf8=ioUtf8, engine=engine)
-    meta, data = extract_sav_meta(filepath, name="", data=data, ioLocale=ioLocale,
-                                  ioUtf8=ioUtf8, dichot=dichot, dates_as_strings=dates_as_strings,
-                                  text_key=text_key, engine=engine)
+    
+    # Always use modern pyreadstat implementation
+    meta, data = modern_read_sav(
+        filepath=filepath,
+        name=name,
+        ioLocale=ioLocale,
+        ioUtf8=ioUtf8,
+        dichot=dichot,
+        dates_as_strings=dates_as_strings,
+        text_key=text_key
+    )
     return (meta, data)
 
-def extract_sav_data(sav_file, ioLocale='en_US.UTF-8', ioUtf8=True, engine='savReaderWriter'):
-
-    """ see parse_sav_file doc """
-    if engine == 'savReaderWriter':
-        with sr.SavReader(sav_file, returnHeader=True, ioLocale=ioLocale, ioUtf8=ioUtf8) as reader:
-            thedata = [x for x in reader]
-            header = thedata[0]
-            dataframe = pd.DataFrame.from_records(thedata[1:], coerce_float=False)
-            dataframe.columns = header
-            for column in header:
-                if isinstance(dataframe[column].dtype, np.object):
-                    # Replace None with NaN because SRW returns None if casting dates fails (dates are of type np.object))
-                    values = dataframe[column].dropna().values
-                    if len(values) > 0:
-                        if isinstance(values[0], str):
-                            dataframe[column] = dataframe[column].dropna().map(str.strip)
-                        elif isinstance(values[0], str):
-                            # savReaderWriter casts dates to str
-                            dataframe[column] = dataframe[column].dropna().map(str.strip)
-                            # creating DATETIME objects should happen here
-            return dataframe
-    elif engine == 'readstat':
-        df, meta = pyreadstat.read_sav(sav_file)
-        return df
+def extract_sav_data(sav_file, ioLocale='en_US.UTF-8', ioUtf8=True, engine='pyreadstat'):
+    """ 
+    Extract data from SPSS file.
+    
+    Note: This function now always uses pyreadstat regardless of engine parameter
+    for Python 3.10+ compatibility. The engine parameter is kept for backward
+    compatibility but is ignored.
+    """
+    # Always use pyreadstat for modern Python compatibility
+    encoding = ioLocale.split(".")[-1] if "." in ioLocale else "UTF-8"
+    df, meta = pyreadstat.read_sav(sav_file, encoding=encoding if ioUtf8 else None)
+    
+    # Process string columns
+    for column in df.columns:
+        if df[column].dtype == object:
+            values = df[column].dropna().values
+            if len(values) > 0 and isinstance(values[0], str):
+                df[column] = df[column].str.strip()
+    
+    return df
 
 def extract_sav_meta(sav_file, name="", data=None, ioLocale='en_US.UTF-8',
                      ioUtf8=True, dichot=None, dates_as_strings=False,
-                     text_key="en-GB", engine='savReaderWriter'):
-
-    if engine == 'readstat':
+                     text_key="en-GB", engine='pyreadstat'):
+    """
+    Extract metadata from SPSS file.
+    
+    Note: This function now always uses pyreadstat. The engine parameter
+    is kept for backward compatibility but is ignored.
+    """
+    # Always use pyreadstat - engine parameter ignored
+    if True:  # Keeping indentation for minimal changes
         df, metadata = pyreadstat.read_sav(sav_file, encoding=ioLocale.split(".")[-1], metadataonly=True)
         meta = start_meta(text_key=text_key)
 
-        meta['info']['text'] = 'Converted from SAV file {}.'.format(name)
+        meta['info']['text'] = f'Converted from SAV file {name}.'
         meta['info']['from_source'] = {'pandas_reader':'sav'}
         meta['sets']['data file']['items'] = [
-            'columns@{}'.format(varName)
+            f'columns@{varName}'
             for varName in metadata.column_names]
 
         for index, column in enumerate(metadata.column_names):
@@ -115,107 +137,10 @@ def extract_sav_meta(sav_file, name="", data=None, ioLocale='en_US.UTF-8',
                         meta['columns'][column]['type'] = "int"
 
             # add the variable label to the meta
-            meta['columns'][column]['text'] = {text_key : metadata.column_labels[index]}    
-        return meta, data
-
-    elif engine == 'savReaderWriter':
-        if dichot is None: dichot = {'yes': 1, 'no': 0}
-
-        """ see parse_sav_file doc """
-        with sr.SavHeaderReader(sav_file, ioLocale=ioLocale, ioUtf8=ioUtf8) as header:
-            # Metadata Attributes
-            # ['valueLabels', 'varTypes', 'varSets', 'varAttributes', 'varRoles',
-            #  'measureLevels', 'caseWeightVar', 'varNames', 'varLabels', 'formats',
-            #  'multRespDefs', 'columnWidths', 'fileAttributes', 'alignments',
-            #  'fileLabel', 'missingValues']
-            metadata = header.dataDictionary(True)
-
-        meta = start_meta(text_key=text_key)
-        meta['info']['text'] = 'Converted from SAV file {}.'.format(name)
-        meta['info']['from_source'] = {'pandas_reader':'sav'}
-        meta['sets']['data file']['items'] = [
-            'columns@{}'.format(varName)
-            for varName in metadata.varNames]
-
-        # This should probably be somewhere in the metadata
-        # weight_variable_name = metadata.caseWeightVar
-
-        # Descriptions of attributes in metadata are are located here :
-        # http://pythonhosted.org/savReaderWriter/#savwriter-write-spss-system-files
-        for column in metadata.varNames:
-            meta['columns'][column] = {}
-            meta['columns'][column]['name'] = column
-            meta['columns'][column]['parent'] = {}
-            if column in metadata.valueLabels:
-                # ValueLabels is type = 'single' (possibry 1-1 map)
-                meta['columns'][column]['values'] = []
-                meta['columns'][column]['type'] = "single"
-                for value, text in metadata.valueLabels[column].items():
-                    values = {'text': {text_key: str(text)},
-                            'value': int(value)}
-                    meta['columns'][column]['values'].append(values)
-            else:
-                if column in metadata.formats:
-                    f = metadata.formats[column]
-                    if 'DATETIME' in f:
-                        if dates_as_strings:
-                            # DATETIME fields from SPSS are currently
-                            # being read in as strings because there's an
-                            # as-yet undetermined discrepancy between the
-                            # input and output dates if datetime64 is used
-                            meta['columns'][column]['type'] = 'string'
-                        else:
-                            meta['columns'][column]['type'] = 'date'
-                            data[column] = pd.to_datetime(data[column])
-                    elif f.startswith('A'):
-                        meta['columns'][column]['type'] = 'string'
-                    elif '.' in f:
-                        meta['columns'][column]['type'] = "float"
-                    else:
-                        meta['columns'][column]['type'] = "int"
-                else:
-                    # Infer meta from data
-                    if data is not None:
-                        # print "VAR '{}' NOT IN value_labels".format(column)
-                        column_values = data[column].dropna()
-                        if len(column_values) > 0:
-                            # Get the first "not nan" value from the column
-                            value = column_values.values[0]
-                            if isinstance(value, pd.np.float64):
-                                # Float AND Int because savReaderWriter loads them both as float64
-                                meta['columns'][column]['text'] = {text_key: [column]}
-                                meta['columns'][column]['type'] = "float"
-                                if (data[column].dropna() % 1).sum() == 0:
-                                    if (data[column].dropna() % 1).unique() == [0]:
-                                        try:
-                                            data[column] = data[column].astype('int')
-                                        except:
-                                            pass
-                                        meta['columns'][column]['type'] = "int"
-
-                            elif isinstance(value, str) or isinstance(value, str):
-                                # Strings
-                                meta['columns'][column]['text'] = {text_key: [column]}
-                                meta['columns'][column]['type'] = "string"
-
-            if column in metadata.varTypes:
-                pass
-
-            if column in metadata.varSets:
-                pass
-
-            if column in metadata.varAttributes:
-                pass
-
-            if column in metadata.varRoles:
-                pass
-
-            if column in metadata.measureLevels:
-                pass
-
-            # Some labels are empty strings.note
-            if column in metadata.varLabels:
-                meta['columns'][column]['text'] = {text_key: metadata.varLabels[column]}
+            meta['columns'][column]['text'] = {text_key : metadata.column_labels[index]}
+        
+        # Note: The deprecated savReaderWriter code block has been removed.
+        # All SPSS operations now use pyreadstat exclusively for Python 3.10+ compatibility.
 
         for mrset in metadata.multRespDefs:
             # meta['masks'][mrset] = {}
@@ -236,7 +161,7 @@ def extract_sav_meta(sav_file, name="", data=None, ioLocale='en_US.UTF-8',
                 df_str = data[varNames].astype('str')
                 dls = df_str.apply(lambda x: ';'.join([
                     v.replace('.0', '') for v in x.tolist()
-                    if not v in ['nan', 'None']]),
+                    if v not in ['nan', 'None']]),
                     axis=1) + ';'
                 dls.replace({';': np.NaN}, inplace=True)
                 # Get value object
@@ -265,12 +190,13 @@ def extract_sav_meta(sav_file, name="", data=None, ioLocale='en_US.UTF-8',
             # Add the new delimited set to the 'data file' set
             df_items = meta['sets']['data file']['items']
             df_items.insert(
-                df_items.index('columns@{}'.format(varNames[0])),
-                'columns@{}'.format(mrset))
+                df_items.index(f'columns@{varNames[0]}'),
+                f'columns@{mrset}')
 
             data = data.drop(varNames, axis=1)
             for varName in varNames:
-                df_items.remove('columns@{}'.format(varName))
+                df_items.remove(f'columns@{varName}')
                 del meta['columns'][varName]
 
         return meta, data
+    return None

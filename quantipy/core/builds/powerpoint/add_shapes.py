@@ -1,41 +1,32 @@
-# encoding: utf-8
 
-'''
+"""PowerPoint shape operations for quantipy3.
+
+This module provides functions for adding various shapes, charts, and visual
+elements to PowerPoint presentations, including bar charts, stacked charts,
+tables, and text boxes with comprehensive formatting options.
+
 @author: Majeed.sahebzadha
-'''
+"""
 
+from __future__ import annotations
 
 from os import path
-import pandas as pd
-from .transformations import(
-  color_setter,
-  clean_axes_labels
-  )
+from typing import Any
+
 from pptx.chart.data import ChartData
 from pptx.dml.color import RGBColor
-from pptx.enum.chart import(
+from pptx.enum.chart import (
     XL_CHART_TYPE,
     XL_LABEL_POSITION,
     XL_LEGEND_POSITION,
+    XL_TICK_LABEL_POSITION,
     XL_TICK_MARK,
-    XL_TICK_LABEL_POSITION
-    )
-from pptx.util import(
-    Emu,
-    Pt,
-    Cm,
-    Inches
-    )
-from pptx.enum.dml import(
-    MSO_THEME_COLOR,
-    MSO_COLOR_TYPE,
-    MSO_FILL
-    )
-from pptx.enum.text import(
-    PP_ALIGN,
-    MSO_AUTO_SIZE,
-    MSO_ANCHOR
-    )
+)
+from pptx.enum.dml import MSO_FILL, MSO_THEME_COLOR
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.util import Cm, Emu, Pt
+
+from .transformations import clean_axes_labels, color_setter
 
 thisdir = path.split(__file__)[0]
 
@@ -62,7 +53,6 @@ data_label_pos_dct = {'outside_end': XL_LABEL_POSITION.OUTSIDE_END,
                       'inside_end': XL_LABEL_POSITION.INSIDE_END,
                       'left': XL_LABEL_POSITION.LEFT,
                       'mixed': XL_LABEL_POSITION.MIXED,
-                      'outside_end': XL_LABEL_POSITION.OUTSIDE_END,
                       'right': XL_LABEL_POSITION.RIGHT}
 
 legend_pos_dct = {'bottom': XL_LEGEND_POSITION.BOTTOM,
@@ -122,10 +112,21 @@ theme_color_index_dct = {'not_theme_color': MSO_THEME_COLOR.NOT_THEME_COLOR,
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
-def percentage_of_num(percent, whole):
-    """returns percent of a number. e.g. what is 5% of 20
+def percentage_of_num(percent: float, whole: float) -> float:
+    """Returns percent of a number.
+    
+    Parameters
+    ----------
+    percent : float
+        The percentage value
+    whole : float  
+        The whole number
+        
+    Returns
+    -------
+    float
+        The calculated percentage (e.g., 5% of 20 = 1.0)
     """
-
     return (percent * whole) / 100.0
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -241,9 +242,9 @@ def add_textbox(
     paragraph.alignment = paragraph_alignment_pos_dct[horizontal_alignment]
 
     textframe.text = text
-    if fit_text == True:
+    if fit_text:
         if font_name == "Calibri":
-            calibriz = path.join(thisdir, 'fonts\calibriz.ttf')
+            calibriz = path.join(thisdir, r'fonts\calibriz.ttf')
             textframe.fit_text(font_family=font_name, max_size=font_size, bold=font_bold,
                                italic=font_italic, font_file=calibriz)
         else:
@@ -508,7 +509,7 @@ def add_bar_chart(
 
                 #Excel table
                 excel_num_format='0.00%',
-                
+
                 #Color for separator
                 separator_color=(255,255,255)
                 ):
@@ -612,7 +613,7 @@ def add_bar_chart(
     #textboxes in this case will take up 40% of the overall width of the chart shape. From this we can calculate the
     #width of the chart shape
 
-    if (caxis_visible == False) or (caxis_visible == True and str(tick_label_pos_dct[caxis_tick_label_position]) == "NONE (-4142)"):
+    if (not caxis_visible) or (caxis_visible and str(tick_label_pos_dct[caxis_tick_label_position]) == "NONE (-4142)"):
         catwidth = percentage_of_num(40, width)
         width = width - catwidth
         left = left + catwidth
@@ -739,9 +740,7 @@ def add_bar_chart(
         chart_values = get_chart_values(chart)
 
         for s, series in enumerate(chart_values):
-            values = [
-                value for value in list(series.values())[0]
-            ]
+            values = list(list(series.values())[0])
 
         for v, value in enumerate(values):
             point = chart.series[s].points[v]
@@ -756,7 +755,7 @@ def add_bar_chart(
                 point_label.font.italic = data_labels_font_italic
                 point_label.font.color.rgb = RGBColor(*data_labels_font_color)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        
+
     if series_color_order and len(dataframe.columns) > 1:
         ser_colors_list = color_setter(len(dataframe.columns), series_color_order)
 
@@ -781,11 +780,11 @@ def add_bar_chart(
           fill.fore_color.rgb = RGBColor(*color_code)
 
     # generate overlay axis labels
-    if (caxis_visible == False) or (caxis_visible == True and str(tick_label_pos_dct[caxis_tick_label_position]) == "NONE (-4142)"):
+    if (not caxis_visible) or (caxis_visible and str(tick_label_pos_dct[caxis_tick_label_position]) == "NONE (-4142)"):
         cht_plot_height = get_cht_plot_height(height)
         heightPerLabel = cht_plot_height/len(dataframe.index)
         rightofchart = left + width
-        txtbx_width = width / 5
+        width / 5
         firstposition = top + get_upper_cht_plot_gap(height)
 
         cat_labels = dataframe.T.columns
@@ -1257,7 +1256,7 @@ def add_stacked_bar_chart(
     #textboxes in this case will take up 30% of the overall width of the chart shape. From this we can calculate the
     #width of the chart shape.
 
-    if (caxis_visible == False) or (caxis_visible == True and str(tick_label_pos_dct[caxis_tick_label_position]) == "NONE (-4142)"):
+    if (not caxis_visible) or (caxis_visible and str(tick_label_pos_dct[caxis_tick_label_position]) == "NONE (-4142)"):
         catwidth = percentage_of_num(30, width)
         width = width - catwidth
         left = left + catwidth
@@ -1371,12 +1370,12 @@ def add_stacked_bar_chart(
           ser.line.color.rgb = RGBColor(*series_line_color)
 
     # generate overlay axis labels
-    if (caxis_visible == False) or (caxis_visible == True and str(tick_label_pos_dct[caxis_tick_label_position]) == "NONE (-4142)"):
+    if (not caxis_visible) or (caxis_visible and str(tick_label_pos_dct[caxis_tick_label_position]) == "NONE (-4142)"):
 
         cht_plot_height = get_cht_plot_height(height)
         heightPerLabel = cht_plot_height/len(dataframe.index)
         rightofchart = left + width
-        txtbx_width = width / 5
+        width / 5
         firstposition = top + get_upper_cht_plot_gap(height)
 
         cat_labels = dataframe.T.columns
@@ -1471,11 +1470,11 @@ def add_table(
     row_labels = list(df.index)
     col_labels = list(df.columns)
     table_values = df.values
-    question_label = df.index.get_level_values(level=0)[0]
+    df.index.get_level_values(level=0)[0]
 
     #table specific properties
-    for i in range(0, rows):
-        for x in range(0, cols):
+    for i in range(rows):
+        for x in range(cols):
 
             cell = table.cell(i, x)
 
@@ -1658,19 +1657,19 @@ def add_net(
     table = shapes.add_table(rows+1, cols, left, top, width, height).table
     table.horz_banding = True
     #isolate seperate sections of a table
-    row_labels = list(df.index)
+    list(df.index)
     col_labels = list(df.columns)
     table_values = df.values
     #question_label = df.index.get_level_values(level=0)[0]
 
     #table specific properties
-    for i in range(0, rows + 1):
+    for i in range(rows + 1):
         if i == 0:
             table.rows[i].height = header_row_height
         else:
             table.rows[i].height = value_row_height
 
-        for x in range(0, cols):
+        for x in range(cols):
 
             cell = table.cell(i, x)
 

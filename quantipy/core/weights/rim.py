@@ -100,7 +100,7 @@ class Rim:
 
         mul_targets_err = (
             'Multiple weight targets must be given as list of dicts,\n'
-            'input is {}'.format(type(targets))
+            f'input is {type(targets)}'
         )
 
         target_map_err = (
@@ -117,7 +117,7 @@ class Rim:
                 raise TypeError(target_map_err)
         self.groups[gn][self._TARGETS] = {}
         for target in targets:
-            if not list(target.keys())[0] in self.target_cols:
+            if list(target.keys())[0] not in self.target_cols:
                 self.target_cols.append(list(target.keys())[0])
             self.groups[gn][self._TARGETS] = targets
 
@@ -191,7 +191,7 @@ class Rim:
                     ] = self._df[self._weight_name()].count()
             except Exception:
                 warn = 'Could not properly adjust Totals in report!'
-                warnings.warn(warn)
+                warnings.warn(warn, stacklevel=2)
         return self._df[self._weight_name()]
 
     def _get_base_factors(self) -> None:
@@ -222,7 +222,7 @@ class Rim:
         else:
             filter_idx = invalid_idx
         self._df.loc[filter_idx, wgt] = -1.00
-        return None
+        return
 
     def _scale_total(self) -> None:
         weight_var = self._weight_name()
@@ -323,9 +323,9 @@ class Rim:
             self.groups[group][self._FILTER_VARS] for group in self.groups
         ]
         scheme_filter_cols = list(
-            set(
-                [filter_col for sublist in scheme_filter_cols for filter_col in sublist]
-            )
+            {
+                filter_col for sublist in scheme_filter_cols for filter_col in sublist
+            }
         )
         return scheme_filter_cols
 
@@ -347,10 +347,7 @@ class Rim:
         return df
 
     def _columns(self, identifier=None, add_columns=None):
-        if identifier is not None:
-            columns = [identifier]
-        else:
-            columns = []
+        columns = [identifier] if identifier is not None else []
         if add_columns:
             columns += add_columns
         [columns.append(target_col) for target_col in self.target_cols]
@@ -358,12 +355,7 @@ class Rim:
         return columns
 
     def _use_cap(self):
-        if isinstance(self.cap, (list, tuple)):
-            return True
-        elif self.cap > 0:
-            return True
-        else:
-            return False
+        return bool(isinstance(self.cap, list | tuple) or self.cap > 0)
 
     def group_targets(self, group_targets):
         """
@@ -391,15 +383,13 @@ class Rim:
                 self._group_targets[group] = group_targets[group] / div_by
         else:
             raise ValueError(
-                ('Group_targets must be of type %s NOT %s ')
-                % (type({}), type(group_targets))
+                f'Group_targets must be of type {type({})} NOT {type(group_targets)} '
             )
 
     def _weight_name(self):
         if self.weight_column_name is None:
             return self._WEIGHTS_ + self.name
-        else:
-            return self.weight_column_name
+        return self.weight_column_name
 
     def _empty_target_list(self):
         return {list_item: [] for list_item in self.target_cols}
@@ -450,9 +440,8 @@ class Rim:
             else:
                 check_df = self._df.copy()
             nan_check = check_df[target_vars].isnull().sum()
-            if not nan_check.sum() == 0:
-                if verbose:
-                    print(UserWarning(some_nans.format(self.name, group, nan_check)))
+            if nan_check.sum() != 0 and verbose:
+                print(UserWarning(some_nans.format(self.name, group, nan_check)))
             for target in self.groups[group][self._TARGETS]:
                 target_col = list(target.keys())[0]
                 target_codes = list(target.values())[0].keys()
@@ -465,7 +454,7 @@ class Rim:
                     code
                     for code in target_codes
                     if code not in sample_codes
-                    and not list(target.values())[0][code] == 0.0
+                    and list(target.values())[0][code] != 0.0
                 ]
 
                 miss_in_targets = [
@@ -475,35 +464,33 @@ class Rim:
                 if self._df[target_col].dtype == 'object':
                     raise ValueError(vartype_err.format(self.name, group, target_col))
 
-                if miss_in_sample:
-                    if verbose:
-                        print(
-                            UserWarning(
-                                len_err_less.format(
-                                    self.name,
-                                    group,
-                                    target_col,
-                                    len(target_codes),
-                                    len(sample_codes),
-                                    miss_in_sample,
-                                )
+                if miss_in_sample and verbose:
+                    print(
+                        UserWarning(
+                            len_err_less.format(
+                                self.name,
+                                group,
+                                target_col,
+                                len(target_codes),
+                                len(sample_codes),
+                                miss_in_sample,
                             )
                         )
+                    )
 
-                if miss_in_targets:
-                    if verbose:
-                        print(
-                            UserWarning(
-                                len_err_more.format(
-                                    self.name,
-                                    group,
-                                    target_col,
-                                    len(target_codes),
-                                    len(sample_codes),
-                                    miss_in_targets,
-                                )
+                if miss_in_targets and verbose:
+                    print(
+                        UserWarning(
+                            len_err_more.format(
+                                self.name,
+                                group,
+                                target_col,
+                                len(target_codes),
+                                len(sample_codes),
+                                miss_in_targets,
                             )
                         )
+                    )
 
                 if not np.allclose(np.sum(list(target_props)), 100.0):
                     raise ValueError(
@@ -583,7 +570,7 @@ class Rake:
             for target in targets
         ]
         abs_targets = [
-            {col_name: mapping} for col_name, mapping in zip(col_names, mappings)
+            {col_name: mapping} for col_name, mapping in zip(col_names, mappings, strict=False)
         ]
         self.targets = abs_targets
         self.keys = col_names
@@ -677,7 +664,7 @@ class Rake:
             )
         except MemoryError:
             warn = 'OOM: Could not finish writing report...'
-            warnings.warn(warn)
+            warnings.warn(warn, stacklevel=2)
 
     def start(self):
         pct_still = 1 - self.convcrit
@@ -685,7 +672,7 @@ class Rake:
         diff_error_old = 99999999999
 
         # cap (this needs more rigorous testings)
-        if isinstance(self.cap, (list, tuple)):
+        if isinstance(self.cap, list | tuple):
             min_cap = self.cap[0]
             max_cap = self.cap[1]
         else:
@@ -740,16 +727,16 @@ class Rake:
         self.dataframe[self.weight_column_name].replace(0.00, 1.00, inplace=True)
 
         if iteration == self.max_iterations:
-            print('Convergence did not occur in %s iterations' % iteration)
+            print(f'Convergence did not occur in {iteration} iterations')
         else:
             if diff_error > 0.001:
                 print(
                     "Raking achieved only partial convergence, please check the results to ensure that sufficient convergence was achieved."
                 )
-                print("No improvement was apparent after %s iterations" % iteration)
+                print(f"No improvement was apparent after {iteration} iterations")
             else:
                 if self.verbose:
-                    print('Raking converged in %s iterations' % iteration)
+                    print(f'Raking converged in {iteration} iterations')
                     print('Generating report')
         self.generate_report()
         return self.iteration_counter

@@ -1,4 +1,6 @@
 #!/usr/bin/python
+from __future__ import annotations
+
 """
 Options module for quantipy configuration management.
 
@@ -12,7 +14,6 @@ Following SOLID principles, this module handles:
 - Performance optimization flags
 - Processing behavior customization
 """
-from __future__ import annotations
 
 OPTIONS: dict[str, bool] = {
     'new_rules': False,

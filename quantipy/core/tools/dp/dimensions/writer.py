@@ -1,22 +1,22 @@
-"""
-Created on 20 June 2016
+"""Dimensions file writer for quantipy3.
 
-@author: AlexBuchhammer
+This module provides functionality for writing quantipy datasets to Dimensions
+format (.mdd/.ddf files), handling metadata translation, variable types, and
+data export with support for hierarchical structures and multiple response sets.
 """
+
+from __future__ import annotations
+
+import os
+
 import numpy as np
 import pandas as pd
-import quantipy as qp
+
 from quantipy.core.helpers.functions import (
-    is_mapped_meta,
     get_mapped_meta,
-    get_text
+    is_mapped_meta,
 )
-from quantipy.core.helpers.functions import load_json
-from quantipy.core.tools.dp.dimensions.dimlabels import (
-    qp_dim_languages,
-    DimLabels)
-import os
-import json
+from quantipy.core.tools.dp.dimensions.dimlabels import DimLabels, qp_dim_languages
 
 QTYPES = {
     'single': 'mr.Categorical',
@@ -37,7 +37,7 @@ def AddProp(prop, content):
     return add
 
 def SetCurrent(prop, content):
-    cur = 'MDM.{}.Current = "{}"'.format(prop, content)
+    cur = f'MDM.{prop}.Current = "{content}"'
     return cur
 
 def Dim(*args):
@@ -54,46 +54,31 @@ def section_break(n):
     return text
 
 def comment(tabs, text):
-    text = "{t}' {tx}".format(
-        t=tab(tabs),
-        tx=text)
+    text = f"{tab(tabs)}' {text}"
     return text
 
 def CreateVariable(tabs, name):
-    text = '{t}Set newVar = MDM.CreateVariable("{n}")'.format(
-        t=tab(tabs),
-        n=name)
+    text = f'{tab(tabs)}Set newVar = MDM.CreateVariable("{name}")'
     return text
 
 def DataType(tabs, parent, dtype):
-    text = '{t}{p}.DataType = {dt}'.format(
-        t=tab(tabs),
-        p=parent,
-        dt=dtype)
+    text = f'{tab(tabs)}{parent}.DataType = {dtype}'
     return text
 
 def MaxValue(tabs, parent, mval):
-    text = '{t}{p}.MaxValue = {mv}'.format(
-        t=tab(tabs),
-        p=parent,
-        mv=mval)
+    text = f'{tab(tabs)}{parent}.MaxValue = {mval}'
     return text
 
 def CreateElement(tabs, name):
-    text = '{t}Set newElement = MDM.CreateElement("{n}")'.format(
-        t=tab(tabs),
-        n=name)
+    text = f'{tab(tabs)}Set newElement = MDM.CreateElement("{name}")'
     return text
 
 def ElementType(tabs):
-    text = '{t}newElement.Type = 0'.format(
-        t=tab(tabs))
+    text = f'{tab(tabs)}newElement.Type = 0'
     return text
 
 def ElementExpression(tabs, expression):
-    text = '{t}newElement.Expression = {e}'.format(
-        t=tab(tabs),
-        e=expression)
+    text = f'{tab(tabs)}newElement.Expression = {expression}'
     return text
 
 def AddLabel(tabs, element, labeltype, language, text):
@@ -106,29 +91,19 @@ def AddLabel(tabs, element, labeltype, language, text):
     return text
 
 def AddElement(tabs, parent, child):
-    text = '{t}{p}.Elements.Add({c})'.format(
-        t=tab(tabs),
-        p=parent,
-        c=child)
+    text = f'{tab(tabs)}{parent}.Elements.Add({child})'
     return text
 
 def AddField(tabs, parent, child):
-    text = '{t}{p}.Fields.Add({c})'.format(
-        t=tab(tabs),
-        p=parent,
-        c=child)
+    text = f'{tab(tabs)}{parent}.Fields.Add({child})'
     return text
 
 def CreateGrid(tabs, name):
-    text = '{t}Set newGrid = MDM.CreateGrid("{n}")'.format(
-        t=tab(tabs),
-        n=name)
+    text = f'{tab(tabs)}Set newGrid = MDM.CreateGrid("{name}")'
     return text
 
 def MDMSave(tabs, path_mdd):
-    text = '{t}MDM.Save("{p}")'.format(
-        t=tab(tabs),
-        p=path_mdd)
+    text = f'{tab(tabs)}MDM.Save("{path_mdd}")'
     return text
 
 def _dedupe_datafile_items_set(items_list, keep_first=False):
@@ -151,21 +126,24 @@ def create_mdd(meta, data, path_mrs, path_mdd, text_key, run):
     all_items = _dedupe_datafile_items_set(all_items)
     for name in all_items:
         if name in meta['columns']:
-            if meta['columns'][name].get('parent'): continue
+            if meta['columns'][name].get('parent'):
+                continue
             mrs_col, lang, ltype = col_to_mrs(meta, name, text_key)
             variables.extend(mrs_col)
         if name in meta['masks']:
             mrs_mask, lang, ltype = mask_to_mrs(meta, name, text_key)
             variables.extend(mrs_mask)
-        for l in lang:
-            if not l in all_languages: all_languages.append(l)
+        for lang_code in lang:
+            if lang_code not in all_languages:
+                all_languages.append(lang_code)
         for lt in ltype:
-            if not lt in all_labeltypes: all_labeltypes.append(lt)
+            if lt not in all_labeltypes:
+                all_labeltypes.append(lt)
 
     for lt in all_labeltypes:
         mrs.append(AddProp('LabelTypes', lt))
-    for l in all_languages:
-        mrs.append(AddProp('Languages', l))
+    for lang_code in all_languages:
+        mrs.append(AddProp('Languages', lang_code))
     mrs.append(SetCurrent('languages', qp_dim_languages.get(text_key, 'ENG')))
     mrs.extend(variables)
     mrs.extend([
@@ -219,7 +197,7 @@ def col_to_mrs(meta, col, text_key):
     name = column.get(col, col)
     col_code = [
         section_break(20),
-        comment(0, '{}'.format(name)),
+        comment(0, f'{name}'),
         CreateVariable(0, name),
         DataType(0, 'newVar', QTYPES[column['type']]),
     ]
@@ -253,7 +231,7 @@ def mask_to_mrs(meta, name, text_key):
 
     mask_code = [
         section_break(20),
-        comment(0, '{}'.format(mask_name)),
+        comment(0, f'{mask_name}'),
         CreateGrid(0, mask_name)]
 
     labels = DimLabels(name, text_key)
@@ -301,14 +279,14 @@ def mask_to_mrs(meta, name, text_key):
 
     return mask_code, lang, ltype
 
-def create_ddf(master_input, path_dms, CRLF):
+def create_ddf(master_input: str, path_dms: str, crlf: str) -> None:
     dms_dummy_path = os.path.dirname(__file__)
-    dms = open(os.path.join(dms_dummy_path, '_create_ddf.dms'), 'r')
-    header = [
-        '#define MASTER_INPUT "{}"'.format(master_input).encode('utf-8'),
-        '#define CRLF "{}"'.format(CRLF),
-    ]
-    full_dms = header + [line.replace('\n', '') for line in dms]
+    with open(os.path.join(dms_dummy_path, '_create_ddf.dms')) as dms_file:
+        header = [
+            f'#define MASTER_INPUT "{master_input}"'.encode(),
+            f'#define CRLF "{crlf}"',
+        ]
+        full_dms = header + [line.replace('\n', '') for line in dms_file]
     # NOTE:
     #-------------------------------------------------------------------------
     # dropping the second "line" which is an invisible line-break char
@@ -340,7 +318,7 @@ def _datastore_csv(meta, data, columns):
     """
     """
     datastore = data.copy()
-    categoricals, texts = [], []
+    _categoricals, _texts = [], []
     for col in columns:
         col_type = meta['columns'][col]['type']
         if col_type in ['single', 'delimited set']:
@@ -353,7 +331,7 @@ def _datastore_csv(meta, data, columns):
                 # I am converting to int32 (if possible) to prevent type
                 # conflicts
                 datastore[col] = datastore[col].astype('int32')
-            except:
+            except (ValueError, OverflowError):
                 pass
         elif col_type == 'float':
             datastore[col].replace(np.NaN, 'NULL', inplace=True)
@@ -411,23 +389,23 @@ def convert_categorical(categorical):
         resp_prefix = cat.name.split('[{')[0] + 'a'
     else:
         resp_prefix = categorical.name + 'a'
-    if not cat.dtype == 'object':
+    if cat.dtype != 'object':
         cat = cat.apply(lambda x:
-                        '{}{}'.format(resp_prefix, 
+                        '{}{}'.format(resp_prefix,
                                       int(x) if int(x) > -1 else
-                                      'minus{}'.format(-1 * int(x)))
+                                      f'minus{-1 * int(x)}')
                         if not np.isnan(x) else np.NaN)
     else:
         cat = cat.apply(lambda x: str(x).split(';')[:-1])
-        cat = cat.apply(lambda x: ['{}{}'.format(resp_prefix, 
+        cat = cat.apply(lambda x: ['{}{}'.format(resp_prefix,
                                                  code.replace('-', 'minus'))
                                    for code in x])
         cat = cat.apply(lambda x: str(x).replace('[', '').replace(']', ''))
         cat = cat.apply(lambda x: x.replace("'", '').replace(', ', ';'))
     return cat
 
-def dimensions_from_quantipy(meta, data, path_mdd, path_ddf, text_key=None,
-                             CRLF="CR", run=True, clean_up=True):
+def dimensions_from_quantipy(meta: dict, data: pd.DataFrame, path_mdd: str, path_ddf: str, text_key: str | None = None,
+                             crlf: str = "CR", run: bool = True, clean_up: bool = True) -> None:
     """
     DESCP
 
@@ -440,26 +418,28 @@ def dimensions_from_quantipy(meta, data, path_mdd, path_ddf, text_key=None,
     """
     name = path_mdd.split('/')[-1].split('.')[0]
     path =  '/'.join(path_mdd.split('/')[:-1])
-    if '/' in path_mdd: path = path + '/'
-    path_mrs = '{}create_mdd [{}].mrs'.format(path, name)
-    path_dms = '{}create_ddf [{}].dms'.format(path, name)
-    path_paired_csv = '{}{}_paired.csv'.format(path, name)
-    path_datastore = '{}{}_datastore.csv'.format(path, name)
+    if '/' in path_mdd:
+        path = path + '/'
+    path_mrs = f'{path}create_mdd [{name}].mrs'
+    path_dms = f'{path}create_ddf [{name}].dms'
+    path_paired_csv = f'{path}{name}_paired.csv'
+    path_datastore = f'{path}{name}_datastore.csv'
     all_paths = (path_dms, path_mrs, path_datastore, path_paired_csv)
 
-    if not text_key: text_key = meta['lib']['default text']
+    if not text_key:
+        text_key = meta['lib']['default text']
     create_mdd(meta, data, path_mrs, path_mdd, text_key, run)
-    create_ddf(name, path_dms, CRLF)
+    create_ddf(name, path_dms, crlf)
     get_case_data_inputs(meta, data, path_paired_csv, path_datastore)
     print('Case and meta data validated and transformed.')
     if run:
-        from subprocess import check_output, STDOUT, CalledProcessError
+        from subprocess import STDOUT, CalledProcessError, check_output
         try:
             print('Converting to .ddf/.mdd...')
-            command = 'mrscriptcl "{}"'.format(path_mrs)
+            command = f'mrscriptcl "{path_mrs}"'
             check_output(command, stderr=STDOUT, shell=True)
             print('.mdd file generated successfully.')
-            command = 'DMSRun "{}"'.format(path_dms)
+            command = f'DMSRun "{path_dms}"'
             check_output(command, stderr=STDOUT, shell=True)
             print('.ddf file generated successfully.\n')
             print('Conversion completed!')
