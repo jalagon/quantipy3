@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 languages = {
     54: "af",
     28: "sq",

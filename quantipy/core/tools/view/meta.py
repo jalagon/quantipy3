@@ -1,8 +1,11 @@
+from __future__ import annotations
+
+
 def view_meta(link, viewdf, weight, method_name, method_type,
               name, fullname, text='', groups=None):
     # Get file meta info on link definition data types
-    x = link.x if not link.x == '@' else link.y
-    y = link.y if not link.y == '@' else link.x
+    x = link.x if link.x != '@' else link.y
+    y = link.y if link.y != '@' else link.x
     filemeta = link.get_meta()
 
     if x in filemeta['columns']:
@@ -29,7 +32,7 @@ def view_meta(link, viewdf, weight, method_name, method_type,
                 {
                  'datatype': datatype,
                  'viewtype': method_type,
-                 'is_weighted': True if weight is not None else False,
+                 'is_weighted': weight is not None,
                  'weights': weight,
                  'method': method_name,
                  'name': name,
@@ -40,35 +43,35 @@ def view_meta(link, viewdf, weight, method_name, method_type,
                 'x':
                 {
                  'name': link.x,
-                 'is_multi': True if xtype in mc else False,
-                 'is_nested': True if ">" in link.x else False
+                 'is_multi': xtype in mc,
+                 'is_nested': ">" in link.x
                  },
                 'y':
                 {
                  'name': link.y,
-                 'is_multi': True if ytype in mc else False,
-                 'is_nested': True if ">" in link.y else False
+                 'is_multi': ytype in mc,
+                 'is_nested': ">" in link.y
                  },
                 'shape': viewdf.shape
                 }
-    
+
     return viewmeta
 
 def default_meta(link, view_df, dtypes, weights=None):
     '''
     Sets up the initial meta information for a Quantipy view dataframe.
-    The information is derived in the generating process of the default 
+    The information is derived in the generating process of the default
     view in core.view_generators.view_maps. The information is structured
     inside a nested dict with the following keys:
-    - agg       
-    - x 
+    - agg
+    - x
     - y
     - shape
 
     Parameters
     ----------
     link : Quantipy Link object
-    
+
     view_df : pd:DataFrame
 
     dtypes : tuple of str
@@ -86,34 +89,30 @@ def default_meta(link, view_df, dtypes, weights=None):
 
     if dtypes[0] in ['single', 'dichotomous set', 'categorical set', 'delimited set']:
         datatype = 'categorical'
-        method = 'default'
     elif dtypes[0] in ['float', 'int']:
         datatype = 'numeric'
-        method = 'default'
     elif dtypes[0] in ['array']:
         datatype = 'array'
-        method = 'default'
     else:
         datatype = dtypes[0]
-        method = 'default'
 
     default_meta = {
                     'agg': {'method': 'default',
                             'name': 'default',
                             'datatype': datatype,
                             'viewtype': 'quantipy.DefaultView',
-                            'is_weighted': True if not weights is None else False,
+                            'is_weighted': bool(weights is not None),
                             'weights': weights
                             },
                     'x': {
                         'name': link.x,
-                        'is_multi': True if dtypes[0] in ['dichotomous set', 'categorical set', 'delimited set'] and not link.x == '@' else False,
-                        'is_nested': True if ">" in link.x else False,
+                        'is_multi': bool(dtypes[0] in ['dichotomous set', 'categorical set', 'delimited set'] and link.x != '@'),
+                        'is_nested': ">" in link.x,
                         },
                     'y': {
                         'name': link.y,
-                        'is_multi': True if dtypes[1] in ['dichotomous set', 'categorical set', 'delimited set'] and not link.y == '@' else False,
-                        'is_nested': True if ">" in link.y else False
+                        'is_multi': bool(dtypes[1] in ['dichotomous set', 'categorical set', 'delimited set'] and link.y != '@'),
+                        'is_nested': ">" in link.y
                         },
                     'shape' : view_df.shape
                     }
@@ -136,7 +135,7 @@ def update_view_meta(view_df, meta, method_name, method_type, name, fullname, te
     text : str
 
     groups : list
-    
+
     Returns
     -------
     meta (updated) : dict (nested)
@@ -180,8 +179,7 @@ def full_num_stat_text(stat, text=''):
 
     if text == '':
         return stat_labs[stat]
-    else:
-        return '%s %s' % (stat_labs[stat], text)
+    return f'{stat_labs[stat]} {text}'
 
 def full_multivariate_text(stat, text=''):
     '''
@@ -194,8 +192,7 @@ def full_multivariate_text(stat, text=''):
 
     if text == '':
         return stat_labs[stat]
-    else:
-        return '%s %s' % (stat_labs[stat], text)
+    return f'{stat_labs[stat]} {text}'
 
 def set_num_stats_meta(exclude, rescale, meta):
     '''
@@ -219,7 +216,6 @@ def set_num_stats_meta(exclude, rescale, meta):
     '''
     meta['x']['exclude'] = exclude
     meta['x']['rescale'] = rescale
-        
-    return None
 
-    
+    return
+

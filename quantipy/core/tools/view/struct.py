@@ -1,25 +1,13 @@
-import pandas as pd
-import numpy as np
-import json
-import re
-import copy
-import itertools
-import math
-import re, string
+from __future__ import annotations
 
-from collections import OrderedDict
-from quantipy.core.helpers.constants import DTYPE_MAP
-from quantipy.core.helpers.constants import MAPPED_PATTERN
-from itertools import product
-from quantipy.core.view import View
-from quantipy.core.view_generators.view_mapper import ViewMapper
-from quantipy.core.helpers import functions
+import pandas as pd
+
 
 def set_view_df_layout(df, x, y, new_names=None, names_to=None, inherit_codes_from=None, codes_to=None):
     '''
-    Main function to rebuild the Quantipy view dataframe structure after 
+    Main function to rebuild the Quantipy view dataframe structure after
     calculations have been processed inside a view method. This functions is
-    an all-in-one solution for setting new Values names (e.g. Top2Box), resp. 
+    an all-in-one solution for setting new Values names (e.g. Top2Box), resp.
     renaming axis codes ranges (e.g. 1, 2, 3, 4, 5 instead of 0, 1, 2, 3, 4) and
     applying the Question/Values multiindex convention.
     See also:
@@ -56,16 +44,16 @@ def set_view_df_layout(df, x, y, new_names=None, names_to=None, inherit_codes_fr
     -------
     layouted_df : pd.DataFrame (Quantipy convention, multiindexed)
     '''
-    if not new_names is None:
+    if new_names is not None:
         set_names_to_values(df, new_names, names_to)
-    if not inherit_codes_from is None:
+    if inherit_codes_from is not None:
         df = inherit_axis_codes(df, inherit_codes_from, codes_to)
-    
-    layouted_df = set_qp_multiindex(df, x, y)    
-    
+
+    layouted_df = set_qp_multiindex(df, x, y)
+
     return layouted_df
 
-def deep_drop(df, targets, axes=[0, 1]):
+def deep_drop(df, targets, axes=None):
     '''
     Drops all columns given in the targets list from the defined
     axes of the passed dataframe. The dataframe is allowed to be
@@ -86,10 +74,12 @@ def deep_drop(df, targets, axes=[0, 1]):
     -------
     df : pd.Dataframe
     '''
-    if not isinstance(targets, (list, tuple)):
+    if axes is None:
+        axes = [0, 1]
+    if not isinstance(targets, list | tuple):
         targets = [targets]
 
-    if not isinstance(axes, (list, tuple)):
+    if not isinstance(axes, list | tuple):
         axes = [axes]
 
     levels = (len(df.index.levels), len(df.columns.levels))
@@ -138,8 +128,8 @@ def inherit_axis_codes(df, from_source, to='y'):
 def set_names_to_values(df, names, axis='x'):
     '''
     Changes the inner index's elements to the names specified in the view method definition.
-    Helpful to update the 'Values' layer of a multiindexed Quantipy view DataFrame 
-    after an axis-collapsing aggregation has been applied. 
+    Helpful to update the 'Values' layer of a multiindexed Quantipy view DataFrame
+    after an axis-collapsing aggregation has been applied.
 
     Parameters
     ----------
@@ -150,7 +140,7 @@ def set_names_to_values(df, names, axis='x'):
         If string is passed, the method converts to list automatically.
 
     axis : str, default=x
-        The link's axis to set the name to. 
+        The link's axis to set the name to.
 
     Returns
     -------
@@ -162,10 +152,9 @@ def set_names_to_values(df, names, axis='x'):
         for name in enumerate(names):
             df.rename(index={df.index.get_level_values(-1)[name[0]]: name[1]}, inplace=True)
         return df.index
-    else:
-        for name in enumerate(names):
-            df.rename(columns={df.columns.get_level_values(-1)[name[0]]: name[1]}, inplace=True)
-        return df.columns
+    for name in enumerate(names):
+        df.rename(columns={df.columns.get_level_values(-1)[name[0]]: name[1]}, inplace=True)
+    return df.columns
 
 def set_qp_multiindex(df, x, y):
     '''
@@ -186,9 +175,7 @@ def set_qp_multiindex(df, x, y):
     '''
     axis_labels = ['Question', 'Values']
     df.index = pd.MultiIndex.from_product([[x], df.index], names=axis_labels)
-    if y is None:
-        df.columns = pd.MultiIndex.from_product([[x], df.columns], names=axis_labels)
-    elif y == '@':
+    if y is None or y == '@':
         df.columns = pd.MultiIndex.from_product([[x], df.columns], names=axis_labels)
     else:
         df.columns = pd.MultiIndex.from_product([[y], df.columns], names=axis_labels)
@@ -201,20 +188,20 @@ def _partition_view_df(view, values=False, data_only=False, axes_only=False):
     Disassembles a view dataframe object into its
     inner-most index/columns parts (by dropping the first level)
     and the actual data.
-    
+
     Parameters
     ----------
     view : Quantipy view
-    
+
     values : boolean, optional
         If True will return the np.array
         containing the df values instead of a dataframe
-    
+
     data_only : boolean, optional
         If True will only return the data component of the view dataframe
 
     axes_only : boolean, optional
-        If True will only return the inner-most index and columns component 
+        If True will only return the inner-most index and columns component
         of the view dataframe.
 
     Returns
@@ -229,11 +216,10 @@ def _partition_view_df(view, values=False, data_only=False, axes_only=False):
     index = df.index
     columns = df.columns
     data = df if not values else df.values
-    
+
     if data_only:
         return data
-    elif axes_only:
+    if axes_only:
         return index.tolist(), columns.tolist()
-    else:
-        return data, index.tolist(), columns.tolist()
+    return data, index.tolist(), columns.tolist()
 

@@ -1,6 +1,9 @@
 
-from decorator import decorator
+from __future__ import annotations
+
 from inspect import getfullargspec as getargspec
+
+from decorator import decorator
 
 # ------------------------------------------------------------------------
 # decorators
@@ -31,11 +34,8 @@ def verify(variables=None, categorical=None, text_keys=None, axis=None, is_str=N
                 nested = True
                 collection = collection.split('_')[0]
             # get collection for argument
-            if collection == 'both':
-                collection = ['columns', 'masks']
-            else:
-                collection = [collection]
-            c = [key for col in collection for key in list(list(ds._meta[col].keys()))]
+            collection = ['columns', 'masks'] if collection == 'both' else [collection]
+            c = [key for col in collection for key in list(ds._meta[col].keys())]
             # get the variable argument to check
             v_index = all_args.index(variable)
             var = kwargs.get(variable, args[v_index])
@@ -53,7 +53,7 @@ def verify(variables=None, categorical=None, text_keys=None, axis=None, is_str=N
             else:
                 valid = var
             # check the variable
-            not_valid = [v for v in valid if not v in c + ['@']]
+            not_valid = [v for v in valid if v not in c + ['@']]
             if not_valid:
                 msg = "'{}' argument for {}() must be in {}.\n"
                 msg += '{} is not in {}.'
@@ -70,13 +70,15 @@ def verify(variables=None, categorical=None, text_keys=None, axis=None, is_str=N
             # get the variable argument to check if it is categorical
             v_index = all_args.index(cat)
             var = kwargs.get(cat, args[v_index])
-            if var is None: return func(*args, **kwargs)
-            if not isinstance(var, list): var = [var]
+            if var is None:
+                return func(*args, **kwargs)
+            if not isinstance(var, list):
+                var = [var]
             valid = []
             for v in var:
                 if ' > ' in v:
                     valid.extend(v.replace(' ', '').split('>'))
-                elif not '@' == v:
+                elif v != '@':
                     valid.append(v)
             # check if varaibles are categorical
             not_cat = [v for v in valid if not ds._has_categorical_data(v)]
@@ -95,11 +97,13 @@ def verify(variables=None, categorical=None, text_keys=None, axis=None, is_str=N
             # get the text_key argument to check
             tk_index = all_args.index(text_key)
             tks = kwargs.get(text_key, args[tk_index])
-            if tks is None: return func(*args, **kwargs)
-            if not isinstance(tks, list): tks = [tks]
+            if tks is None:
+                return func(*args, **kwargs)
+            if not isinstance(tks, list):
+                tks = [tks]
             # ckeck the text_key
             valid_tks = ds.valid_tks
-            not_supported = [tk for tk in tks if not tk in valid_tks]
+            not_supported = [tk for tk in tks if tk not in valid_tks]
             if not_supported:
                 msg = "{} is not a valid text_key! Supported are: \n {}"
                 raise ValueError(msg.format(not_supported, valid_tks))
@@ -111,11 +115,13 @@ def verify(variables=None, categorical=None, text_keys=None, axis=None, is_str=N
         all_args = getargspec(func)[0]
         ax_index = all_args.index(axis)
         a_edit = kwargs.get(axis, args[ax_index])
-        if a_edit is None: return func(*args, **kwargs)
-        if not isinstance(a_edit, list): a_edit = [a_edit]
+        if a_edit is None:
+            return func(*args, **kwargs)
+        if not isinstance(a_edit, list):
+            a_edit = [a_edit]
         # ckeck the axis
         valid_ax = ['x', 'y']
-        not_supported = [ax for ax in a_edit if not ax in valid_ax]
+        not_supported = [ax for ax in a_edit if ax not in valid_ax]
         if not_supported:
             msg = "{} is not a valid axis! Supported are: {}"
             raise ValueError(msg.format(not_supported, valid_ax))
@@ -128,7 +134,8 @@ def verify(variables=None, categorical=None, text_keys=None, axis=None, is_str=N
             # get the arguments to modify
             val_index = all_args.index(val)
             v = kwargs.get(val, args[val_index])
-            if not isinstance(v, (list, tuple)): v = [v]
+            if not isinstance(v, list | tuple):
+                v = [v]
             if not all(isinstance(text, str) for text in v):
                 raise ValueError('Included value must be str or list of str.')
         return func(*args, **kwargs)
@@ -137,14 +144,18 @@ def verify(variables=None, categorical=None, text_keys=None, axis=None, is_str=N
     def _deco(func, *args, **kwargs):
         p = [variables, categorical, text_keys, axis, is_str]
         d = [_var_in_ds, _var_is_cat, _verify_text_key, _verify_axis, _is_str]
-        for arg, dec in reversed(list(zip(p, d))):
-            if arg is None: continue
+        for arg, dec in reversed(list(zip(p, d, strict=False))):
+            if arg is None:
+                continue
             func = dec(func)
         return func(*args, **kwargs)
 
-    if categorical and not isinstance(categorical, list): categorical = [categorical]
-    if text_keys and not isinstance(text_keys, list): text_keys = [text_keys]
-    if is_str and not isinstance(is_str, list): is_str = [is_str]
+    if categorical and not isinstance(categorical, list):
+        categorical = [categorical]
+    if text_keys and not isinstance(text_keys, list):
+        text_keys = [text_keys]
+    if is_str and not isinstance(is_str, list):
+        is_str = [is_str]
 
     return _deco
 
@@ -159,15 +170,19 @@ def modify(to_list=None):
             # get the arguments to modify
             val_index = all_args.index(val)
             v = kwargs.get(val, args[val_index])
-            if v is None: v = []
-            if not isinstance(v, list): v = [v]
+            if v is None:
+                v = []
+            if not isinstance(v, list):
+                v = [v]
             if kwargs.get(val):
                 kwargs[val] = v
             else:
-                args = tuple(a if not x == val_index else v
+                args = tuple(a if x != val_index else v
                              for x, a in enumerate(args))
         return func(*args, **kwargs)
 
     if to_list:
-        if not isinstance(to_list, list): to_list = [to_list]
+        if not isinstance(to_list, list):
+            to_list = [to_list]
         return _to_list
+    return None
