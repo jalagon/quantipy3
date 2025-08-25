@@ -1,31 +1,20 @@
 from __future__ import annotations
 
-import pandas as pd
+from itertools import combinations, product
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
+import pandas as pd
 from scipy.stats import t
-from itertools import combinations, chain, product
-from collections import defaultdict, OrderedDict
-from typing import TYPE_CHECKING, Any, Literal
+
 import quantipy as qp
 
 if TYPE_CHECKING:
     from quantipy.core.link import Link
-    from quantipy.core.dataset import DataSet
-from operator import add, sub, mul
-from operator import truediv as div
-from quantipy.core.view import View
-from quantipy.core.cache import Cache
-from quantipy.core.tools.view.logic import (
-    has_any, has_all, has_count,
-    not_any, not_all, not_count,
-    is_lt, is_ne, is_gt,
-    is_le, is_eq, is_ge,
-    union, intersection, get_logic_index)
-from quantipy.core.helpers.functions import emulate_meta
-from quantipy.core.tools.dp.prep import recode
-
 import copy
-import time
+
+from quantipy.core.tools.dp.prep import recode
+from quantipy.core.tools.view.logic import get_logic_index, intersection, not_count
 
 np.seterr(invalid='ignore')
 
@@ -44,7 +33,7 @@ class Quantity:
     # -------------------------------------------------
     def __init__(
         self,
-        link: 'Link',
+        link: Link,
         weight: str | None = None,
         base_all: bool = False,
         ignore_flags: bool = False
@@ -64,7 +53,7 @@ class Quantity:
         self._cache = link.get_cache()
         self.f = link.filter
         self.x = link.x
-        if not self.x == '@':
+        if self.x != '@':
             ds_type = self.ds._get_type(self.x)
             if ds_type in ['date', 'string']:
                 msg = "Cannot aggregate {} of type '{}'. Categorize first!"
@@ -76,7 +65,7 @@ class Quantity:
         self.type = self._get_type()
         if self.type == 'nested':
             self.nest_def = Nest(self.y, self.d(), self.meta()).nest()
-        if not self.x == '@':
+        if self.x != '@':
             self.leveled = self.ds.get_property(self.x, 'level')
         else:
             self.leveled = False
@@ -97,10 +86,8 @@ class Quantity:
 
     def __repr__(self) -> str:
         if self.result is not None:
-            return '%s' % (self.result)
-        else:
-            return 'Quantity - x: {}, xdef: {} y: {}, ydef: {}, w: {}'.format(
-                self.x, self.xdef, self.y, self.ydef, self.w)
+            return f'{self.result}'
+        return f'Quantity - x: {self.x}, xdef: {self.xdef} y: {self.y}, ydef: {self.ydef}, w: {self.w}'
 
     # -------------------------------------------------
     # Matrix creation and retrievel
@@ -137,6 +124,7 @@ class Quantity:
                 return 'simple'
         else:
             return 'simple'
+        return None
 
     def _get_wv(self):
         """
@@ -149,14 +137,12 @@ class Quantity:
         Weight by multiplying the indicator entries with the weight vector.
         """
         self.matrix *=  np.atleast_3d(self.wv)
-        return None
 
     def unweight(self):
         """
         Remove any weighting by dividing the matrix by itself.
         """
         self.matrix /= self.matrix
-        return None
 
     def _get_total(self):
         """
@@ -199,7 +185,6 @@ class Quantity:
             else:
                 self.__dict__[prop] = None
             self.result = None
-        return None
 
     def swap(self, var, axis='x', update_axis_def=True, inplace=True):
         """
@@ -226,7 +211,7 @@ class Quantity:
         swapped : New Quantity instance with exchanged x- or y-axis.
         """
         array_swap = self.ds.is_array(self.x)
-        if array_swap and not axis == 'x':
+        if array_swap and axis != 'x':
             err  = "Cannot swap y-axis on array type Quantity!"
             raise NotImplementedError(err)
         test_arrays = self.ds._is_array_item(self.x) or self.ds.is_array(self.x)
@@ -237,7 +222,7 @@ class Quantity:
                 org_sources = self.ds.sources(org_parent)
             else:
                 org_sources = self.ds.sources(self.x)
-            if not len(org_sources) == len(new_sources) and array_swap:
+            if len(org_sources) != len(new_sources) and array_swap:
                 err = "Cannot swap array-type Quantity with array of different "
                 err += "source items length ({} vs. {})!"
                 err = err.format(len(org_sources), len(new_sources))
@@ -258,10 +243,7 @@ class Quantity:
             x = self.x
             y = var
         f, w = self.f, self.w
-        if inplace:
-            swapped = self
-        else:
-            swapped = self._copy()
+        swapped = self if inplace else self._copy()
         swapped._reset()
         swapped.x, swapped.y = x, y
         swapped.f, swapped.w = f, w
@@ -274,6 +256,7 @@ class Quantity:
             swapped.ydef = org_ydef
         if not inplace:
             return swapped
+        return None
 
     def rescale(self, scaling, drop=False):
         """
@@ -322,10 +305,7 @@ class Quantity:
         """
         Use a Quantipy conditional expression to filter the data matrix entires.
         """
-        if inplace:
-            filtered = self
-        else:
-            filtered = self._copy()
+        filtered = self if inplace else self._copy()
         qualified_rows = self._get_logic_qualifiers(condition)
         valid_rows = self.idx_map[self.idx_map[:, 0] == 1][:, 1]
         filter_idx = np.in1d(valid_rows, qualified_rows)
@@ -335,6 +315,7 @@ class Quantity:
             filtered.matrix[~filter_idx, :, :] = np.NaN
         if not inplace:
             return filtered
+        return None
 
     def _get_logic_qualifiers(self, condition):
         if not isinstance(condition, dict):
@@ -345,7 +326,7 @@ class Quantity:
             logic = list(condition.values())[0]
         idx, logical_expression = get_logic_index(self.d()[column], logic, self.d())
         logical_expression = logical_expression.split(':')[0]
-        if not column == self.x:
+        if column != self.x:
             logical_expression = logical_expression.replace('x[', column+'[')
         self.logical_conditions.append(logical_expression)
         return idx
@@ -382,51 +363,47 @@ class Quantity:
             Either a new matrix is returned as numpy.array or the ``matrix``
             property is modified inplace.
         """
-        if inplace:
-            missingfied = self
-        else:
-            missingfied = self._copy()
-        if axis == 'y' and self.y == '@' and not self.type == 'array':
+        missingfied = self if inplace else self._copy()
+        if axis == 'y' and self.y == '@' and self.type != 'array':
             return self
-        elif axis == 'y' and self.type == 'array':
+        if axis == 'y' and self.type == 'array':
             ni_err = 'Cannot missingfy array mask element sections!'
             raise NotImplementedError(ni_err)
-        else:
+        if axis == 'y':
+            missingfied._switch_axes()
+        mis_ix = missingfied._get_drop_idx(codes, keep_codes)
+        mis_ix = [code + 1 for code in mis_ix]
+        if mis_ix is not None:
+            for ix in mis_ix:
+                np.place(missingfied.matrix[:, ix],
+                         missingfied.matrix[:, ix] > 0, np.NaN)
+            if not keep_base:
+                if axis == 'x':
+                    missingfied.miss_x = codes
+                else:
+                    missingfied.miss_y = codes
+                if self.type == 'array':
+                    mask = np.nansum(missingfied.matrix[:, missingfied._x_indexers],
+                                     axis=1, keepdims=True)
+                    mask /= mask
+                    mask = mask > 0
+                else:
+                    mask = np.nansum(np.sum(missingfied.matrix,
+                                            axis=1, keepdims=False),
+                                     axis=1, keepdims=True) > 0
+                mask = np.where(~mask)
+                missingfied.matrix[mask] = np.NaN
             if axis == 'y':
                 missingfied._switch_axes()
-            mis_ix = missingfied._get_drop_idx(codes, keep_codes)
-            mis_ix = [code + 1 for code in mis_ix]
-            if mis_ix is not None:
-                for ix in mis_ix:
-                    np.place(missingfied.matrix[:, ix],
-                             missingfied.matrix[:, ix] > 0, np.NaN)
-                if not keep_base:
-                    if axis == 'x':
-                        missingfied.miss_x = codes
-                    else:
-                        missingfied.miss_y = codes
-                    if self.type == 'array':
-                        mask = np.nansum(missingfied.matrix[:, missingfied._x_indexers],
-                                         axis=1, keepdims=True)
-                        mask /= mask
-                        mask = mask > 0
-                    else:
-                        mask = np.nansum(np.sum(missingfied.matrix,
-                                                axis=1, keepdims=False),
-                                         axis=1, keepdims=True) > 0
-                    mask = np.where(~mask)
-                    missingfied.matrix[mask] = np.NaN
-                if axis == 'y':
-                    missingfied._switch_axes()
-            if inplace:
-                self = missingfied
-                if indices:
-                    return mis_ix
-            else:
-                if indices:
-                    return missingfied, mis_ix
-                else:
-                    return missingfied
+        if inplace:
+            self = missingfied
+            if indices:
+                return mis_ix
+        elif indices:
+            return missingfied, mis_ix
+        else:
+            return missingfied
+        return None
 
     def _autodrop_stats_missings(self):
         if self.x == '@':
@@ -434,7 +411,6 @@ class Quantity:
         elif self.ds._has_missings(self.x):
             to_drop = self.ds._get_missing_list(self.x, globally=False)
             self.exclude(to_drop)
-        return None
 
     def _clean_from_global_missings(self):
         if self.x == '@':
@@ -451,7 +427,6 @@ class Quantity:
             self._x_indexers = self._get_x_indexers()
         else:
             pass
-        return None
 
     def _drop_pairwise(self):
         if self.ds._has_missings(self.y):
@@ -479,17 +454,15 @@ class Quantity:
         """
         if codes is None:
             return None
-        else:
-            if keep:
-                return [self.xdef.index(code) for code in self.xdef
-                        if code not in codes]
-            else:
-                return [self.xdef.index(code) for code in codes
-                        if code in self.xdef]
+        if keep:
+            return [self.xdef.index(code) for code in self.xdef
+                    if code not in codes]
+        return [self.xdef.index(code) for code in codes
+                if code in self.xdef]
 
     @classmethod
     def _is_complex_logic(cls, logic):
-        return isinstance(logic, (tuple, dict))
+        return isinstance(logic, tuple | dict)
 
     def group(self, groups, axis='x', expand=None, complete=False):
         """
@@ -524,14 +497,14 @@ class Quantity:
         if axis == 'y' and self.type == 'array':
             ni_err_array = 'Array mask element sections cannot be combined.'
             raise NotImplementedError(ni_err_array)
-        elif axis == 'y' and self.y == '@':
+        if axis == 'y' and self.y == '@':
             val_err = 'Total link has no y-axis codes to combine.'
             raise ValueError(val_err)
         grp_def = self._organize_grp_def(groups, expand, complete, axis)
         combines = []
         names = []
-        if self.type == 'array' and any(self._is_complex_logic(l[1])
-                                        for l in grp_def):
+        if self.type == 'array' and any(self._is_complex_logic(logic_def[1])
+                                        for logic_def in grp_def):
             msg = ('Cannot use complex logic for array summary grouping')
             raise NotImplementedError(msg)
         # generate the net vectors (+ possible expanded originating codes)
@@ -553,11 +526,11 @@ class Quantity:
                 m_idx = self._sort_indexer_as_codes(m_idx, group)
                 if exp == 'after':
                     names.extend(name)
-                    names.extend([c for c in group])
+                    names.extend(list(group))
                     combines.append(
                         np.concatenate([vec, self.matrix[:, m_idx]], axis=1))
                 else:
-                    names.extend([c for c in group])
+                    names.extend(list(group))
                     names.extend(name)
                     combines.append(
                         np.concatenate([self.matrix[:, m_idx], vec], axis=1))
@@ -576,7 +549,7 @@ class Quantity:
             combined_matrix = combined_matrix.swapaxes(1, 2)
             self._switch_axes()
         # update the sectional information
-        new_sect_def = list(range(0, combined_matrix.shape[1] - 1))
+        new_sect_def = list(range(combined_matrix.shape[1] - 1))
         if axis == 'x':
             self.xdef = new_sect_def
             self._x_indexers = self._get_x_indexers()
@@ -626,14 +599,14 @@ class Quantity:
 
     def _grp_type(self, grp_def):
         if isinstance(grp_def, list):
-            if not isinstance(grp_def[0], (int, float)):
+            if not isinstance(grp_def[0], int | float):
                 return 'block'
-            else:
-                return 'list'
-        elif isinstance(grp_def, tuple):
+            return 'list'
+        if isinstance(grp_def, tuple):
             return 'logical'
-        elif isinstance(grp_def, dict):
+        if isinstance(grp_def, dict):
             return 'wildcard'
+        return None
 
     def _add_unused_codes(self, grp_def_list, axis):
         '''
@@ -641,19 +614,16 @@ class Quantity:
         query_codes = self.xdef if axis == 'x' else self.ydef
         frame_lookup = {c: [[c], [c], None, False] for c in query_codes}
         frame = [[code] for code in query_codes]
-        for grpdef_idx, grpdef in enumerate(grp_def_list):
+        for _grpdef_idx, grpdef in enumerate(grp_def_list):
             for code in grpdef[1]:
                 if [code] in frame:
                     if grpdef not in frame:
                         frame[frame.index([code])] = grpdef
                     else:
                         frame[frame.index([code])] = '-'
-        frame = [code for code in frame if not code == '-']
+        frame = [code for code in frame if code != '-']
         for code in frame:
-            if isinstance(code[0], list):
-                check = code[0][0]
-            else:
-                check = code[0]
+            check = code[0][0] if isinstance(code[0], list) else code[0]
             if check in list(frame_lookup.keys()):
                frame[frame.index([code[0]])] = frame_lookup[code[0]]
         return frame
@@ -668,10 +638,10 @@ class Quantity:
         any_logical = False
         if method_expand is None and complete:
             method_expand = 'before'
-        if not self._grp_type(grp_def) == 'block':
+        if self._grp_type(grp_def) != 'block':
             grp_def = [{'net': grp_def, 'expand': method_expand}]
         for grp in grp_def:
-            if any(isinstance(val, (tuple, dict)) for val in list(grp.values())):
+            if any(isinstance(val, tuple | dict) for val in list(grp.values())):
                 if complete:
                     ni_err = ('Logical expr. unsupported when complete=True. '
                               'Only list-type nets/groups can be completed.')
@@ -703,8 +673,7 @@ class Quantity:
                 raise NotImplementedError(ni_err_extensions)
         if complete:
             return self._add_unused_codes(organized_def, axis)
-        else:
-            return organized_def
+        return organized_def
 
     def _force_to_nparray(self):
         """
@@ -713,8 +682,7 @@ class Quantity:
         if isinstance(self.result, pd.DataFrame):
             self.result = self.result.values
             return True
-        else:
-            return False
+        return False
 
     def _attach_margins(self):
         """
@@ -722,7 +690,7 @@ class Quantity:
         """
         if not self._res_is_stat():
             values = self.result
-            if not self._has_y_margin and not self.y == '@':
+            if not self._has_y_margin and self.y != '@':
                 margins = False
                 values = np.concatenate([self.rbase[1:, :], values], 1)
             else:
@@ -734,8 +702,7 @@ class Quantity:
                 margins = True
             self.result = values
             return margins
-        else:
-            return False
+        return False
 
     def _organize_expr_def(self, expression, axis):
         """
@@ -756,23 +723,23 @@ class Quantity:
         idx_err = '"{}" not found in {}-axis.'
         # [1] input is 1. scalar, 2. vector from the agg. result
         if isinstance(val1, list):
-            if not val2 in idx_c:
+            if val2 not in idx_c:
                 raise IndexError(idx_err.format(val2, axis))
             val1 = val1[0]
             val2 = idx_c.index(val2) + offset
             expr_type = 'scalar_1'
         # [2] input is 1. vector from the agg. result, 2. scalar
         elif isinstance(val2, list):
-            if not val1 in idx_c:
+            if val1 not in idx_c:
                 raise IndexError(idx_err.format(val1, axis))
             val1 = idx_c.index(val1) + offset
             val2 = val2[0]
             expr_type = 'scalar_2'
         # [3] input is two vectors from the agg. result
         elif not any(isinstance(val, list) for val in [val1, val2]):
-            if not val1 in idx_c:
+            if val1 not in idx_c:
                 raise IndexError(idx_err.format(val1, axis))
-            if not val2 in idx_c:
+            if val2 not in idx_c:
                 raise IndexError(idx_err.format(val2, axis))
             val1 = idx_c.index(val1) + offset
             val2 = idx_c.index(val2) + offset
@@ -790,11 +757,11 @@ class Quantity:
         unsupported = ['cbase', 'ebase', 'rbase', 'summary', 'x_sum', 'y_sum']
         if self.result is None:
             raise ValueError('No aggregation to base calculation on.')
-        elif self.current_agg in unsupported:
+        if self.current_agg in unsupported:
             ni_err = 'Aggregation type "{}" not supported.'
             raise NotImplementedError(ni_err.format(self.current_agg))
-        elif axis not in ['x', 'y']:
-            raise ValueError('Invalid axis parameter: {}'.format(axis))
+        if axis not in ['x', 'y']:
+            raise ValueError(f'Invalid axis parameter: {axis}')
         is_df = self._force_to_nparray()
         has_margin = self._attach_margins()
         values = self.result
@@ -909,7 +876,7 @@ class Quantity:
                 self.current_agg = 'cbase'
         elif axis == 'y':
             self.current_agg = 'rbase' if not raw_sum else 'y_sum'
-        if not self.w == '@1' and not effective:
+        if self.w != '@1' and not effective:
             self.weight()
         if not self.is_empty or (self._uses_meta and not self._blank_numeric()):
             if not effective:
@@ -928,8 +895,10 @@ class Quantity:
             if cum_sum:
                 np.cumsum(counts[1:, :], axis=0, out=counts[1:, :])
                 # updating margins!
-                if self.rbase is not None: self.rbase = counts[:, [0]]
-                if self.cbase is not None: self.cbase = counts[[0], :]
+                if self.rbase is not None:
+                    self.rbase = counts[:, [0]]
+                if self.cbase is not None:
+                    self.cbase = counts[[0], :]
                 self.result = counts
         elif axis == 'x':
             if raw_sum:
@@ -956,15 +925,15 @@ class Quantity:
         blank_x = False
         blank_y = False
         numeric = ['int', 'float']
-        if not self._get_type() == 'array':
+        if self._get_type() != 'array':
             if self._meta()['columns'][self.x]['type'] in numeric:
                 if len(self.xdef) == 0:
                     blank_x = True
-            if not self.y == '@':
+            if self.y != '@':
                 if self._meta()['columns'][self.y]['type'] in numeric:
                     if len(self.ydef) == 0:
                         blank_y = True
-        blank_numeric = True if (blank_x or blank_y) else False
+        blank_numeric = bool(blank_x or blank_y)
         return blank_numeric
 
     def _empty_result(self):
@@ -977,27 +946,24 @@ class Quantity:
                 ydim = 2
             else:
                 ydim = len(self.ydef)
-                if not self.type == 'array': ydim += 1
-        else:
-            if self.xdef is not None:
-                if len(self.xdef) == 0:
-                    xdim = 2
-                else:
-                    xdim = len(self.xdef) + 1
-                if self.ydef is None:
-                    ydim = 1
-                elif self.ydef is not None and len(self.ydef) == 0:
-                    ydim = 2
-                else:
-                    ydim = len(self.ydef) + 1
-            elif self.xdef is None:
-                xdim = 2
-                if self.ydef is None:
-                    ydim = 1
-                elif self.ydef is not None and len(self.ydef) == 0:
-                    ydim = 2
-                else:
-                    ydim = len(self.ydef) + 1
+                if self.type != 'array':
+                    ydim += 1
+        elif self.xdef is not None:
+            xdim = 2 if len(self.xdef) == 0 else len(self.xdef) + 1
+            if self.ydef is None:
+                ydim = 1
+            elif self.ydef is not None and len(self.ydef) == 0:
+                ydim = 2
+            else:
+                ydim = len(self.ydef) + 1
+        elif self.xdef is None:
+            xdim = 2
+            if self.ydef is None:
+                ydim = 1
+            elif self.ydef is not None and len(self.ydef) == 0:
+                ydim = 2
+            else:
+                ydim = len(self.ydef) + 1
         return np.zeros((xdim, ydim))
 
     def _effective_n(self, axis=None, margin=True):
@@ -1008,10 +974,9 @@ class Quantity:
         start_on = 0 if margin else 1
         if axis is None:
             return effective[start_on:, start_on:]
-        elif axis == 'x':
+        if axis == 'x':
             return effective[[0], start_on:]
-        else:
-            return effective[start_on:, [0]]
+        return effective[start_on:, [0]]
 
     def summarize(self, stat='summary', axis='x', margin=True, as_df=True):
         """
@@ -1084,10 +1049,7 @@ class Quantity:
 
     def _factorize(self, axis='x', inplace=True):
         self.factorized = axis
-        if inplace:
-            factorized = self
-        else:
-            factorized = self._copy()
+        factorized = self if inplace else self._copy()
         if axis == 'y':
             factorized._switch_axes()
         np.copyto(factorized.matrix[:, 1:, :],
@@ -1095,10 +1057,11 @@ class Quantity:
                   where=factorized.matrix[:, 1:, :]>0)
         if not inplace:
             return factorized
+        return None
 
     def _means(self, axis, _return_base=False):
         fact = self._factorize(axis=axis, inplace=False)
-        if not self.w == '@1':
+        if self.w != '@1':
             fact.weight()
         fact_prod = np.nansum(fact.matrix, axis=0)
         fact_prod_sum = np.nansum(fact_prod[1:, :], axis=0, keepdims=True)
@@ -1110,8 +1073,7 @@ class Quantity:
             bases = bases.T
         if _return_base:
             return means, bases
-        else:
-            return means
+        return means
 
     def _dispersion(self, axis='x', measure='sd', _return_mean=False,
                     _return_base=False):
@@ -1127,7 +1089,7 @@ class Quantity:
         factorized = self._factorize(axis, inplace=False)
         factorized.matrix[:, 1:] -= means
         factorized.matrix[:, 1:] *= factorized.matrix[:, 1:, :]
-        if not self.w == '@1':
+        if self.w != '@1':
             factorized.weight()
         diff_sqrt = np.nansum(factorized.matrix[:, 1:], axis=1)
         disp = np.nansum(diff_sqrt/unbiased_n, axis=0, keepdims=True)
@@ -1136,18 +1098,17 @@ class Quantity:
         if measure == 'sd':
             disp = np.sqrt(disp)
         elif measure == 'sem':
-            disp = np.sqrt(disp) / np.sqrt((unbiased_n + 1))
+            disp = np.sqrt(disp) / np.sqrt(unbiased_n + 1)
         elif measure == 'varcoeff':
             disp = np.sqrt(disp) / means
         self.unweight()
         if _return_mean and _return_base:
             return disp, means, bases
-        elif _return_mean:
+        if _return_mean:
             return disp, means
-        elif _return_base:
+        if _return_base:
             return disp, bases
-        else:
-            return disp
+        return disp
 
     def _max(self, axis='x'):
         factorized = self._factorize(axis, inplace=False)
@@ -1157,7 +1118,8 @@ class Quantity:
     def _min(self, axis='x'):
         factorized = self._factorize(axis, inplace=False)
         vals = np.nansum(factorized.matrix[:, 1:, :], axis=1)
-        if 0 not in factorized.xdef: np.place(vals, vals == 0, np.inf)
+        if 0 not in factorized.xdef:
+            np.place(vals, vals == 0, np.inf)
         return np.nanmin(vals, axis=0, keepdims=True)
 
     def _percentile(self, axis='x', perc=0.5):
@@ -1191,7 +1153,7 @@ class Quantity:
         factorized = self._factorize(axis, inplace=False)
         vals = np.nansum(np.nansum(factorized.matrix[:, 1:, :], axis=1,
                                    keepdims=True), axis=1)
-        for shape_i in range(0, vals.shape[1]):
+        for shape_i in range(vals.shape[1]):
             iter_weights = w[:, shape_i]
             iter_vals = vals[:, shape_i]
             mask = ~np.isnan(iter_weights)
@@ -1221,35 +1183,32 @@ class Quantity:
                 excess = k - wcsum_k
                 if excess >= 1.0:
                     percs.append(p_k1)
+                elif w_k1 >= 1.0:
+                    percs.append((1.0-excess)*p_k + excess*p_k1)
                 else:
-                    if w_k1 >= 1.0:
-                        percs.append((1.0-excess)*p_k + excess*p_k1)
-                    else:
-                        percs.append((1.0-(excess/w_k1))*p_k +
-                                     (excess/w_k1)*p_k1)
+                    percs.append((1.0-(excess/w_k1))*p_k +
+                                 (excess/w_k1)*p_k1)
         return np.array(percs)[None, :]
 
     def _organize_margins(self, margin):
         if self._res_is_stat():
             if self.type == 'array' or self.y == '@' or self.x == '@':
                 self._has_y_margin = self._has_x_margin = False
-            else:
-                if self.factorized == 'x':
-                    if not margin:
-                        self._has_x_margin = False
-                        self._has_y_margin = False
-                        self.result = self.result[:, 1:]
-                    else:
-                        self._has_x_margin = False
-                        self._has_y_margin = True
+            elif self.factorized == 'x':
+                if not margin:
+                    self._has_x_margin = False
+                    self._has_y_margin = False
+                    self.result = self.result[:, 1:]
                 else:
-                    if not margin:
-                        self._has_x_margin = False
-                        self._has_y_margin = False
-                        self.result = self.result[1:, :]
-                    else:
-                        self._has_x_margin = True
-                        self._has_y_margin = False
+                    self._has_x_margin = False
+                    self._has_y_margin = True
+            elif not margin:
+                self._has_x_margin = False
+                self._has_y_margin = False
+                self.result = self.result[1:, :]
+            else:
+                self._has_x_margin = True
+                self._has_y_margin = False
         if self._res_is_margin():
             if self.y == '@' or self.x == '@':
                 if self.current_agg in ['cbase', 'x_sum', 'ebase']:
@@ -1285,19 +1244,18 @@ class Quantity:
                 else:
                     self._has_x_margin = True
                     self._has_y_margin = False
+            elif not margin:
+                self.result = self.result[1:, 1:]
+                self._has_x_margin = False
+                self._has_y_margin = False
             else:
-                if not margin:
-                    self.result = self.result[1:, 1:]
-                    self._has_x_margin = False
-                    self._has_y_margin = False
-                else:
-                    self._has_x_margin = True
-                    self._has_y_margin = True
+                self._has_x_margin = True
+                self._has_y_margin = True
         else:
             pass
 
     def _sort_indexer_as_codes(self, indexer, codes):
-        mapping = sorted(zip(indexer, codes), key=lambda l: l[1])
+        mapping = sorted(zip(indexer, codes, strict=False), key=lambda item: item[1])
         return [i[0] for i in mapping]
 
     def _get_y_indexers(self):
@@ -1305,32 +1263,29 @@ class Quantity:
             if self.ydef is not None:
                 idxs = list(range(1, len(self.ydef)+1))
                 return self._sort_indexer_as_codes(idxs, self.ydef)
+            return [1]
+        y_indexers = []
+        xdef_len = len(self.xdef)
+        zero_based_ys = list(range(xdef_len))
+        for y_no in range(len(self.ydef)):
+            if y_no == 0:
+                y_indexers.append(zero_based_ys)
             else:
-                return [1]
-        else:
-            y_indexers = []
-            xdef_len = len(self.xdef)
-            zero_based_ys = [idx for idx in range(0, xdef_len)]
-            for y_no in range(0, len(self.ydef)):
-                if y_no == 0:
-                    y_indexers.append(zero_based_ys)
-                else:
-                    y_indexers.append([idx + y_no * xdef_len
-                                       for idx in zero_based_ys])
+                y_indexers.append([idx + y_no * xdef_len
+                                   for idx in zero_based_ys])
         return y_indexers
 
     def _get_x_indexers(self):
         if self._squeezed or self.type in ['simple', 'nested']:
             idxs = list(range(1, len(self.xdef)+1))
             return self._sort_indexer_as_codes(idxs, self.xdef)
-        else:
-            x_indexers = []
-            upper_x_idx = len(self.ydef)
-            start_x_idx = [len(self.xdef) * offset
-                           for offset in range(0, upper_x_idx)]
-            for x_no in range(0, len(self.xdef)):
-                x_indexers.append([idx + x_no for idx in start_x_idx])
-            return x_indexers
+        x_indexers = []
+        upper_x_idx = len(self.ydef)
+        start_x_idx = [len(self.xdef) * offset
+                       for offset in range(upper_x_idx)]
+        for x_no in range(len(self.xdef)):
+            x_indexers.append([idx + x_no for idx in start_x_idx])
+        return x_indexers
 
     def _squeeze_dummies(self):
         """
@@ -1356,7 +1311,7 @@ class Quantity:
         elif self.type in ['simple', 'nested']:
             x = self.matrix[:, :len(self.xdef)+1]
             y = self.matrix[:, len(self.xdef)+1:-1]
-            for i in range(0, y.shape[1]):
+            for i in range(y.shape[1]):
                 sects.append(x * y[:, [i]])
             sects = np.dstack(sects)
             self._squeezed = True
@@ -1376,25 +1331,24 @@ class Quantity:
         if self.type == 'array':
             xm, self.xdef, self.ydef = self.ds.make_dummy(self.x, True)
             self.matrix = np.concatenate((xm, wv), 1)
+        elif self.y == '@' or self.x == '@':
+            section = self.x if self.y == '@' else self.y
+            xm, self.xdef = self._cache.get_obj('matrices', section)
+            if xm is None:
+                xm, self.xdef = self.ds.make_dummy(section, True)
+                self._cache.set_obj('matrices', section, (xm, self.xdef))
+            self.ydef = None
+            self.matrix = np.concatenate((total, xm, total, wv), 1)
         else:
-            if self.y == '@' or self.x == '@':
-                section = self.x if self.y == '@' else self.y
-                xm, self.xdef = self._cache.get_obj('matrices', section)
-                if xm is None:
-                    xm, self.xdef = self.ds.make_dummy(section, True)
-                    self._cache.set_obj('matrices', section, (xm, self.xdef))
-                self.ydef = None
-                self.matrix = np.concatenate((total, xm, total, wv), 1)
-            else:
-                xm, self.xdef = self._cache.get_obj('matrices', self.x)
-                if xm is None:
-                    xm, self.xdef = self.ds.make_dummy(self.x, True)
-                    self._cache.set_obj('matrices', self.x, (xm, self.xdef))
-                ym, self.ydef = self._cache.get_obj('matrices', self.y)
-                if ym is None:
-                    ym, self.ydef = self.ds.make_dummy(self.y, True)
-                    self._cache.set_obj('matrices', self.y, (ym, self.ydef))
-                self.matrix = np.concatenate((total, xm, total, ym, wv), 1)
+            xm, self.xdef = self._cache.get_obj('matrices', self.x)
+            if xm is None:
+                xm, self.xdef = self.ds.make_dummy(self.x, True)
+                self._cache.set_obj('matrices', self.x, (xm, self.xdef))
+            ym, self.ydef = self._cache.get_obj('matrices', self.y)
+            if ym is None:
+                ym, self.ydef = self.ds.make_dummy(self.y, True)
+                self._cache.set_obj('matrices', self.y, (ym, self.ydef))
+            self.matrix = np.concatenate((total, xm, total, ym, wv), 1)
         self.matrix = self.matrix[self._dataidx]
         self.matrix = self._clean()
         self._squeeze_dummies()
@@ -1408,7 +1362,7 @@ class Quantity:
         """
         mat = self.matrix.copy()
         mat_indexer = np.expand_dims(self._dataidx, 1)
-        if not self.type == 'array':
+        if self.type != 'array':
             xmask = (np.nansum(mat[:, 1:len(self.xdef)+1], axis=1) > 0)
             if self.ydef is not None:
                 if self.base_all:
@@ -1418,15 +1372,13 @@ class Quantity:
                 self.idx_map = np.concatenate(
                     [np.expand_dims(xmask & ymask, 1), mat_indexer], axis=1)
                 return mat[xmask & ymask]
-            else:
-                self.idx_map = np.concatenate(
-                    [np.expand_dims(xmask, 1), mat_indexer], axis=1)
-                return mat[xmask]
-        else:
-            mask = (np.nansum(mat[:, :-1], axis=1) > 0)
             self.idx_map = np.concatenate(
-                [np.expand_dims(mask, 1), mat_indexer], axis=1)
-            return mat[mask]
+                [np.expand_dims(xmask, 1), mat_indexer], axis=1)
+            return mat[xmask]
+        mask = (np.nansum(mat[:, :-1], axis=1) > 0)
+        self.idx_map = np.concatenate(
+            [np.expand_dims(mask, 1), mat_indexer], axis=1)
+        return mat[mask]
 
     def _res_from_count(self):
         return self._res_is_margin() or self.current_agg == 'freq'
@@ -1485,14 +1437,13 @@ class Quantity:
         # can this made smarter WITHOUT 1000000 IF-ELSEs above?:
         ignore = ['freq', 'cbase', 'x_sum', 'summary', 'calc', 'ebase']
         if ((self.current_agg in ignore or self._res_is_stat()) and
-             not self.type == 'array'):
-            if self.y == '@' or self.x == '@':
-                self.y_agg_vals = '@'
+             self.type != 'array') and (self.y == '@' or self.x == '@'):
+            self.y_agg_vals = '@'
         df = pd.DataFrame(self.result)
         idx, cols = self._make_multiindex()
         df.index = idx
         df.columns = cols
-        self.result = df if not self.x == '@' else df.T
+        self.result = df if self.x != '@' else df.T
         if self.type == 'nested':
             self._format_nested_axis()
         return self
@@ -1504,8 +1455,10 @@ class Quantity:
             x_grps = [x_grps]
         if not isinstance(y_grps, list):
             y_grps = [y_grps]
-        if not x_grps: x_grps = [None]
-        if not y_grps: y_grps = [None]
+        if not x_grps:
+            x_grps = [None]
+        if not y_grps:
+            y_grps = [None]
         if self._has_x_margin:
             x_grps = ['All'] + x_grps
         if self._has_y_margin:
@@ -1515,12 +1468,14 @@ class Quantity:
             x_names = ['Question', 'Values']
             y_names = ['Array', 'Questions']
         else:
-            x_unit = self.x if not self.x == '@' else self.y
-            y_unit = self.y if not self.y == '@' else self.x
+            x_unit = self.x if self.x != '@' else self.y
+            y_unit = self.y if self.y != '@' else self.x
             x_names = y_names = ['Question', 'Values']
 
-        if not isinstance(x_unit, list): x_unit = [x_unit]
-        if not isinstance(y_unit, list): y_unit = [y_unit]
+        if not isinstance(x_unit, list):
+            x_unit = [x_unit]
+        if not isinstance(y_unit, list):
+            y_unit = [y_unit]
         x = [x_unit, x_grps]
         y = [y_unit, y_grps]
         index = pd.MultiIndex.from_product(x, names=x_names)
@@ -1539,16 +1494,15 @@ class Quantity:
                                                   names=nest_mi.names)
             full_nest_mi = nest_mi.union(total_mi)
             for lvl, c in zip(list(range(1, len(full_nest_mi)+1, 2)),
-                              self.nest_def['level_codes']):
+                              self.nest_def['level_codes'], strict=False):
                 full_nest_mi.set_levels(['All'] + c, level=lvl, inplace=True)
             self.result.columns = full_nest_mi
-        return None
 
     def _make_nest_multiindex(self):
         values = []
         names = ['Question', 'Values'] * (self.nest_def['levels'])
         for lvl_var, lvl_c in zip(self.nest_def['variables'],
-                                  self.nest_def['level_codes']):
+                                  self.nest_def['level_codes'], strict=False):
             values.append([lvl_var])
             values.append(lvl_c)
         mi = pd.MultiIndex.from_product(values, names=names)
@@ -1567,15 +1521,15 @@ class Quantity:
         other_q = self.swap(other, update_axis_def=False, inplace=False)
         other_len = len(other_q.xdef)
         q_len = len(self.xdef)
-        if not other_len == q_len:
+        if other_len != q_len:
             err = "Cannot normalize on '{}', shapes do not match! ({} vs. {})"
             raise ValueError(err.format(other, q_len, other_len))
         has_margin = self._attach_margins()
         counts = other_q.count(as_df=False, margin=has_margin).result
         self._organize_margins(has_margin)
         self.result = (self.result / counts) * 100
-        if is_df: self.to_df()
-        return None
+        if is_df:
+            self.to_df()
 
     def normalize(self, on='y', per_cell=False):
         """
@@ -1613,32 +1567,26 @@ class Quantity:
             org_res = self.result
             base = self.count(raw_sum=True, axis='x', as_df=False).result
             self.result, self.current_agg = org_res, org_agg
-            if has_margin: self.result[0, :] = base[0, :]
+            if has_margin:
+                self.result[0, :] = base[0, :]
             self.result = self.result / base * 100
             self._organize_margins(has_margin)
-            if is_df: self.to_df()
+            if is_df:
+                self.to_df()
         elif other_counts:
             self._normalize_on_cells(on)
         else:
-            if self.x == '@': on = 'y' if on == 'x' else 'x'
+            if self.x == '@':
+                on = 'y' if on == 'x' else 'x'
             if on == 'y' or other_base:
                 if self._has_y_margin or self.y == '@' or self.x == '@':
-                    if not other_base:
-                        base = self.cbase
-                    else:
-                        base = self._get_other_base(on)
+                    base = self.cbase if not other_base else self._get_other_base(on)
                 else:
-                    if not other_base:
-                        base = self.cbase
-                    else:
-                        base = self._get_other_base(on)
+                    base = self.cbase if not other_base else self._get_other_base(on)
                     if self._get_type() != 'array':
                         base = base[:, 1:]
             elif on == 'x':
-                if self._has_x_margin:
-                    base = self.rbase
-                else:
-                    base = self.rbase[1:, :]
+                base = self.rbase if self._has_x_margin else self.rbase[1:, :]
             if isinstance(self.result, pd.DataFrame):
                 if self.x == '@':
                     self.result = self.result.T
@@ -1657,26 +1605,22 @@ class Quantity:
 
     @staticmethod
     def _sects_different_order(axdef1, axdef2):
-        if not len(axdef1) == len(axdef2):
+        if len(axdef1) != len(axdef2):
             return False
-        else:
-            if (x for x in axdef1 if x in axdef2):
-                return True
-            else:
-                return False
+        return bool(x for x in axdef1 if x in axdef2)
 
     @staticmethod
     def _sect_is_subset(axdef1, axdef2):
         return set(axdef1).intersection(set(axdef2)) > 0
 
-class Test(object):
+class Test:
     """
     The Quantipy Test object is a defined by a Link and the view name notation
     string of a counts or means view. All auxiliary figures needed to arrive
     at the test results are computed inside the instance of the object.
     """
     def __init__(self, link, view_name_notation, test_total=False):
-        super(Test, self).__init__()
+        super().__init__()
         # Infer whether a mean or proportion test is being performed
         view = link[view_name_notation]
         if view.meta()['agg']['method'] == 'descriptives':
@@ -1719,10 +1663,8 @@ class Test(object):
         self.multiindex = (view.dataframe.index, view.dataframe.columns)
 
     def __repr__(self):
-        return ('%s, total included: %s, test metric: %s, parameters: %s, '
-                'mimicked: %s, level: %s ')\
-                % (Test, self.test_total, self.metric, self.parameters,
-                   self.mimic, self.level)
+        return (f'{Test}, total included: {self.test_total}, test metric: {self.metric}, parameters: {self.parameters}, '
+                f'mimicked: {self.mimic}, level: {self.level} ')
 
     def _get_testpairs_definitons(self, view):
         if not self.is_nested:
@@ -1736,8 +1678,8 @@ class Test(object):
             self.idmap = {}
             self._valid_pairs = []
             for i in range(1, repeat):
-                sect_codes = [int((str(c) * i)) for c in codes]
-                for old, new in zip(codes, sect_codes):
+                sect_codes = [int(str(c) * i) for c in codes]
+                for old, new in zip(codes, sect_codes, strict=False):
                     self.idmap[new] = old
                 self.ydef.extend(sect_codes)
                 self._valid_pairs.extend(combinations(sect_codes, 2))
@@ -1746,7 +1688,6 @@ class Test(object):
         if not self.is_nested:
             self.idmap = {}
             self._valid_pairs = self.ypairs
-        return None
 
     def _set_baseline_aggregates(self, view):
         """
@@ -1847,13 +1788,12 @@ class Test(object):
                     self.no_diffs = True
                 if len(self.ydef) == 1:
                     self.no_pairs = True
-        else:
-            if np.nansum(self.values) == 0 or self.y == '@':
-                self.invalid = True
-                if np.nansum(self.values) == 0:
-                    self.no_diffs = True
-                if self.y == '@':
-                    self.no_pairs = True
+        elif np.nansum(self.values) == 0 or self.y == '@':
+            self.invalid = True
+            if np.nansum(self.values) == 0:
+                self.no_diffs = True
+            if self.y == '@':
+                self.no_pairs = True
         if self.rebased:
             self.invalid = True
             self.no_pairs = True
@@ -1867,10 +1807,8 @@ class Test(object):
             self.no_pairs = False
             valid_mimics = ['Dim', 'askia']
             if mimic not in valid_mimics:
-                raise ValueError('Failed to mimic: "%s". Select from: %s\n'
-                                 % (mimic, valid_mimics))
-            else:
-                self.mimic = mimic
+                raise ValueError(f'Failed to mimic: "{mimic}". Select from: {valid_mimics}\n')
+            self.mimic = mimic
             if self.mimic == 'askia':
                 self.parameters = {'testtype': 'unpooled',
                                    'use_ebase': False,
@@ -1937,8 +1875,7 @@ class Test(object):
         if not self.invalid:
             sigs = self.get_sig()
             return self._output(sigs)
-        else:
-            return self._empty_output()
+        return self._empty_output()
 
     def get_sig(self):
         """
@@ -1953,8 +1890,9 @@ class Test(object):
             diffs = pd.DataFrame(self.valdiffs, index=self.xdef, columns=self.ypairs)
         if self.mimic == 'Dim':
             return diffs[(diffs != 0) & (stat < self.comparevalue)]
-        elif self.mimic == 'askia':
+        if self.mimic == 'askia':
             return diffs[(diffs != 0) & (stat > self.comparevalue)]
+        return None
 
     def get_statistic(self):
         """
@@ -1974,13 +1912,14 @@ class Test(object):
         if self.metric == 'means':
             if self.parameters['testtype'] == 'unpooled':
                 return self._se_mean_unpooled()
-            elif self.parameters['testtype'] == 'pooled':
+            if self.parameters['testtype'] == 'pooled':
                 return self._se_mean_pooled()
         elif self.metric == 'proportions':
             if self.parameters['testtype'] == 'unpooled':
                 return self._se_prop_unpooled()
             if self.parameters['testtype'] == 'pooled':
                 return self._se_prop_pooled()
+        return None
 
     # -------------------------------------------------
     # Conversion methods for levels and statistics
@@ -2003,8 +1942,9 @@ class Test(object):
             # Modern replacement for deprecated _ttest_finish
             # Calculate two-tailed p-values using t-distribution
             return 2 * (1 - t.cdf(np.abs(teststat), dof))
-        elif self.mimic == 'askia':
+        if self.mimic == 'askia':
             return abs(teststat)
+        return None
 
     def _convert_level(self, level):
         """
@@ -2036,12 +1976,11 @@ class Test(object):
                 elif self.mimic == 'askia':
                     comparevalue = 2.576
                     siglevel = 0.01
-        else:
-            if self.mimic == 'Dim':
-                comparevalue = siglevel = level
-            elif self.mimic == 'askia':
-                comparevalue = 1.65
-                siglevel = 0.10
+        elif self.mimic == 'Dim':
+            comparevalue = siglevel = level
+        elif self.mimic == 'askia':
+            comparevalue = 1.65
+            siglevel = 0.10
 
         return comparevalue, siglevel
 
@@ -2130,7 +2069,7 @@ class Test(object):
     def _sum_sq_w(self, base_ratio=True):
         """
         """
-        if not self.Quantity.w == '@1':
+        if self.Quantity.w != '@1':
             self.Quantity.weight()
         if not self.test_total:
             ssw = np.nansum(self.Quantity.matrix ** 2, axis=0)[[0], 1:]
@@ -2138,8 +2077,7 @@ class Test(object):
             ssw = np.nansum(self.Quantity.matrix ** 2, axis=0)[[0], :]
         if base_ratio:
             return ssw/self.cbases
-        else:
-            return ssw
+        return ssw
 
     def _cwi(self, threshold=5, as_df=False):
         """
@@ -2148,10 +2086,7 @@ class Test(object):
         c_col_n = self.cbases
         c_cell_n = self.values
         t_col_n = self.tbase
-        if self.rbases.shape[1] > 1:
-            t_cell_n = self.rbases[1:, :]
-        else:
-            t_cell_n = self.rbases[0]
+        t_cell_n = self.rbases[1:, :] if self.rbases.shape[1] > 1 else self.rbases[0]
         np.place(np.array(t_col_n), t_col_n == 0, np.NaN)
         np.place(t_cell_n, t_cell_n == 0, np.NaN)
         np.place(c_col_n, c_col_n == 0, np.NaN)
@@ -2161,8 +2096,7 @@ class Test(object):
         if as_df:
             return pd.DataFrame(c_cell_n + cwi - cwi,
                                 index=self.xdef, columns=self.ydef)
-        else:
-            return c_cell_n + cwi - cwi
+        return c_cell_n + cwi - cwi
 
     def _overlap(self):
         if self.is_weighted:
@@ -2172,7 +2106,7 @@ class Test(object):
         if not self.is_weighted:
             m /= m
         m[m == 0] = np.NaN
-        col_pairs = list(combinations(list(range(0, m.shape[1])), 2))
+        col_pairs = list(combinations(list(range(m.shape[1])), 2))
         if self.parameters['use_ebase'] and self.is_weighted:
             # Overlap computation when effective base is being used
             w_sum_sq = np.array([np.nansum(m[:, [c1]] + m[:, [c2]], axis=0)**2
@@ -2180,11 +2114,10 @@ class Test(object):
             w_sq_sum = np.array([np.nansum(m[:, [c1]]**2 + m[:, [c2]]**2, axis=0)
                         for c1, c2 in col_pairs])
             return np.nan_to_num((w_sum_sq/w_sq_sum)/2).T
-        else:
-            # Overlap with simple weighted/unweighted base size
-            ovlp = np.array([np.nansum(m[:, [c1]] + m[:, [c2]], axis=0)
-                             for c1, c2 in col_pairs])
-            return (np.nan_to_num(ovlp)/2).T
+        # Overlap with simple weighted/unweighted base size
+        ovlp = np.array([np.nansum(m[:, [c1]] + m[:, [c2]], axis=0)
+                         for c1, c2 in col_pairs])
+        return (np.nan_to_num(ovlp)/2).T
 
     def _get_base_flags(self):
         bases = self.ebases[0]
@@ -2207,7 +2140,7 @@ class Test(object):
         res = {y: {x: [] for x in self.xdef} for y in self.ydef}
         test_columns = ['@'] + self.ydef if self.test_total else self.ydef
         for col, val in sigs.items():
-            if self.is_nested and not col in self._valid_pairs:
+            if self.is_nested and col not in self._valid_pairs:
                 continue
 
             if self.is_nested:
@@ -2224,20 +2157,18 @@ class Test(object):
             else:
                 b1_ok, b2_ok = True, True
             for row, v in val.items():
-                if v > 0:
-                    if b2_ok:
-                        if col[0] == '@':
-                            res[col[1]][row].append('@H')
-                        else:
-                            res[col[0]][row].append(upper_v)
+                if v > 0 and b2_ok:
+                    if col[0] == '@':
+                        res[col[1]][row].append('@H')
+                    else:
+                        res[col[0]][row].append(upper_v)
                             # res[col[0]][row].append(self.idmap[col[1]])
                             # res[col[0]][row].append(col[1])
-                if v < 0:
-                    if b1_ok:
-                        if col[0] == '@':
-                            res[col[1]][row].append('@L')
-                        else:
-                            res[col[1]][row].append(lower_v)
+                if v < 0 and b1_ok:
+                    if col[0] == '@':
+                        res[col[1]][row].append('@L')
+                    else:
+                        res[col[1]][row].append(lower_v)
                             # res[col[1]][row].append(self.idmap[col[0]])
                             # res[col[1]][row].append(col[0])
 
@@ -2265,7 +2196,7 @@ class Test(object):
                 values[:] = np.NaN
                 if self.test_total and not self.no_pairs:
                     values = values[:, 1:]
-            if values.shape == (1, 1) or values.shape == (1, 0):
+            if values.shape in ((1, 1), (1, 0)):
                 values = [np.NaN]
         if self.metric == 'means':
             if self.no_pairs:
@@ -2279,12 +2210,13 @@ class Test(object):
                              columns=self.multiindex[1])
     def _flags_exist(self):
         return (self.flags is not None and
-                not all(self.flags['flagged_bases']) == '')
+                all(self.flags['flagged_bases']) != '')
 
     def _apply_base_flags(self, sigres, replace=True):
         flags = self.flags['flagged_bases']
-        if self.test_total: flags = flags[1:]
-        for res_col, flag in zip(sigres.columns, flags):
+        if self.test_total:
+            flags = flags[1:]
+        for res_col, flag in zip(sigres.columns, flags, strict=False):
                 if flag == '**':
                     if replace:
                         sigres[res_col] = flag
@@ -2294,7 +2226,7 @@ class Test(object):
                     sigres[res_col] = sigres[res_col] + flag
         return sigres
 
-class Nest(object):
+class Nest:
     """
     Description of class...
     """
@@ -2315,7 +2247,7 @@ class Nest(object):
         self._get_nested_meta()
         self._get_code_maps()
         interlocked = self._interlock_codes()
-        if not self.name in self.data.columns:
+        if self.name not in self.data.columns:
             recode_map = {code: intersection(code_pair) for code, code_pair
                           in enumerate(interlocked, start=1)}
             self.data[self.name] = np.NaN
@@ -2336,7 +2268,6 @@ class Nest(object):
                        in self.level_codes[level]]
             code_maps.append(mapping)
         self.code_maps = code_maps
-        return None
 
     def _interlock_codes(self):
         return list(product(*self.code_maps))
@@ -2351,7 +2282,6 @@ class Nest(object):
                                for c, valtext
                                in enumerate(valtexts, start=1)]
         self.meta['columns'][self.name] = meta_dict
-        return None
 
     def _interlock_texts(self):
         all_valtexts = []
@@ -2368,7 +2298,7 @@ class Nest(object):
         interlocked_qtexts = list(product(*all_qtexts))
         return interlocked_qtexts, interlocked_valtexts
 
-class Level(object):
+class Level:
     """
     """
     def __init__(self, quantity):
@@ -2406,7 +2336,6 @@ class Level(object):
             for lvl in lvls:
                 df['Values']  = df['Values'].replace(
                     lvl, int(org), inplace=False)
-        return None
 
     def count(self):
         """
@@ -2414,7 +2343,6 @@ class Level(object):
         df = self._auxdf.set_index(['Question', 'Values'])
         self.lvldf = df.sum(level=1, axis=0)
         self._reindex()
-        return None
 
     def base(self):
         """
@@ -2422,7 +2350,6 @@ class Level(object):
         df = self._auxdf.set_index(['Question', 'Values'])
         self.lvldf = df.sum(level=0, axis=0)
         self._reindex(like='base')
-        return None
 
     def percent(self):
         """
@@ -2433,9 +2360,7 @@ class Level(object):
         b = self.lvldf
         pcts = c.values / b.values * 100
         self.lvldf = pd.DataFrame(pcts, index=c.index, columns=c.columns)
-        return None
 
     def as_view(self):
         """
         """
-        pass

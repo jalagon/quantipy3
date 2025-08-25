@@ -223,7 +223,6 @@ class Rim:
         else:
             filter_idx = invalid_idx
         self._df.loc[filter_idx, wgt] = -1.00
-        return
 
     def _scale_total(self) -> None:
         weight_var = self._weight_name()
@@ -325,8 +324,8 @@ class Rim:
         """
         report = {}
         if group is None:
-            for group in self.groups:
-                report[group] = self.groups[group][self._REPORT]
+            for group_name in self.groups:
+                report[group_name] = self.groups[group_name][self._REPORT]
         else:
             report[group] = self.groups[group][self._REPORT]
         return report
@@ -617,12 +616,14 @@ class Rake:
         target_col = list(target.keys())[0]
         for target_code, target_prop in list(target.values())[0].items():
             if target_prop == 0.00:
-                target_prop = 0.00000001
+                adjusted_target_prop = 0.00000001
+            else:
+                adjusted_target_prop = target_prop
             try:
                 df = self.dataframe[(self.dataframe[target_col] == target_code)]
                 index_array = self.dataframe[target_col] == target_code
                 data = df[self.weight_column_name] * (
-                    target_prop / sum(df[self.weight_column_name])
+                    adjusted_target_prop / sum(df[self.weight_column_name])
                 )
                 self.dataframe.loc[index_array, self.weight_column_name] = data
             except (KeyError, ZeroDivisionError):
@@ -755,15 +756,13 @@ class Rake:
 
         if iteration == self.max_iterations:
             print(f'Convergence did not occur in {iteration} iterations')
-        else:
-            if diff_error > 0.001:
-                print(
-                    "Raking achieved only partial convergence, please check the results to ensure that sufficient convergence was achieved."
-                )
-                print(f"No improvement was apparent after {iteration} iterations")
-            else:
-                if self.verbose:
-                    print(f'Raking converged in {iteration} iterations')
-                    print('Generating report')
+        elif diff_error > 0.001:
+            print(
+                "Raking achieved only partial convergence, please check the results to ensure that sufficient convergence was achieved."
+            )
+            print(f"No improvement was apparent after {iteration} iterations")
+        elif self.verbose:
+            print(f'Raking converged in {iteration} iterations')
+            print('Generating report')
         self.generate_report()
         return self.iteration_counter

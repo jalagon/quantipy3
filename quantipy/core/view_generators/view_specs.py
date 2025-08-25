@@ -27,7 +27,6 @@ class ViewManager:
         self.sums_pos = None
         self._base_views = None
         self._grouped_views = None
-        return
 
 
     def _base_len(self) -> int | None:
@@ -265,11 +264,10 @@ class ViewManager:
                     bases.append(w_vk)
                 elif btype == 'uw':
                     bases.append(uw_vk)
+                elif uw_pos == 'after':
+                    bases.extend([w_vk, uw_vk])
                 else:
-                    if uw_pos == 'after':
-                        bases.extend([w_vk, uw_vk])
-                    else:
-                        bases.extend([uw_vk, w_vk])
+                    bases.extend([uw_vk, w_vk])
         # rearrange reg. and gross bases if requested (alternate between them):
         if sticky_gross and gross == 'both' and base == 'both':
             sticky_bases = []
@@ -285,7 +283,6 @@ class ViewManager:
         # final list of base views:
         self.views = bases + self.views[self._base_len():]
         self._base_views = bases
-        return
 
     def group(self, style='reduce', switch=False):
         """
@@ -533,16 +530,15 @@ class ViewManager:
         lvls = []
         for level in sig_levels:
             # Remove leading 0
-            if not isinstance(level, str):
-                level = str(level)
-            if level[0]=='0':
-                level = level[1:]
-            if level in list(levels_ref.keys()):
-                lvls.append(levels_ref[level])
-            elif re.match(r'\.[0-9]$', level) is not None:
-                lvls.append(f'{level}0')
+            level_str = str(level) if not isinstance(level, str) else level
+            if level_str[0]=='0':
+                level_str = level_str[1:]
+            if level_str in list(levels_ref.keys()):
+                lvls.append(levels_ref[level_str])
+            elif re.match(r'\.[0-9]$', level_str) is not None:
+                lvls.append(f'{level_str}0')
             else:
-                lvls.append(level)
+                lvls.append(level_str)
         sig_levels = [str(i)[-3:] for i in sorted([float(s) for s in lvls])]
         sig_levels = [
             s if s.startswith('.') else f'{s[1:]}{0}'
@@ -648,7 +644,7 @@ class ViewManager:
                         eq_relation = vc[0].split('|')[2]  == vt.split('|')[2]
                         eq_weight = vc[0].split('|')[4] == vt.split('|')[4]
                         if eq_relation and eq_weight:
-                            net_cs[i].append(vt)
+                            vc.append(vt)
                             net_ps[i].append(vt)
                             net_cps[i].append(vt)
                             if net_rps:
@@ -885,14 +881,14 @@ class ViewManager:
 
 
     @staticmethod
-    def _uniquify_list(l):
+    def _uniquify_list(lst):
         # De-dupe keys so far:
         # Credit: Dave Kirby's order preserving uniqueifying list function
         # http://www.peterbe.com/plog/uniqifiers-benchmark
         seen = set()
         seen_add = seen.add
-        l = [x for x in l if x not in seen and not seen_add(x)]
-        return l
+        result = [x for x in lst if x not in seen and not seen_add(x)]
+        return result
 
     @staticmethod
     def _get_tests_slicer(s, reverse=False):
@@ -912,12 +908,12 @@ class ViewManager:
         ]
         return tests_slicer
 
-    def _shake(self, l):
+    def _shake(self, view_list):
         """
         De-dupe and reorder view keys in l for _request_views.
         """
 
-        s = pd.Series(self._uniquify_list(l))
+        s = pd.Series(self._uniquify_list(view_list))
         df = pd.DataFrame(s.str.split('|').tolist())
         df.insert(0, 'view', s)
         if pd.__version__ == '0.19.2':
@@ -926,19 +922,19 @@ class ViewManager:
             df.sort_index(by=[2, 1], inplace=True)
         return df
 
-    def _shake_nets(self, l):
+    def _shake_nets(self, view_list):
         """
         De-dupe and reorder net view keys in l for _request_views.
         """
-        l = self._shake(l)['view'].values.tolist()
-        return l
+        result = self._shake(view_list)['view'].values.tolist()
+        return result
 
-    def _shake_descriptives(self, l, descriptives):
+    def _shake_descriptives(self, view_list, descriptives):
         """
         De-dupe and reorder descriptives view keys in l for _request_views.
         """
 
-        df = self._shake(l)
+        df = self._shake(view_list)
 
         grouped = df.groupby(2)
 
@@ -960,8 +956,8 @@ class ViewManager:
                         tests_done = True
 
         s = df.loc[slicer]['view']
-        l = s.values.tolist()
-        return l
+        result = s.values.tolist()
+        return result
 
 
 @modify(to_list='text_key')

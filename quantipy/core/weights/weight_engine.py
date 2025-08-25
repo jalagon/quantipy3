@@ -252,7 +252,6 @@ class WeightEngine:
                     print(msg.format(grp, f))
                     grps[grp]["filter_vars"].append(filter_var)
                 grps[grp]["filters"] = f
-        return
 
     def _find_filter_variables(self, filter_expression: str) -> list[str]:
         """ """

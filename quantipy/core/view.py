@@ -1,5 +1,11 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
+
+import copy
+from collections import OrderedDict
+from operator import add, mul, sub
+from typing import TYPE_CHECKING, Any, Literal
+
+import pandas as pd
 
 """
 View objects for statistical analysis results in quantipy.
@@ -15,12 +21,6 @@ Key Components:
 - Statistical operations: Calculation and aggregation functionality
 - Text management: Label and formatting utilities
 """
-import copy
-from collections import OrderedDict
-from operator import add, mul, sub
-from typing import TYPE_CHECKING, Any, Callable, Literal
-
-import pandas as pd
 
 if TYPE_CHECKING:
     from quantipy.core.link import Link
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 pd.set_option('display.encoding', 'utf-8')
 
 
-class View(object):
+class View:
     """
     Container for statistical analysis results and metadata.
 
@@ -47,7 +47,7 @@ class View(object):
 
     def __init__(
         self,
-        link: 'Link | None' = None,
+        link: Link | None = None,
         name: str | None = None,
         kwargs: dict[str, Any] | None = None
     ) -> None:
@@ -59,8 +59,7 @@ class View(object):
             name (str, optional): View identifier. Defaults to None.
             kwargs (dict, optional): Analysis parameters. Defaults to None.
         """
-        kwargs = None if kwargs is None else kwargs.copy()
-        self._kwargs: dict[str, Any] | None = kwargs
+        self._kwargs: dict[str, Any] = kwargs.copy() if kwargs is not None else {}
         self.name: str | None = name
         if link is not None:
             self._link_meta(link)
@@ -100,7 +99,7 @@ class View(object):
             viewmeta['agg']['add_base_text'] = self.add_base_text
         return viewmeta
 
-    def _link_meta(self, link: 'Link') -> None:
+    def _link_meta(self, link: Link) -> None:
         metas = []
         xname = link.x
         yname = link.y
@@ -120,8 +119,8 @@ class View(object):
                     dtype = filemeta['masks'][name]['type']
                 elif name == '@':
                     dtype = None
-                is_multi = True if dtype in mc else False
-                is_nested = True if '>' in name else False
+                is_multi = dtype in mc
+                is_nested = '>' in name
                 metas.append(
                     {
                         'name': name,
@@ -142,15 +141,15 @@ class View(object):
             calc_only = self._kwargs.get('calc_only', False)
             net_texts = []
             net_names = []
-            for l in logic:
-                net_text = l.get('text', None)
+            for logic_item in logic:
+                net_text = logic_item.get('text', None)
                 if net_text is not None:
-                    del l['text']
+                    del logic_item['text']
                     net_texts.append(net_text)
                 else:
                     net_texts.append(None)
-                net_names.extend([key for key in list(l.keys()) if not key == 'expand'])
-            grp_text_map = {name: text for name, text in zip(net_names, net_texts)}
+                net_names.extend([key for key in list(logic_item.keys()) if key != 'expand'])
+            grp_text_map = dict(zip(net_names, net_texts, strict=False))
             if calc is not None:
                 calc_text = calc.get('text', None)
                 if calc_text is not None:
@@ -163,7 +162,7 @@ class View(object):
             grp_text_map = None
         return grp_text_map
 
-    def nests(self) -> list['View']:
+    def nests(self) -> list[View]:
         """
         Slice a nested ``View.dataframe`` into its innermost column sections.
         """
@@ -239,15 +238,14 @@ class View(object):
         if condition is None:
             condition = ':'
         elif condition in ['x:', ':']:
-            condition = condition
-        else:
-            if 't.' not in method:
-                complete = self._kwargs.get('complete', False)
-                colon_form = '*:' if complete else ':'
-                if axis == 'x':
-                    condition = condition + colon_form
-                else:
-                    condition = colon_form + condition
+            pass  # condition is already correct
+        elif 't.' not in method:
+            complete = self._kwargs.get('complete', False)
+            colon_form = '*:' if complete else ':'
+            if axis == 'x':
+                condition = condition + colon_form
+            else:
+                condition = colon_form + condition
         return notation_strct.format(method, condition, rel_to, weights, name)
 
     def get_std_params(self) -> tuple[Any, ...]:
@@ -282,9 +280,9 @@ class View(object):
         calc = copy.deepcopy(self._kwargs.get('calc', None))
         grp_text_map_copy = self.grp_text_map
         if (
-            not logic is None
+            logic is not None
             and (isinstance(logic, list) and not isinstance(logic[0], dict))
-            or isinstance(logic, (dict, tuple))
+            or isinstance(logic, dict | tuple)
         ):
             logic = [{self.name: logic}]
         self.grp_text_map = self._grp_text_map(logic, calc)
@@ -359,10 +357,11 @@ class View(object):
                     new_val = old_val
                 ignore = True
             if set_value and not ignore:
-                if not text == new_val:
+                if text != new_val:
                     self._kwargs['text'] = new_val
             else:
                 return new_val
+        return None
 
     # Currently unused
     # Meant to be used in translate_metric with set_value='index'
@@ -376,7 +375,6 @@ class View(object):
         q_level = self.dataframe.index.get_level_values(0)[0]
         vals = [q_level, [new_val]]
         self.dataframe.index = pd.MultiIndex.from_product(vals, names=names)
-        return None
 
     def _frequency_condition(
         self,
@@ -389,7 +387,7 @@ class View(object):
             conditionals = list(reversed(conditionals))
         logic_codes = []
         for grp in logic:
-            if any(isinstance(val, (tuple, dict)) for val in list(grp.values())):
+            if any(isinstance(val, tuple | dict) for val in list(grp.values())):
                 codes = conditionals.pop()
                 logic_codes.append(codes)
             else:
@@ -400,18 +398,18 @@ class View(object):
                     del grp['expand']
                 codes = '{' + ','.join(map(str, list(grp.values())[0])) + '}'
                 if expand_cond is None:
-                    logic_codes.append("{}[{}]".format(axis, codes))
+                    logic_codes.append(f"{axis}[{codes}]")
                 elif expand_cond == 'after':
-                    logic_codes.append("{}[{}+]".format(axis, codes))
+                    logic_codes.append(f"{axis}[{codes}+]")
                 else:
-                    logic_codes.append("{}[+{}]".format(axis, codes))
+                    logic_codes.append(f"{axis}[+{codes}]")
         return logic_codes
 
-    def _descriptives_condition(self, link: 'Link') -> str:
+    def _descriptives_condition(self, link: Link) -> str:
         if self._kwargs.get('source', None):
             return self._kwargs['source']
         try:
-            var = link.x if not link.x == '@' else link.y
+            var = link.x if link.x != '@' else link.y
             if var in list(link.get_meta()['masks'].keys()):
                 values = link.get_meta()['lib']['values'][var]
             else:
@@ -424,7 +422,7 @@ class View(object):
                 x_values = [x for x in x_values if x not in self.missing()]
             if self.rescaling():
                 x_values = [
-                    x if x not in self.rescaling() else self.rescaling()[x]
+                    self.rescaling().get(x, x)
                     for x in x_values
                 ]
             if self.missing() or self.rescaling():
@@ -434,7 +432,7 @@ class View(object):
         except BaseException:
             if self.missing():
                 code_excl = '{' + ','.join([str(m) for m in self.missing()]) + '}'
-                condition = 'x~{}'.format(code_excl)
+                condition = f'x~{code_excl}'
             else:
                 condition = 'x' if self._kwargs.get('axis', 'x') == 'x' else 'y'
         return condition
@@ -452,12 +450,12 @@ class View(object):
         calc_strct = '{}{}{}'
         if logic:
             cond_names = []
-            for l in logic:
+            for logic_item in logic:
                 cond_names.extend(
-                    [key for key in list(l.keys()) if key not in ['expand', 'text']]
+                    [key for key in list(logic_item.keys()) if key not in ['expand', 'text']]
                 )
-            name_cond_pairs = list(zip(cond_names, conditions))
-            cond_map = {name: cond for name, cond in name_cond_pairs}
+            name_cond_pairs = list(zip(cond_names, conditions, strict=False))
+            cond_map = dict(name_cond_pairs)
             v1 = cond_map[val1] if val1 in list(cond_map.keys()) else val1[0]
             v2 = cond_map[val2] if val2 in list(cond_map.keys()) else val2[0]
         else:
@@ -467,12 +465,12 @@ class View(object):
         calc_string = calc_string.replace('+{', '{').replace('}+', '}')
         calc_string = calc_string.replace('x', '')
         calc_string = calc_string.replace('[', '').replace(']', '')
-        calc_string = 'x[{}]'.format(calc_string)
+        calc_string = f'x[{calc_string}]'
         return calc_string
 
     def spec_condition(
         self,
-        link: 'Link',
+        link: Link,
         conditionals: list[str] | None = None,
         expand: str | None = None
     ) -> str:
@@ -490,7 +488,7 @@ class View(object):
         """
         logic = self.get_edit_params()[0]
         stat = self._kwargs.get('stats', 'mean')
-        complete = self.get_std_params()[2]
+        self.get_std_params()[2]
         calc = self.get_edit_params()[3]
         if logic is not None:
             condition = self._frequency_condition(logic, conditionals, expand)
@@ -504,12 +502,11 @@ class View(object):
                 if logic:
                     condition = '{},{}'.format(','.join(condition), calc_cond)
                 else:
-                    condition = '{},{}'.format(condition, calc_cond)
+                    condition = f'{condition},{calc_cond}'
             else:
                 condition = calc_cond
-        else:
-            if logic:
-                condition = ','.join(condition)
+        elif logic:
+            condition = ','.join(condition)
         return condition
 
     def missing(self) -> list[int] | None:
@@ -534,37 +531,32 @@ class View(object):
         """
         Tests if the View is performed on weighted data.
         """
-        notation = self._notation.split('|')
-        if len(notation[4]) > 0:
-            return True
-        else:
+        if self._notation is None:
             return False
+        notation = self._notation.split('|')
+        return len(notation[4]) > 0
 
     def is_pct(self) -> bool:
         """
         Tests if the View is a percentage representation of a frequency.
         """
+        if self._notation is None:
+            return False
         notation = self._notation.split('|')
         if notation[1] in ['f', 'f.c:f']:
-            if len(notation[3]) > 0:
-                return True
-            else:
-                return False
-        else:
-            return False
+            return len(notation[3]) > 0
+        return False
 
     def is_base(self) -> bool:
         """
         Tests if the View is a base size aggregation.
         """
+        if self._notation is None:
+            return False
         notation = self._notation.split('|')
         if notation[1] == 'f':
-            if len(notation[2]) == 2:
-                return True
-            else:
-                return False
-        else:
-            return False
+            return len(notation[2]) == 2
+        return False
 
     def is_sum(self) -> bool:
         """
@@ -572,12 +564,8 @@ class View(object):
         """
         notation = self._notation.split('|')
         if 'f.c' in notation[1]:
-            if len(notation[2]) == 2:
-                return True
-            else:
-                return False
-        else:
-            return False
+            return len(notation[2]) == 2
+        return False
 
     def is_net(self) -> bool:
         """
@@ -585,12 +573,8 @@ class View(object):
         """
         notation = self._notation.split('|')
         if notation[1] in ['f', 'f.c:f']:
-            if self._has_code_expr():
-                return True
-            else:
-                return False
-        else:
-            return False
+            return bool(self._has_code_expr())
+        return False
 
     def is_counts(self) -> bool:
         """
@@ -598,28 +582,18 @@ class View(object):
         """
         notation = self._notation.split('|')
         if notation[1] in ['f', 'f.c:f']:
-            if len(notation[3]) == 0:
-                return True
-            else:
-                return False
-        else:
-            return False
+            return len(notation[3]) == 0
+        return False
 
     def is_stat(self) -> bool:
         """
         Tests if the View is a sample statistic.
         """
-        if self.meta()['agg']['method'] == 'descriptives':
-            return True
-        else:
-            return False
+        return self.meta()['agg']['method'] == 'descriptives'
 
     def _is_test(self) -> bool:
         notation = self._notation.split('|')
-        if 't.' in notation[1]:
-            return True
-        else:
-            return False
+        return 't.' in notation[1]
 
     def is_meanstest(self) -> bool:
         """
@@ -629,10 +603,8 @@ class View(object):
             teststr = self._notation.split('|')[1].split('.')
             if teststr[1] == 'means':
                 return float(teststr[3].split('+')[0]) / 100
-            else:
-                return False
-        else:
             return False
+        return False
 
     def is_propstest(self) -> bool:
         """
@@ -642,10 +614,8 @@ class View(object):
             teststr = self._notation.split('|')[1].split('.')
             if teststr[1] == 'props':
                 return float(teststr[3].split('+')[0]) / 100
-            else:
-                return False
-        else:
             return False
+        return False
 
     def has_other_source(self) -> bool:
         """
@@ -655,8 +625,7 @@ class View(object):
         if not cond.startswith(('x:', 'x[', 'x~', 'x++')):
             source = cond.replace(':', '')
             return source
-        else:
-            return False
+        return False
 
     def has_calc(self) -> bool:
         return 'f.c' in self._notation.split('|')[1] and not self.is_cumulative()
@@ -674,19 +643,12 @@ class View(object):
             multiple_conditions = len(conditions) > 2
             expand = '+{' in notation[2] or '}+' in notation[2]
             complete = '*:' in notation[2]
-            if multiple_conditions or expand or complete:
-                return True
-            else:
-                return False
-        else:
-            False
+            return bool(multiple_conditions or expand or complete)
+        return None
 
     def _has_code_expr(self) -> bool:
         notation = self._notation.split('|')
-        if len(notation[2]) > 3 and not notation[2] == 'x++:':
-            return True
-        else:
-            return False
+        return bool(len(notation[2]) > 3 and notation[2] != 'x++:')
 
     def _shortname(self) -> str:
         return self.name.split('|')[-1]
@@ -695,12 +657,11 @@ class View(object):
         method_part = self._notation.split('|')[1]
         if 'd.' in method_part:
             return 'descriptives'
-        elif 'f.' in method_part or method_part == 'f':
+        if 'f.' in method_part or method_part == 'f':
             return 'frequency'
-        elif 't.' in method_part:
+        if 't.' in method_part:
             return 'coltests'
-        else:
-            return method_part
+        return method_part
 
     @staticmethod
     def _metric_name_map() -> dict[str, str]:
@@ -888,6 +849,6 @@ class View(object):
 
         Example: << View.View Rows: 4, Columns: 3, Has Meta:False >>
         """
-        row_count = len(self.dataframe.index)
-        columns_count = len(self.dataframe.columns)
-        return '%s' % (self.dataframe)
+        len(self.dataframe.index)
+        len(self.dataframe.columns)
+        return f'{self.dataframe}'

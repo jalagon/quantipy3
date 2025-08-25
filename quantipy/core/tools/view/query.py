@@ -172,7 +172,7 @@ def set_num_stats_relation(link, exclude, rescale):
             relation = 'x{}:y'.format(str(x_values).replace(' ', ''))
         else:
             relation = 'x:y'
-    except:
+    except (KeyError, ValueError, AttributeError):
         relation = 'x:y'
 
     return relation
@@ -465,12 +465,12 @@ def get_dataframe(obj, described=None, loc=None, keys=None,
         x_is_block = len(vk.split("|")[2].split(":")[0].split("x"))>1
         x_is_descriptive = vk.split("|")[1].startswith('d.')
         y_is_condensed = vk.split("|")[2].split(":")[1].startswith('y')
-    except:
+    except (AttributeError, IndexError, KeyError) as err:
         raise AttributeError (
             "The aggregation for this view must have failed,"
             " expected View instance under a view key that"
             " did already exist but found a Stack instead."
-        )
+        ) from err
 
     if isinstance(obj, qp.Chain):
 

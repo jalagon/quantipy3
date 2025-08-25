@@ -42,12 +42,12 @@ StackKeyType = Literal["data", "filter", "x", "y", "view"]
 ErrorLevel = Literal["warning", "error", "critical"]
 DataType = pd.DataFrame | dict[str, Any] | tuple[pd.DataFrame, dict[str, Any]]
 MetaType = dict[str, Any] | OrderedDict[str, Any] | None
-StackResult = pd.DataFrame | dict[str, Any] | "Stack" | None
+StackResult = pd.DataFrame | dict[str, Any] | None
 
 # Error result type for structured error reporting
 class StackError:
     """Modern error handling with structured error information."""
-    
+
     def __init__(
         self,
         error_type: StackKeyType,
@@ -59,7 +59,7 @@ class StackError:
         self.level = level
         self.message = message
         self.context = context or {}
-    
+
     def __str__(self) -> str:
         return f"[{self.level.upper()}] {self.error_type}: {self.message}"
 
@@ -428,7 +428,6 @@ class Stack(defaultdict):
             else:
                 meta["columns"][name] = e_meta
         meta["lib"]["default text"] = batch["language"]
-        return
 
     def freeze_master_meta(self, data_key: str, filter_key: str | None = None) -> None:
         """
@@ -446,7 +445,6 @@ class Stack(defaultdict):
             raise NotImplementedError("'filter_key' is not implemented.")
         self[data_key].master_meta = copy.deepcopy(self[data_key].meta)
         self[data_key].meta = copy.deepcopy(self[data_key].meta)
-        return
 
     def restore_meta(self, data_key: str, filter_key: str | None = None) -> None:
         """
@@ -469,7 +467,6 @@ class Stack(defaultdict):
         except AttributeError:
             # master_meta doesn't exist - this is acceptable
             pass
-        return
 
     def get_chain(self, *args: Any, **kwargs: Any) -> Chain:
         if qp.OPTIONS["new_chains"]:
@@ -943,36 +940,11 @@ class Stack(defaultdict):
                         if filter_def == "no_filter":
                             self[dk][filter_def].data = self[dk].data
                             self[dk][filter_def].meta = self[dk].meta
-                        else:
-                            if not qplogic_filter:
-                                try:
-                                    self[dk][filter_def].data = self[dk].data.query(
-                                        logic
-                                    )
-                                    self[dk][filter_def].meta = self[dk].meta
-                                except Exception:
-                                    raise UserWarning(
-                                        f"A filter definition is invalid and will be skipped: {filter_def}"
-                                    )
-                                    continue
-                            else:
-                                dataset = qp.DataSet("stack")
-                                dataset.from_components(
-                                    self[dk].data, self[dk].meta, reset=False
-                                )
-                                f_dataset = dataset.filter(
-                                    filter_def, logic, inplace=False
-                                )
-                                self[dk][filter_def].data = f_dataset._data
-                                self[dk][filter_def].meta = f_dataset._meta
-                else:
-                    if filter_def == "no_filter":
-                        self[dk][filter_def].data = self[dk].data
-                        self[dk][filter_def].meta = self[dk].meta
-                    else:
-                        if not qplogic_filter:
+                        elif not qplogic_filter:
                             try:
-                                self[dk][filter_def].data = self[dk].data.query(logic)
+                                self[dk][filter_def].data = self[dk].data.query(
+                                    logic
+                                )
                                 self[dk][filter_def].meta = self[dk].meta
                             except Exception:
                                 raise UserWarning(
@@ -981,10 +953,32 @@ class Stack(defaultdict):
                                 continue
                         else:
                             dataset = qp.DataSet("stack")
-                            dataset.from_components(self[dk].data, self[dk].meta)
-                            f_dataset = dataset.filter(filter_def, logic, inplace=False)
+                            dataset.from_components(
+                                self[dk].data, self[dk].meta, reset=False
+                            )
+                            f_dataset = dataset.filter(
+                                filter_def, logic, inplace=False
+                            )
                             self[dk][filter_def].data = f_dataset._data
                             self[dk][filter_def].meta = f_dataset._meta
+                elif filter_def == "no_filter":
+                    self[dk][filter_def].data = self[dk].data
+                    self[dk][filter_def].meta = self[dk].meta
+                elif not qplogic_filter:
+                    try:
+                        self[dk][filter_def].data = self[dk].data.query(logic)
+                        self[dk][filter_def].meta = self[dk].meta
+                    except Exception:
+                        raise UserWarning(
+                            f"A filter definition is invalid and will be skipped: {filter_def}"
+                        )
+                        continue
+                else:
+                    dataset = qp.DataSet("stack")
+                    dataset.from_components(self[dk].data, self[dk].meta)
+                    f_dataset = dataset.filter(filter_def, logic, inplace=False)
+                    self[dk][filter_def].data = f_dataset._data
+                    self[dk][filter_def].meta = f_dataset._meta
                 fdata = self[dk][filter_def].data
 
                 if len(fdata) == 0:
@@ -1192,7 +1186,6 @@ class Stack(defaultdict):
                             )
                         except ValueError as e:
                             print("\n", e)
-        return
 
     def save(
         self,
@@ -1332,7 +1325,7 @@ class Stack(defaultdict):
         path_stack: str,
         compression: Literal["gzip", "json"] = "gzip",
         load_cache: bool = False
-    ) -> 'Stack':
+    ) -> Stack:
         """
         Load Stack instance from .stack file.
 
@@ -1619,20 +1612,19 @@ class Stack(defaultdict):
                         self[data_key][the_filter]["@"][y_key] = link
                     else:
                         link = self[data_key][the_filter]["@"][y_key]
+                elif not isinstance(self[data_key][the_filter][x_key][y_key], Link):
+                    link = Link(
+                        the_filter=the_filter,
+                        x=x_key,
+                        y=y_key,
+                        data_key=data_key,
+                        stack=self,
+                        store_view=store_view_in_link,
+                        create_views=False,
+                    )
+                    self[data_key][the_filter][x_key][y_key] = link
                 else:
-                    if not isinstance(self[data_key][the_filter][x_key][y_key], Link):
-                        link = Link(
-                            the_filter=the_filter,
-                            x=x_key,
-                            y=y_key,
-                            data_key=data_key,
-                            stack=self,
-                            store_view=store_view_in_link,
-                            create_views=False,
-                        )
-                        self[data_key][the_filter][x_key][y_key] = link
-                    else:
-                        link = self[data_key][the_filter][x_key][y_key]
+                    link = self[data_key][the_filter][x_key][y_key]
                 if views is not None:
                     views._apply_to(link, weights)
 
@@ -1725,7 +1717,7 @@ class Stack(defaultdict):
             for index in range(len(list_of_items))
         ]
 
-    def __get_stack_pointer(self, stack_pos: str) -> 'Stack':
+    def __get_stack_pointer(self, stack_pos: str) -> Stack:
         """Takes a stack_pos and returns the stack with that location
         raises an exception IF the stack pointer is not found
         """
@@ -2167,11 +2159,10 @@ class Stack(defaultdict):
 
         if transposed_summary or (not slice_array_items and array_summary):
             rules_slicer = functions.get_rules_slicer(f.T, rules)
+        elif not expanded_net or ("sortx" in rules and on_mean):
+            rules_slicer = functions.get_rules_slicer(f, rules)
         else:
-            if not expanded_net or ("sortx" in rules and on_mean):
-                rules_slicer = functions.get_rules_slicer(f, rules)
-            else:
-                rules_slicer = f.index.values.tolist()
+            rules_slicer = f.index.values.tolist()
         with contextlib.suppress(BaseException):
             rules_slicer.remove((col, "All"))
         return rules_slicer
@@ -2219,7 +2210,6 @@ class Stack(defaultdict):
             elif not all(y in mapping[x][fn][tuple(w)] for y in ys):
                 yks = set(mapping[x][fn][tuple(w)]).union(set(ys))
                 mapping[x][fn][tuple(w)] = list(yks)
-            return
 
         self.variable_types(dk, verbose=False)["array"]
         mapping = {}
@@ -2499,14 +2489,13 @@ class Stack(defaultdict):
         c_views = view_keys + [v for v in c_views if v.endswith(f"{key}_check")]
         if isinstance(cluster, ChainManager):
             cluster.get("checks", "no_filter", x, y, c_views, folder=name, rules=False)
+        elif name == "stat_check":
+            chain = c_stack.get_chain(x=x, y=y, views=c_views, orient_on="x")
+            name = [v for v in c_views if v.endswith(f"{key}_check")][0]
+            cluster[name] = chain
         else:
-            if name == "stat_check":
-                chain = c_stack.get_chain(x=x, y=y, views=c_views, orient_on="x")
-                name = [v for v in c_views if v.endswith(f"{key}_check")][0]
-                cluster[name] = chain
-            else:
-                chain = c_stack.get_chain(name=name, x=x, y=y, views=c_views)
-                cluster.add_chain(chain)
+            chain = c_stack.get_chain(name=name, x=x, y=y, views=c_views)
+            cluster.add_chain(chain)
         return cluster
 
     @staticmethod
@@ -2713,7 +2702,6 @@ class Stack(defaultdict):
                 print(msg.format(dims_name))
         del dataset._meta["sets"]["to_array"]
 
-        return
 
     @modify(to_list=["on_vars", "_batches"])
     def add_nets(
@@ -2976,7 +2964,7 @@ class Stack(defaultdict):
 
     @staticmethod
     def _add_factor_meta(
-        dataset: 'DataSet',
+        dataset: DataSet,
         var: str,
         options: dict[str, Any]
     ) -> None:
@@ -3095,7 +3083,6 @@ class Stack(defaultdict):
                 dataset._meta["columns"][name]["properties"].update(
                     {"recoded_stat": var}
                 )
-            return
 
         def _add_factors(v, meta, values, args):
             if isinstance(values, str):
@@ -3117,7 +3104,6 @@ class Stack(defaultdict):
                 if not v_meta.get("properties"):
                     v_meta["properties"] = {}
                 v_meta["properties"].update({"factor_labels": True})
-            return
 
         if other_source and not isinstance(other_source, str):
             raise ValueError("'other_source' must be a str!")
@@ -3341,4 +3327,3 @@ class Stack(defaultdict):
                             if del_prop or del_mean:
                                 del self[dk][fk][xk][yk][vk]
                                 del self[dk][fk][xk][yk][vk]
-        return
