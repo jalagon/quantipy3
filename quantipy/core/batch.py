@@ -1,4 +1,6 @@
 #!/usr/bin/python
+from __future__ import annotations
+
 import copy as org_copy
 import warnings
 from collections import OrderedDict
