@@ -3,20 +3,31 @@
 This module provides the Cluster class for organizing and managing collections
 of Chain objects, enabling structured analysis workflows and statistical
 computation orchestration.
+
+Following SOLID principles, this class handles:
+- Chain collection management and organization
+- Banked chain specification validation
+- Analysis workflow orchestration
+- File I/O for cluster persistence
 """
+from __future__ import annotations
+
 import pickle
 from collections import OrderedDict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
 from quantipy.core.helpers.functions import get_text
 from quantipy.core.tools.view.query import get_dataframe
 
+if TYPE_CHECKING:
+    pass
+
 from .chain import Chain
 
 
-class Cluster(OrderedDict):
+class Cluster(OrderedDict[str, Chain]):
     """
     Container class in form of an OrderedDict of Chains.
 
@@ -26,7 +37,7 @@ class Cluster(OrderedDict):
     """
 
     def __init__(self, name: str = "") -> None:
-        super(Cluster, self).__init__()
+        super().__init__()
         self.name = name
 
     def __setstate__(self, attr_dict: dict[str, Any]) -> None:
@@ -60,7 +71,7 @@ class Cluster(OrderedDict):
         except (KeyError, TypeError):
             return False
 
-        if not ctype == 'banked-chain':
+        if ctype != 'banked-chain':
             return False
         if not isinstance(cname, str):
             return False
@@ -75,11 +86,11 @@ class Cluster(OrderedDict):
             return False
         if not isinstance(cbases, bool):
             return False
-        if not all([isinstance(item['chain'], Chain) for item in citems]):
+        if not all(isinstance(item['chain'], Chain) for item in citems):
             return False
-        if not all([isinstance(item['text'], dict) for item in citems]):
+        if not all(isinstance(item['text'], dict) for item in citems):
             return False
-        if not all([len(item['text']) > 0 for item in citems]):
+        if not all(len(item['text']) > 0 for item in citems):
             return False
         for item in citems:
             for key, value in list(item['text'].items()):
@@ -106,14 +117,13 @@ class Cluster(OrderedDict):
         """Adds chains to a cluster"""
         # If a single item was supplied, change it to a list of items
         is_banked_spec = False
-        if not isinstance(chains, (list, Chain, pd.DataFrame, dict)):
+        if not isinstance(chains, list | Chain | pd.DataFrame | dict):
             raise TypeError(
                 "You must pass either a Chain, a list of Chains or a"
                 " banked chain definition (as a dict) into"
                 " Cluster.add_chain()."
             )
-        if isinstance(chains, dict):
-            if chains.get('type', None) == 'banked-chain':
+        if isinstance(chains, dict) and chains.get('type', None) == 'banked-chain':
                 is_banked_spec = True
                 if not self._verify_banked_chain_spec(chains):
                     raise TypeError(
@@ -128,10 +138,8 @@ class Cluster(OrderedDict):
             self[chains.get('name')] = chains
 
         elif isinstance(chains, list) and all(
-            [
-                isinstance(chain, Chain) or self._verify_banked_chain_spec(chain)
-                for chain in chains
-            ]
+            isinstance(chain, Chain) or self._verify_banked_chain_spec(chain)
+            for chain in chains
         ):
             # Ensure that all items in chains is of the type Chain.
             for chain in chains:
@@ -142,10 +150,8 @@ class Cluster(OrderedDict):
 
         elif isinstance(chains, pd.DataFrame):
             if any(
-                [
-                    isinstance(idx, pd.MultiIndex)
-                    for idx in [chains.index, chains.columns]
-                ]
+                isinstance(idx, pd.MultiIndex)
+                for idx in [chains.index, chains.columns]
             ):
                 if isinstance(chains.index, pd.MultiIndex):
                     idxs = '_'.join(chains.index.levels[0].tolist())
@@ -209,7 +215,7 @@ class Cluster(OrderedDict):
                 if 'view' not in item:
                     spec['items'][i].update({'view': vk})
 
-        vks = list(set([item['view'] for item in spec['items']]))
+        vks = list({item['view'] for item in spec['items']})
 
         if len(vks) == 1:
             notation = vks[0].split('|')
@@ -217,7 +223,7 @@ class Cluster(OrderedDict):
             bvk = '|'.join(notation)
         else:
             base_method = vks[0].split('|')[1]
-            same_method = all([vk.split('|')[1] == base_method for vk in vks[1:]])
+            same_method = all(vk.split('|')[1] == base_method for vk in vks[1:])
             if same_method:
                 bvk = 'x|{}||||banked-{}'.format(base_method, spec['name'])
             else:
@@ -315,10 +321,10 @@ class Cluster(OrderedDict):
 
         bchain[dk][fk][spec['name']] = bchain[dk][fk].pop(xk)
 
-        bchain.props_tests = list()
-        bchain.props_tests_levels = list()
-        bchain.means_tests = list()
-        bchain.means_tests_levels = list()
+        bchain.props_tests = []
+        bchain.props_tests_levels = []
+        bchain.means_tests = []
+        bchain.means_tests_levels = []
         bchain.has_props_tests = False
         bchain.has_means_tests = False
         bchain.annotations = None
@@ -368,16 +374,15 @@ class Cluster(OrderedDict):
                 "To avoid ambiguity, when using Cluster.save() you must provide the full path to "
                 "the cluster file you want to create, including the file extension. For example: "
                 "cluster.save(path_cluster='./output/MyCluster.cluster'). Your call looks like this: "
-                "cluster.save(path_cluster='%s', ...)" % (path_cluster)
+                f"cluster.save(path_cluster='{path_cluster}', ...)"
             )
-        f = open(path_cluster, 'wb')
-        pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
-        f.close()
+        with open(path_cluster, 'wb') as f:
+            pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
 
     # STATIC METHODS
 
     @staticmethod
-    def load(path_cluster: str) -> 'Cluster':
+    def load(path_cluster: str) -> Cluster:
         """
         Load Stack instance from .stack file.
 
@@ -396,9 +401,8 @@ class Cluster(OrderedDict):
                 "To avoid ambiguity, when using Cluster.load() you must provide the full path to "
                 "the cluster file you want to create, including the file extension. For example: "
                 "cluster.load(path_cluster='./output/MyCluster.cluster'). Your call looks like this: "
-                "cluster.load(path_cluster='%s', ...)" % (path_cluster)
+                f"cluster.load(path_cluster='{path_cluster}', ...)"
             )
-        f = open(path_cluster, 'rb')
-        obj = pickle.load(f)
-        f.close()
-        return obj
+        with open(path_cluster, 'rb') as f:
+            obj = pickle.load(f)
+            return obj

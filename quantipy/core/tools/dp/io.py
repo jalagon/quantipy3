@@ -1,10 +1,10 @@
-import importlib
+from __future__ import annotations
+
 import json
 import sqlite3
-import sys
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, Tuple, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -125,7 +125,7 @@ def enjson(obj: Any, indent: int = 4, encoding: str = "UTF-8") -> bytes:
     return json.dumps(obj, indent=indent, ensure_ascii=False).encode(encoding)
 
 
-def load_json(path_json: Union[str, Path], hook=OrderedDict) -> Any:
+def load_json(path_json: str | Path, hook=OrderedDict) -> Any:
     """Returns a python object from the json file located at path_json"""
 
     with open(path_json) as f:
@@ -142,13 +142,13 @@ def loads_json(json_text: str, hook=OrderedDict) -> Any:
     return obj
 
 
-def load_csv(path_csv: Union[str, Path]) -> pd.DataFrame:
+def load_csv(path_csv: str | Path) -> pd.DataFrame:
     data = pd.read_csv(path_csv)
     return data
 
 
 def save_json(
-    obj: Any, path_json: Union[str, Path], decode_str: bool = False, decoder: str = "UTF-8"
+    obj: Any, path_json: str | Path, decode_str: bool = False, decoder: str = "UTF-8"
 ) -> None:
     if decode_str:
         obj = unicoder(obj, decoder)
@@ -171,7 +171,7 @@ def df_to_browser(df: pd.DataFrame, path_html: str = "df.html", **kwargs: Any) -
     webbrowser.open(path_html, new=2)
 
 
-def verify_dtypes_vs_meta(data: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
+def verify_dtypes_vs_meta(data: pd.DataFrame, meta: dict[str, Any]) -> pd.DataFrame:
     """Returns a df showing the pandas dtype for each column in data compared
     to the type indicated for that variable name in meta plus a 'verified'
     column indicating if quantipy determines the comparison as viable.
@@ -201,7 +201,7 @@ def verify_dtypes_vs_meta(data: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFr
     return df
 
 
-def coerce_dtypes_from_meta(data: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
+def coerce_dtypes_from_meta(data: pd.DataFrame, meta: dict[str, Any]) -> pd.DataFrame:
     data = data.copy()
     verified = verify_dtypes_vs_meta(data, meta)
     for idx in verified[~verified["verified"]].index:
@@ -215,7 +215,7 @@ def coerce_dtypes_from_meta(data: pd.DataFrame, meta: Dict[str, Any]) -> pd.Data
     return data
 
 
-def read_ddf(path_ddf: Union[str, Path], auto_index_tables: bool = True) -> Dict[str, Any]:
+def read_ddf(path_ddf: str | Path, auto_index_tables: bool = True) -> dict[str, Any]:
     """Returns a raw version of the DDF in the form of a dict of
     pandas DataFrames (one for each table in the DDF).
 
@@ -279,20 +279,20 @@ def read_ddf(path_ddf: Union[str, Path], auto_index_tables: bool = True) -> Dict
 
 
 def read_dimensions(
-    path_mdd: Union[str, Path], path_ddf: Union[str, Path]
-) -> Tuple[Dict[str, Any], pd.DataFrame]:
+    path_mdd: str | Path, path_ddf: str | Path
+) -> tuple[dict[str, Any], pd.DataFrame]:
     meta, data = quantipy_from_dimensions(path_mdd, path_ddf)
     return meta, data
 
 
 def write_dimensions(
-    meta: Dict[str, Any], 
-    data: pd.DataFrame, 
-    path_mdd: Union[str, Path], 
-    path_ddf: Union[str, Path], 
-    text_key: Union[str, None] = None, 
-    crlf: str = "CR", 
-    run: bool = True, 
+    meta: dict[str, Any],
+    data: pd.DataFrame,
+    path_mdd: str | Path,
+    path_ddf: str | Path,
+    text_key: str | None = None,
+    crlf: str = "CR",
+    run: bool = True,
     clean_up: bool = True
 ) -> Any:
     # Legacy Python 2 encoding handling removed for Python 3.10+ compatibility
@@ -303,13 +303,13 @@ def write_dimensions(
 
 
 def read_decipher(
-    path_json: Union[str, Path], path_txt: Union[str, Path], text_key: str = "main"
-) -> Tuple[Dict[str, Any], pd.DataFrame]:
+    path_json: str | Path, path_txt: str | Path, text_key: str = "main"
+) -> tuple[dict[str, Any], pd.DataFrame]:
     meta, data = quantipy_from_decipher(path_json, path_txt, text_key)
     return meta, data
 
 
-def read_forsta_from_files(self: Any, path_meta: Union[str, Path], path_data: Union[str, Path], verbose: bool = True) -> Tuple[Dict[str, Any], pd.DataFrame]:
+def read_forsta_from_files(self: Any, path_meta: str | Path, path_data: str | Path, verbose: bool = True) -> tuple[dict[str, Any], pd.DataFrame]:
     meta, data = quantipy_from_forsta(self, path_meta, path_data, verbose)
     return meta, data
 
@@ -324,7 +324,7 @@ def read_forsta_api(
     schema_vars: Any,
     data_filter: Any,
     verbose: bool,
-) -> Tuple[Any, Any, Dict[str, Any], pd.DataFrame]:
+) -> tuple[Any, Any, dict[str, Any], pd.DataFrame]:
     json_data, json_meta = get_surveys(
         projectid,
         public_url,
@@ -339,12 +339,12 @@ def read_forsta_api(
 
 
 def write_forsta_api(
-    self: Any, 
-    projectid: str, 
-    public_url: str, 
-    idp_url: str, 
-    client_id: str, 
-    client_secret: str, 
+    self: Any,
+    projectid: str,
+    public_url: str,
+    idp_url: str,
+    client_id: str,
+    client_secret: str,
     schema_vars: Any
 ) -> Any:
     return quantipy_to_forsta(
@@ -353,18 +353,18 @@ def write_forsta_api(
 
 
 def read_spss(
-    path_sav: Union[str, Path], **kwargs: Any
-) -> Tuple[Dict[str, Any], pd.DataFrame]:
+    path_sav: str | Path, **kwargs: Any
+) -> tuple[dict[str, Any], pd.DataFrame]:
     meta, data = parse_sav_file(path_sav, **kwargs)
     return meta, data
 
 
 def write_spss(
-    path_sav: Union[str, Path],
-    meta: Dict[str, Any],
+    path_sav: str | Path,
+    meta: dict[str, Any],
     data: pd.DataFrame,
     index: bool = True,
-    text_key: Union[str, None] = None,
+    text_key: str | None = None,
     mrset_tag_style: str = "__",
     drop_delimited: bool = True,
     from_set: Any = None,
@@ -384,15 +384,15 @@ def write_spss(
 
 
 def read_ascribe(
-    path_xml: Union[str, Path], path_txt: Union[str, Path], text_key: str = "main"
-) -> Tuple[Dict[str, Any], pd.DataFrame]:
+    path_xml: str | Path, path_txt: str | Path, text_key: str = "main"
+) -> tuple[dict[str, Any], pd.DataFrame]:
     meta, data = quantipy_from_ascribe(path_xml, path_txt, text_key)
     return meta, data
 
 
 def read_quantipy(
-    path_json: Union[str, Path], path_csv: Union[str, Path]
-) -> Tuple[Dict[str, Any], pd.DataFrame]:
+    path_json: str | Path, path_csv: str | Path
+) -> tuple[dict[str, Any], pd.DataFrame]:
     """
     Load Quantipy meta and data from disk.
     """
@@ -408,10 +408,10 @@ def read_quantipy(
 
 
 def write_quantipy(
-    meta: Dict[str, Any],
+    meta: dict[str, Any],
     data: pd.DataFrame,
-    path_json: Union[str, Path],
-    path_csv: Union[str, Path],
+    path_json: str | Path,
+    path_csv: str | Path,
 ) -> None:
     """
     Save Quantipy meta and data to disk.

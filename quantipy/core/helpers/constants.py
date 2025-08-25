@@ -1,7 +1,12 @@
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-''' Constant mapping appropriate quantipy types to pandas dtypes
-'''
-DTYPE_MAP = {
+"""Constants for quantipy data type mappings and patterns.
+
+This module provides constant mappings between quantipy types and pandas dtypes,
+as well as regular expression patterns used throughout the library.
+"""
+from __future__ import annotations
+
+# Type mapping from quantipy types to pandas dtypes
+DTYPE_MAP: dict[str, list[str]] = {
     "float": ["float64", "float32", "float16"],
     "int": ["int64", "int32", "int16", "int8", "int0", "float64", "float32", "float16"],
     "string": ["object"],
@@ -15,4 +20,5 @@ DTYPE_MAP = {
     "grid": []
 }
 
-MAPPED_PATTERN = "^[^@].*[@].*[^@]$"
+# Regular expression pattern for mapped variable names
+MAPPED_PATTERN: str = "^[^@].*[@].*[^@]$"
