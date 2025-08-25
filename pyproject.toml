@@ -118,7 +118,6 @@ max-complexity = 12  # Moderate complexity threshold
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
-skip-string-normalization = false
 line-ending = "auto"
 
 # MyPy Configuration - Sprint 5 Enhanced Type Checking

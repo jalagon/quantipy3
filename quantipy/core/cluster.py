@@ -107,9 +107,8 @@ class Cluster(OrderedDict[str, Chain]):
                         return False
                 else:
                     return False
-        else:
-            if not isinstance(cview, str):
-                return False
+        elif not isinstance(cview, str):
+            return False
 
         return True
 

@@ -1,6 +1,7 @@
 #!/usr/bin/python
 from __future__ import annotations
 
+import contextlib
 import copy as org_copy
 import warnings
 from collections import OrderedDict
@@ -11,13 +12,15 @@ if TYPE_CHECKING:
     import quantipy as qp
 
 import pandas as pd
-from quantipy.core.tools.qp_decorators import *
+
+from quantipy.core.dataset import DataSet
+from quantipy.core.tools.qp_decorators import modify, verify
 from quantipy.core.tools.view.logic import (
     get_logic_index,
 )
 
 
-def meta_editor(self: 'Batch', dataset_func: Callable[..., Any]) -> Callable[..., Any]:
+def meta_editor(self: Batch, dataset_func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator for inherited DataSet methods.
     """
@@ -37,9 +40,8 @@ def meta_editor(self: 'Batch', dataset_func: Callable[..., Any]) -> Callable[...
             if len(args) < 3 and 'weight' not in kwargs:
                 kwargs['weight'] = self.weights[0]
 
-            if len(args) < 4 and 'condition' not in kwargs:
-                if self.filter:
-                    kwargs['condition'] = list(self.filter.values())[0]
+            if len(args) < 4 and 'condition' not in kwargs and self.filter:
+                kwargs['condition'] = list(self.filter.values())[0]
         # args/ kwargs for sorting
         elif dataset_func.__name__ == 'sorting':
             if len(args) < 7 and 'sort_by_weight' not in kwargs:
@@ -100,8 +102,7 @@ def not_implemented(dataset_func: Callable[..., Any]) -> Callable[..., Any]:
     return _unallowed_inherited_method
 
 
-# Import at runtime to avoid circular import
-from quantipy.core.dataset import DataSet
+
 
 class Batch(DataSet):
     """
@@ -111,12 +112,14 @@ class Batch(DataSet):
 
     def __init__(
         self,
-        dataset: 'qp.DataSet',
+        dataset: qp.DataSet,
         name: str,
-        ci: list[str] = ['c', 'p'],
+        ci: list[str] = None,
         weights: str | list[str] | None = None,
         tests: str | None = None
     ) -> None:
+        if ci is None:
+            ci = ['c', 'p']
         if '-' in name:
             raise ValueError("Batch 'name' must not contain '-'!")
         sets = dataset._meta['sets']
@@ -280,7 +283,7 @@ class Batch(DataSet):
         name: str,
         b_filter: str | dict[str, Any] | None = None,
         as_addition: bool = False
-    ) -> 'Batch':
+    ) -> Batch:
         """
         Create a copy of Batch instance.
 
@@ -337,31 +340,27 @@ class Batch(DataSet):
 
         del self._meta['sets']['batches'][name]
         if self._verbose_infos:
-            print("Batch '%s' is removed from meta-object." % name)
-        self = None
-        return
+            print(f"Batch '{name}' is removed from meta-object.")
 
     def _rename_in_additions(self, find_bname: str, new_name: str) -> None:
-        for bname, bdef in list(self._meta['sets']['batches'].items()):
+        for _bname, bdef in list(self._meta['sets']['batches'].items()):
             if find_bname in bdef['additions']:
                 adds = bdef['additions']
                 adds[adds.index(find_bname)] = new_name
                 bdef['additions'] = adds
-        return
 
     def rename(self, new_name: str) -> None:
         """
         Rename instance, updating ``DataSet`` references to the definiton, too.
         """
         if new_name in self._meta['sets']['batches']:
-            raise KeyError("'%s' is already included!" % new_name)
+            raise KeyError(f"'{new_name}' is already included!")
         batches = self._meta['sets']['batches']
         org_name = self.name
         batches[new_name] = batches.pop(org_name)
         self._rename_in_additions(org_name, new_name)
         self.name = new_name
         self._update()
-        return
 
     @modify(to_list='ci')
     def set_cell_items(self, ci: str | list[str]) -> None:
@@ -381,7 +380,6 @@ class Batch(DataSet):
             raise ValueError("'ci' cell items must be either 'c', 'p' or 'cp'.")
         self.cell_items = ci
         self._update()
-        return
 
     def set_unwgt_counts(self, unwgt: bool = False) -> None:
         """
@@ -389,7 +387,6 @@ class Batch(DataSet):
         """
         self.unwgt_counts = unwgt
         self._update()
-        return
 
     @modify(to_list='w')
     def set_weights(self, w: str | list[str] | None) -> None:
@@ -413,13 +410,12 @@ class Batch(DataSet):
         if any(weight not in self.columns() for weight in w if weight is not None):
             raise ValueError(f'{w} is not in DataSet.')
         self._update()
-        return
 
     @modify(to_list='levels')
     def set_sigtests(
         self,
         levels: list[float] | None = None,
-        flags: list[int] = [30, 100],
+        flags: list[int] = None,
         test_total: bool = False,
         mimic: str | None = None
     ) -> None:
@@ -437,8 +433,10 @@ class Batch(DataSet):
         -------
         None
         """
+        if flags is None:
+            flags = [30, 100]
         if levels and self.total:
-            if not all(isinstance(l, float) for l in levels):
+            if not all(isinstance(level, float) for level in levels):
                 raise TypeError('All significance levels must be provided as floats!')
             levels = sorted(levels)
         else:
@@ -454,7 +452,6 @@ class Batch(DataSet):
             err = "Changes to 'mimic' are currently not allowed!"
             raise NotImplementedError(err)
         self._update()
-        return
 
     @verify(text_keys='text_key')
     def set_language(self, text_key: str) -> None:
@@ -472,7 +469,6 @@ class Batch(DataSet):
         """
         self.language = text_key
         self._update()
-        return
 
     def as_addition(self, batch_name: str) -> None:
         """
@@ -500,7 +496,6 @@ class Batch(DataSet):
             )
             print(msg.format(self.name, batch_name))
         self._update()
-        return
 
     def as_main(self, keep: bool = True) -> None:
         """
@@ -551,7 +546,6 @@ class Batch(DataSet):
             if v not in self._variables:
                 self._variables.append(v)
         self._update()
-        return
 
     @modify(to_list='dbrk')
     def add_downbreak(self, dbrk: str | list[str]) -> None:
@@ -572,7 +566,6 @@ class Batch(DataSet):
         clean_xks = self._check_forced_names(dbrk)
         self.xks = self.unroll(clean_xks, both='all')
         self._update()
-        return
 
     @modify(to_list='xks')
     def add_x(self, xks: str | list[str]) -> None:
@@ -584,7 +577,7 @@ class Batch(DataSet):
             "'add_x()' will be deprecated in a future version. "
             "Please use 'add_downbreak()' instead!"
         )
-        warnings.warn(w)
+        warnings.warn(w, stacklevel=2)
         self.add_downbreak(xks)
 
     @modify(to_list=['ext_xks'])
@@ -615,9 +608,8 @@ class Batch(DataSet):
                     if self._is_array_item(pos):
                         msg = '{}: Cannot use an array item as position'
                         raise ValueError(msg.format(pos))
-                    if not isinstance(var, list):
-                        var = [var]
-                    for v in self.unroll(var, both="all"):
+                    var_list = [var] if not isinstance(var, list) else var
+                    for v in self.unroll(var_list, both="all"):
                         if v in self.xks:
                             msg = '{} is already included as downbreak.'
                             raise ValueError(msg.format(v))
@@ -628,7 +620,6 @@ class Batch(DataSet):
                         raise KeyError(f'{var} is not included.')
                     self.xks.append(var)
         self._update()
-        return
 
     @verify(variables={'name': 'columns'}, categorical='name')
     def codes_in_data(self, name: str) -> list[int]:
@@ -654,7 +645,6 @@ class Batch(DataSet):
         if x_anchor in self.xks:
             self._section_starts[x_anchor] = section
         self._update()
-        return
 
     @property
     def sections(self) -> dict[str, str]:
@@ -717,17 +707,13 @@ class Batch(DataSet):
                         if sources[i - 1] in self.xks:
                             self.xks.remove(sources[i - 1])
             elif not self._is_array_item(x):
-                if cond:
-                    s = self[self.take(cond), x]
-                else:
-                    s = self[x]
+                s = self[self.take(cond), x] if cond else self[x]
                 if s.count() == 0:
                     self.xks.remove(x)
         if removed_sum:
             msg = "Dropping summaries for {} - all items hidden!"
-            warnings.warn(msg.format(removed_sum))
+            warnings.warn(msg.format(removed_sum), stacklevel=2)
         self._update()
-        return
 
     def make_summaries(
         self,
@@ -769,7 +755,6 @@ class Batch(DataSet):
             raise ValueError(f'{not_valid} not defined as xks.')
         self.skip_items = array
         self._update()
-        return
 
     @modify(to_list='name')
     @verify(variables={'name': 'both'})
@@ -788,7 +773,6 @@ class Batch(DataSet):
             raise ValueError(f'{not_valid} not defined as xks.')
         self.transposed = name
         self._update()
-        return
 
     @modify(to_list='array')
     @verify(variables={'array': 'masks'})
@@ -813,7 +797,6 @@ class Batch(DataSet):
             if f'{a}_level' not in self:
                 self._level(a)
         self._update()
-        return
 
     def add_total(self, total: bool = True) -> None:
         """
@@ -825,7 +808,6 @@ class Batch(DataSet):
                 print('sigtests are removed from batch.')
         self.total = total
         self.add_crossbreak(self.yks)
-        return
 
     @modify(to_list='xbrk')
     @verify(variables={'xbrk': 'both_nested'}, categorical='xbrk')
@@ -843,13 +825,12 @@ class Batch(DataSet):
         -------
         None
         """
-        yks = [y for y in xbrk if not y == '@']
+        yks = [y for y in xbrk if y != '@']
         yks = self.unroll(yks)
         if self.total:
             yks = ['@'] + yks
         self.yks = yks
         self._update()
-        return
 
     @modify(to_list='yks')
     @verify(variables={'yks': 'both_nested'}, categorical='yks')
@@ -861,7 +842,7 @@ class Batch(DataSet):
             "'add_y()' will be deprecated in a future version. Please use"
             " 'add_crossbreak()' instead!"
         )
-        warnings.warn(w)
+        warnings.warn(w, stacklevel=2)
         self.add_crossbreak(yks)
 
     def add_filter(
@@ -902,7 +883,6 @@ class Batch(DataSet):
         if name not in self.filter_names:
             self.filter_names.append(name)
         self._update()
-        return
 
     def remove_filter(self) -> None:
         """
@@ -914,7 +894,6 @@ class Batch(DataSet):
         self.y_on_y_filter = {}
         self.y_filter_map = {}
         self._update()
-        return
 
     @modify(to_list=['oe', 'break_by', 'title'])
     @verify(variables={'oe': 'columns', 'break_by': 'columns'})
@@ -983,7 +962,7 @@ class Batch(DataSet):
             overwrite: bool
         ) -> None:
             if filter_by:
-                f_name = title if not self.filter else '%s_%s' % (self.filter, title)
+                f_name = title if not self.filter else f'{self.filter}_{title}'
                 f_name = self._verify_filter_name(f_name, number=True)
                 logic = {'label': title, 'logic': filter_by}
                 if self.filter:
@@ -1015,18 +994,17 @@ class Batch(DataSet):
         if len(oe) + len(break_by) == 0:
             raise ValueError("Please add any variables as 'oe' or 'break_by'.")
         if split:
-            if not len(oe) == len(title):
+            if len(oe) != len(title):
                 msg = "Cannot derive verbatim DataFrame 'title' with more than 1 'oe'"
                 raise ValueError(msg)
             for t, open_end in zip(title, oe, strict=False):
-                open_end = [open_end]
+                open_end_list = [open_end]
                 _add_oe(
-                    open_end, break_by, t, drop_empty, incl_nan, filter_by, overwrite
+                    open_end_list, break_by, t, drop_empty, incl_nan, filter_by, overwrite
                 )
         else:
             _add_oe(oe, break_by, title[0], drop_empty, incl_nan, filter_by, overwrite)
         self._update()
-        return
 
     @modify(to_list=['ext_yks', 'on'])
     @verify(variables={'ext_yks': 'both_nested'})
@@ -1064,7 +1042,6 @@ class Batch(DataSet):
                 x_ext = self.unroll(self.extended_yks_per_x.get(x, []) + ext_yks)
                 self.extended_yks_per_x.update({x: x_ext})
             self._update()
-        return
 
     @modify(to_list=['new_yks', 'on'])
     @verify(variables={'new_yks': 'both_nested', 'on': 'both'})
@@ -1094,7 +1071,6 @@ class Batch(DataSet):
         for x in on:
             self.exclusive_yks_per_x.update({x: new_yks})
         self._update()
-        return
 
     def extend_filter(self, ext_filters: str | list[str] | dict[str, Any]) -> None:
         """
@@ -1112,9 +1088,11 @@ class Batch(DataSet):
         None
         """
         for variables, logic in list(ext_filters.items()):
-            if not isinstance(variables, (list, tuple)):
-                variables = [variables]
-            for v in variables:
+            if not isinstance(variables, list | tuple):
+                var_list = [variables]
+            else:
+                var_list = variables
+            for v in var_list:
                 if self.filter:
                     log = {'label': v, 'logic': logic}
                     f_name = f'{self.filter}_{v}'
@@ -1124,7 +1102,6 @@ class Batch(DataSet):
                     self.add_filter_var(f_name, log)
                 self.extended_filters_per_x.update({v: f_name})
         self._update()
-        return
 
     def add_y_on_y(
         self,
@@ -1167,7 +1144,6 @@ class Batch(DataSet):
             main_filter = 'replace'
         self.y_on_y_filter[name] = (main_filter, y_filter)
         self._update()
-        return
 
     def _map_x_to_y(self) -> None:
         """
@@ -1183,9 +1159,8 @@ class Batch(DataSet):
             for y in yks:
                 if isinstance(y, dict):
                     for pos, var in list(y.items()):
-                        if not isinstance(var, list):
-                            var = [var]
-                        for v in var:
+                        var_list = [var] if not isinstance(var, list) else var
+                        for v in var_list:
                             if v not in y_keys:
                                 y_keys.insert(y_keys.index(pos), v)
                 elif y not in y_keys:
@@ -1222,7 +1197,6 @@ class Batch(DataSet):
             if x in self.transposed:
                 mapping.append(('@', [x]))
         self.x_y_map = mapping
-        return
 
     def _split_level_arrays(self) -> None:
         _x_y_map = []
@@ -1235,7 +1209,6 @@ class Batch(DataSet):
             else:
                 _x_y_map.append((x, y))
         self.x_y_map = _x_y_map
-        return
 
     def _map_x_to_filter(self) -> None:
         """
@@ -1258,7 +1231,6 @@ class Batch(DataSet):
             if name and name not in self.filter_names:
                 self.filter_names.append(name)
         self.x_filter_map = mapping
-        return
 
     def _map_y_on_y_filter(self) -> None:
         """
@@ -1292,7 +1264,6 @@ class Batch(DataSet):
                     suf = f[len(self.filter) + 1 :]
                     self.extend_filter_var(self.filter, logic, suf)
             self.y_filter_map[y_on_y] = f
-        return
 
     def _check_forced_names(self, variables: list[str]) -> list[str]:
         """
@@ -1329,13 +1300,9 @@ class Batch(DataSet):
         """
         Calculates sample_size from existing filter.
         """
-        if self.filter:
-            idx = self.manifest_filter(self.filter)
-        else:
-            idx = self._data.index
+        idx = self.manifest_filter(self.filter) if self.filter else self._data.index
         self.sample_size = len(idx)
 
-        return
 
     @modify(to_list=["mode", "misc"])
     def to_dataset(
@@ -1345,8 +1312,8 @@ class Batch(DataSet):
         additions: str | bool = "sort_within",
         manifest_edits: str = "keep",
         integrate_rc: tuple[list[str], bool] = (["_rc", "_rb"], True),
-        misc: list[str] = ["RecordNo", "caseid", "identity"],
-    ) -> 'qp.DataSet':
+        misc: list[str] = None,
+    ) -> qp.DataSet:
         """
         Create a qp.DataSet instance out of the batch settings.
 
@@ -1361,6 +1328,8 @@ class Batch(DataSet):
         manifest_edits: str {'keep', 'apply', False}
             Keep meta from edits or apply rules.
         """
+        if misc is None:
+            misc = ["RecordNo", "caseid", "identity"]
         batches = self._meta['sets']['batches']
         adds = batches[self.name]['additions']
 
@@ -1424,28 +1393,26 @@ class Batch(DataSet):
             for v in ds.variables():
                 if ds.is_array(v) and b_meta.get(v):
                     ds._meta['masks'][v] = b_meta[v]
-                    try:
+                    with contextlib.suppress(BaseException):
                         ds._meta['lib']['values'][v] = b_meta['lib'][v]
-                    except BaseException:
-                        pass
                 elif b_meta.get(v):
                     ds._meta['columns'][v] = b_meta[v]
                 if manifest_edits == "apply" and not ds._is_array_item(v):
                     for axis in ['x', 'y']:
-                        if all(
-                            rule in ds._get_rules(v, axis)
-                            for rule in ['dropx', 'slicex']
-                        ):
-                            drops = ds._get_rules(v, axis)['dropx']['values']
-                            slicer = ds._get_rules(v, axis)['slicex']['values']
-                        elif 'dropx' in ds._get_rules(v, axis):
-                            drops = ds._get_rules(v, axis)['dropx']['values']
-                            slicer = ds.codes(v)
-                        elif 'slicex' in ds._get_rules(v, axis):
-                            drops = []
-                            slicer = ds._get_rules(v, axis)['slicex']['values']
-                        else:
-                            drops = slicer = []
+                        # Modern pattern matching for rule processing
+                        rules = ds._get_rules(v, axis)
+                        match ('dropx' in rules, 'slicex' in rules):
+                            case (True, True):
+                                drops = rules['dropx']['values']
+                                slicer = rules['slicex']['values']
+                            case (True, False):
+                                drops = rules['dropx']['values']
+                                slicer = ds.codes(v)
+                            case (False, True):
+                                drops = []
+                                slicer = rules['slicex']['values']
+                            case (False, False):
+                                drops = slicer = []
                         if drops or slicer:
                             if not all(isinstance(c, int) for c in drops):
                                 item_no = [ds.item_no(d) for d in drops]
@@ -1453,7 +1420,7 @@ class Batch(DataSet):
                             else:
                                 codes = ds.codes(v)
                                 n_codes = [c for c in slicer if c not in drops]
-                                if not len(n_codes) == len(codes):
+                                if len(n_codes) != len(codes):
                                     remove = [c for c in codes if c not in n_codes]
                                     ds.remove_values(v, remove)
                                 ds.reorder_values(v, n_codes)
@@ -1463,7 +1430,7 @@ class Batch(DataSet):
                                     ds._meta['columns'][v].pop('rules')
         return ds
 
-    def _get_vlist(self, batch: 'Batch', mode: str) -> list[str]:
+    def _get_vlist(self, batch: Batch, mode: str) -> list[str]:
         match = {
             "x": "xks",
             "y": "yks",
