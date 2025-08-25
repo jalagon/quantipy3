@@ -1,179 +1,216 @@
+"""Excel format specifications for quantipy3 reports.
+
+This module provides the XlsxFormats class for generating comprehensive Excel
+format dictionaries used in quantipy Excel report generation.
+"""
+
+from __future__ import annotations
 
 import pickle
 from itertools import chain, combinations
+from typing import Any
 
 DESCRIPTIVES = [
-    'DESCRIPTIVES',
-    'bg-DESCRIPTIVES',
-    'DESCRIPTIVES-XT',
-    'bg-DESCRIPTIVES-XT',
-    'brow-DESCRIPTIVES',
-    'mrow-DESCRIPTIVES',
-    'frow-DESCRIPTIVES']
+    "DESCRIPTIVES",
+    "bg-DESCRIPTIVES",
+    "DESCRIPTIVES-XT",
+    "bg-DESCRIPTIVES-XT",
+    "brow-DESCRIPTIVES",
+    "mrow-DESCRIPTIVES",
+    "frow-DESCRIPTIVES",
+]
 
-DEFAULT = [
-    'DEFAULT',
-    'bg-DEFAULT',
-    'frow-bg-DEFAULT']
+DEFAULT = ["DEFAULT", "bg-DEFAULT", "frow-bg-DEFAULT"]
 
-BASE = ['BASE', 'frow-BASE', 'UBASE', 'frow-UBASE']
+BASE = ["BASE", "frow-BASE", "UBASE", "frow-UBASE"]
 
 N_PCT_FORMAT = [
-    '{}'.format,
-    'bg-{}'.format,
-    'frow-{}'.format,
-    'frow-bg-{}'.format,
-    '{}-NET'.format,
-    'bg-{}-NET'.format,
-    'brow-{}-NET'.format,
-    'mrow-{}-NET'.format,
-    'frow-{}-NET'.format]
+    "{}".format,
+    "bg-{}".format,
+    "frow-{}".format,
+    "frow-bg-{}".format,
+    "{}-NET".format,
+    "bg-{}-NET".format,
+    "brow-{}-NET".format,
+    "mrow-{}-NET".format,
+    "frow-{}-NET".format,
+]
 
-N_PCT = list(chain(*[[fn(f) for fn in N_PCT_FORMAT] for f in ['N', 'PCT']]))
+N_PCT = list(chain(*[[fn(f) for fn in N_PCT_FORMAT] for f in ["N", "PCT"]]))
 
 for i, name in enumerate(N_PCT[:]):
-    N_PCT[i+1:i+1] = ['{}-UP'.format(name)]
-    N_PCT[i+2:i+2] = ['{}-DOWN'.format(name)]
+    N_PCT[i + 1 : i + 1] = [f"{name}-UP"]
+    N_PCT[i + 2 : i + 2] = [f"{name}-DOWN"]
 
 TESTS = [
-    'TESTS', 'bg-TESTS', 'frow-TESTS', 'frow-bg-TESTS',
-    'TESTS-UP', 'bg-TESTS-UP', 'frow-TESTS-UP', 'frow-bg-TESTS-UP',
-    'TESTS-DOWN', 'bg-TESTS-DOWN', 'frow-TESTS-DOWN', 'frow-bg-TESTS-DOWN',
-    'STR']
+    "TESTS",
+    "bg-TESTS",
+    "frow-TESTS",
+    "frow-bg-TESTS",
+    "TESTS-UP",
+    "bg-TESTS-UP",
+    "frow-TESTS-UP",
+    "frow-bg-TESTS-UP",
+    "TESTS-DOWN",
+    "bg-TESTS-DOWN",
+    "frow-TESTS-DOWN",
+    "frow-bg-TESTS-DOWN",
+    "STR",
+]
 
 CELL_LIST = DESCRIPTIVES + DEFAULT + BASE + N_PCT + TESTS
 
-class XlsxFormats(object):
+
+class XlsxFormats:
+    """Excel format generator for quantipy reports.
+
+    This class creates comprehensive Excel format dictionaries used by ExcelPainter
+    to generate professional-looking Excel reports with proper styling, borders,
+    colors, and typography for statistical data presentation.
+
+    The class supports customizable formatting properties and generates format
+    objects for different cell types including data cells, headers, statistical
+    tests, and descriptive statistics.
     """
-    A class for writing the quantipy.ExcelPainter format dictionary.
-    """
 
-    def __init__(self, properties={}):
-            """
-            Constructor.
-            """
+    def __init__(self, properties: dict[str, Any] | None = None) -> None:
+        """Initialize Excel format generator with custom properties.
 
-            super(XlsxFormats, self).__init__()
+        Parameters
+        ----------
+        properties : dict[str, Any] | None, default None
+            Dictionary of custom formatting properties to override defaults.
+            Keys should match setter method names (without 'set_' prefix).
 
-            # -------------------------- POSTIONAL
-            self.start_row = 8
-            self.start_column = 2
-            self.row_height = 12.75
-            self.row_wrap_trigger = 44
-            self.y_header_height = 33.75
-            self.y_row_height = 50
-            # --------------------------
+        Notes
+        -----
+        The constructor sets up default values for positioning, image handling,
+        colors, fonts, borders, and other formatting specifications that can
+        be customized through the properties parameter.
+        """
+        if properties is None:
+            properties = {}
+        super().__init__()
 
-            # -------------------------- IMAGE
-            self.no_logo = False
-            self.img_name = 'qplogo_invert_lg.png'
-            self.img_url = '\\'.join(['logo', self.img_name])
-            self.img_size = [130, 130]
-            self.img_insert_x = 0
-            self.img_insert_y = 0
-            self.img_x_offset = 0
-            self.img_y_offset = 0
-            # --------------------------
+        # -------------------------- POSITIONAL
+        self.start_row = 8
+        self.start_column = 2
+        self.row_height = 12.75
+        self.row_wrap_trigger = 44
+        self.y_header_height = 33.75
+        self.y_row_height = 50
+        # --------------------------
 
-            #-------------------------- CELL DATA OPTIONS
-            self.frequency_0_repr = '-'
-            self.descriptives_0_repr = 0.00
-            self.df_nan_repr = '__NA__'
-            self.test_seperator = '.'
-            #--------------------------
+        # -------------------------- IMAGE
+        self.no_logo = False
+        self.img_name = "qplogo_invert_lg.png"
+        self.img_url = "\\".join(["logo", self.img_name])
+        self.img_size = [130, 130]
+        self.img_insert_x = 0
+        self.img_insert_y = 0
+        self.img_x_offset = 0
+        self.img_y_offset = 0
+        # --------------------------
 
-            #-------------------------- TEXT
-            self.font_name = 'Arial'
-            self.font_size = 9
-            self.font_color = '#000000'
-            self.font_color_label = '#000000'
-            self.bold = False
-            self.bold_y = False
-            self.bold_x = False
-            #--------------------------
+        # -------------------------- CELL DATA OPTIONS
+        self.frequency_0_repr = "-"
+        self.descriptives_0_repr = 0.00
+        self.df_nan_repr = "__NA__"
+        self.test_seperator = "."
+        # --------------------------
 
-            #-------------------------- TEXT (BASE)
-            self.font_color_ubase = '#000000'
-            self.font_color_ubase_text = '#000000'
-            self.font_color_base = '#000000'
-            self.font_color_base_text = '#000000'
-            self.bold_ubase_text = False
-            self.bold_ubase = False
-            self.bold_base_text = False
-            self.bold_base = False
-            #--------------------------
+        # -------------------------- TEXT
+        self.font_name = "Arial"
+        self.font_size = 9
+        self.font_color = "#000000"
+        self.font_color_label = "#000000"
+        self.bold = False
+        self.bold_y = False
+        self.bold_x = False
+        # --------------------------
 
-            #-------------------------- TEXT (NETS)
-            self.font_name_nets = 'Arial'
-            self.font_size_nets = 9
-            self.font_color_nets = '#000000'
-            self.bold_nets = False
-            self.italicise_nets = False
-            #--------------------------
+        # -------------------------- TEXT (BASE)
+        self.font_color_ubase = "#000000"
+        self.font_color_ubase_text = "#000000"
+        self.font_color_base = "#000000"
+        self.font_color_base_text = "#000000"
+        self.bold_ubase_text = False
+        self.bold_ubase = False
+        self.bold_base_text = False
+        self.bold_base = False
+        # --------------------------
 
-            #-------------------------- TEXT (DESCRIPTIVES)
-            self.font_name_descriptives = 'Arial'
-            self.font_size_descriptives = 9
-            self.font_color_descriptives = '#000000'
-            self.bold_descriptives = False
-            #--------------------------
+        # -------------------------- TEXT (NETS)
+        self.font_name_nets = "Arial"
+        self.font_size_nets = 9
+        self.font_color_nets = "#000000"
+        self.bold_nets = False
+        self.italicise_nets = False
+        # --------------------------
 
-            #-------------------------- TEXT (TESTS)
-            self.font_name_tests = 'Arial'
-            self.font_size_tests = 9
-            self.font_color_tests = '#000000'
-            self.bold_tests = False
-            self.font_super_tests = True
-            self.display_test_level = True
-            self.dummy_tests = False
-            self.arrow_color_high = '#2EB08C'
-            self.arrow_color_low = '#FC8EAC'
-            #--------------------------
+        # -------------------------- TEXT (DESCRIPTIVES)
+        self.font_name_descriptives = "Arial"
+        self.font_size_descriptives = 9
+        self.font_color_descriptives = "#000000"
+        self.bold_descriptives = False
+        # --------------------------
 
-            #-------------------------- TEXT (STR)
-            self.font_name_str = 'Arial'
-            self.font_size_str = 9
-            self.font_color_str = '#000000'
-            self.column_width_str = 10
-            #--------------------------
+        # -------------------------- TEXT (TESTS)
+        self.font_name_tests = "Arial"
+        self.font_size_tests = 9
+        self.font_color_tests = "#000000"
+        self.bold_tests = False
+        self.font_super_tests = True
+        self.display_test_level = True
+        self.dummy_tests = False
+        self.arrow_color_high = "#2EB08C"
+        self.arrow_color_low = "#FC8EAC"
+        # --------------------------
 
-            #-------------------------- TEXT (ADDITIONAL)
-            self.format_label_row = False
-            #--------------------------
+        # -------------------------- TEXT (STR)
+        self.font_name_str = "Arial"
+        self.font_size_str = 9
+        self.font_color_str = "#000000"
+        self.column_width_str = 10
+        # --------------------------
 
-            #-------------------------- BORDERS
-            self.border_color = '#D9D9D9'
-            self.border_color_nets_top = '#D9D9D9'
-            self.border_color_descriptives_top = '#D9D9D9'
-            self.border_style_ext = 5
-            self.border_style_int = 1
-            #--------------------------
+        # -------------------------- TEXT (ADDITIONAL)
+        self.format_label_row = False
+        # --------------------------
 
-            #-------------------------- BACKGROUND
-            self.bg_color = '#F2F2F2'
-            self.bg_color_nets = '#FFFFFF'
-            self.bg_color_tests = '#F2F2F2'
-            self.bg_color_label = '#FFFFFF'
-            #--------------------------
+        # -------------------------- BORDERS
+        self.border_color = "#D9D9D9"
+        self.border_color_nets_top = "#D9D9D9"
+        self.border_color_descriptives_top = "#D9D9D9"
+        self.border_style_ext = 5
+        self.border_style_int = 1
+        # --------------------------
 
-            #-------------------------- NUMBER
-            self.num_format_n = '0'
-            self.num_format_pct = '0%'
-            self.num_format_descriptives = '0.00'
-            self.num_format_default = '0.00'
-            #--------------------------
+        # -------------------------- BACKGROUND
+        self.bg_color = "#F2F2F2"
+        self.bg_color_nets = "#FFFFFF"
+        self.bg_color_tests = "#F2F2F2"
+        self.bg_color_label = "#FFFFFF"
+        # --------------------------
 
-            # Convert properties in the constructor to method calls.
-            #--------------------------
-            for key, value in list(properties.items()):
-                command = 'set_{}'.format(key)
-                getattr(self, command)(value)
-            #--------------------------
+        # -------------------------- NUMBER
+        self.num_format_n = "0"
+        self.num_format_pct = "0%"
+        self.num_format_descriptives = "0.00"
+        self.num_format_default = "0.00"
+        # --------------------------
 
-            #-------------------------- POSITIONAL (INDEX)
-            self._start_row_idx = self.start_row-1
-            self._start_column_idx = self.start_column-1
-            #--------------------------
+        # Convert properties in the constructor to method calls.
+        # --------------------------
+        for key, value in list(properties.items()):
+            command = f"set_{key}"
+            getattr(self, command)(value)
+        # --------------------------
+
+        # -------------------------- POSITIONAL (INDEX)
+        self._start_row_idx = self.start_row - 1
+        self._start_column_idx = self.start_column - 1
+        # --------------------------
 
     def get_start_row_idx(self):
         """
@@ -441,7 +478,6 @@ class XlsxFormats(object):
         """
         self.test_seperator = test_seperator
 
-
     def set_font_name(self, font_name):
         """
         Set the font name.
@@ -584,7 +620,6 @@ class XlsxFormats(object):
         """
         self.font_color_base = font_color_base
 
-
     def set_font_color_base_text(self, font_color_base_text):
         """
         Set the font color for the base views text.
@@ -683,7 +718,6 @@ class XlsxFormats(object):
         """
         self.font_size_nets = font_size_nets
 
-
     def set_font_color_nets(self, font_color_nets):
         """
         Set the font color for nets views.
@@ -767,7 +801,6 @@ class XlsxFormats(object):
         None
         """
         self.font_size_descriptives = font_size_descriptives
-
 
     def set_font_color_descriptives(self, font_color_descriptives):
         """
@@ -1191,195 +1224,215 @@ class XlsxFormats(object):
         self._add_interior()
         self._add_italic()
 
-# -----------------------------------------------------------------------------
+    # -----------------------------------------------------------------------------
 
     def _add_toc(self):
-        """ Create the key-value pairs for self.format_dict(),
+        """Create the key-value pairs for self.format_dict(),
         for use in the toc.
         """
         self.format_dict.update(
             {
-                'TOC-bold-14': {
-                    'font_name': self.font_name,
-                    'font_size': 14,
-                    'bold': True},
-                'TOC-bold-10': {
-                    'font_name': self.font_name,
-                    'font_size': 10,
-                    'bold': True},
-                'TOC-bold-center-10': {
-                    'font_name': self.font_name,
-                    'font_size': 10,
-                    'bold': True,
-                    'text_v_align': 2,
-                    'text_h_align': 2},
-                'TOC-10': {
-                    'font_name': self.font_name,
-                    'font_size': 10},
-                'TOC-url': {
-                    'font_name': self.font_name,
-                    'font_size': 10,
-                    'font_color': 'blue',
-                    'underline':  1}})
+                "TOC-bold-14": {
+                    "font_name": self.font_name,
+                    "font_size": 14,
+                    "bold": True,
+                },
+                "TOC-bold-10": {
+                    "font_name": self.font_name,
+                    "font_size": 10,
+                    "bold": True,
+                },
+                "TOC-bold-center-10": {
+                    "font_name": self.font_name,
+                    "font_size": 10,
+                    "bold": True,
+                    "text_v_align": 2,
+                    "text_h_align": 2,
+                },
+                "TOC-10": {"font_name": self.font_name, "font_size": 10},
+                "TOC-url": {
+                    "font_name": self.font_name,
+                    "font_size": 10,
+                    "font_color": "blue",
+                    "underline": 1,
+                },
+            }
+        )
 
     def _add_y(self):
-        """ Create the key-value pairs for self.format_dict(),
+        """Create the key-value pairs for self.format_dict(),
         for use in the y-axis.
         """
         self.format_dict.update(
             {
-                'y': {
-                    'font_name': self.font_name,
-                    'font_size': self.font_size,
-                    'bold': self.bold_y,
-                    'text_v_align': 2,
-                    'text_h_align': 2,
-                    'text_wrap': True,
-                    'left': self.border_style_ext,
-                    'top': self.border_style_ext,
-                    'right': self.border_style_ext,
-                    'bottom': self.border_style_ext,
-                    'left_color': self.border_color,
-                    'top_color': self.border_color,
-                    'right_color': self.border_color,
-                    'bottom_color': self.border_color}})
+                "y": {
+                    "font_name": self.font_name,
+                    "font_size": self.font_size,
+                    "bold": self.bold_y,
+                    "text_v_align": 2,
+                    "text_h_align": 2,
+                    "text_wrap": True,
+                    "left": self.border_style_ext,
+                    "top": self.border_style_ext,
+                    "right": self.border_style_ext,
+                    "bottom": self.border_style_ext,
+                    "left_color": self.border_color,
+                    "top_color": self.border_color,
+                    "right_color": self.border_color,
+                    "bottom_color": self.border_color,
+                }
+            }
+        )
 
     def _add_tests(self):
-        """ Create the key-value pairs for self.format_dict(),
+        """Create the key-value pairs for self.format_dict(),
         for use in the tests-letter row of y-axis.
         """
         self.format_dict.update(
             {
-                'tests': {
+                "tests": {
                     # 'bg_color': self.bg_color_tests,
-                    'bg_color': '#FFFFFF',
-                    'font_name': self.font_name_tests,
-                    'font_size': self.font_size_tests,
-                    'font_color': self.font_color_tests,
-                    'bold': self.bold_y,
-                    'text_v_align': 2,
-                    'text_h_align': 2,
-                    'text_wrap': True,
-                    'left': self.border_style_ext,
-                    'top': self.border_style_ext,
-                    'right': self.border_style_ext,
-                    'bottom': self.border_style_ext,
-                    'left_color': self.border_color,
-                    'top_color': self.border_color,
-                    'right_color': self.border_color,
-                    'bottom_color': self.border_color}})
+                    "bg_color": "#FFFFFF",
+                    "font_name": self.font_name_tests,
+                    "font_size": self.font_size_tests,
+                    "font_color": self.font_color_tests,
+                    "bold": self.bold_y,
+                    "text_v_align": 2,
+                    "text_h_align": 2,
+                    "text_wrap": True,
+                    "left": self.border_style_ext,
+                    "top": self.border_style_ext,
+                    "right": self.border_style_ext,
+                    "bottom": self.border_style_ext,
+                    "left_color": self.border_color,
+                    "top_color": self.border_color,
+                    "right_color": self.border_color,
+                    "bottom_color": self.border_color,
+                }
+            }
+        )
 
     def _add_x(self):
-        """ Create the key-value pairs for self.format_dict(),
+        """Create the key-value pairs for self.format_dict(),
         for use in the x-axis.
         """
         self.format_dict.update(
             {
-                'x_left_bold': {
-                    'font_name': self.font_name,
-                    'font_size': self.font_size,
-                    'font_color': self.font_color_label,
-                    'bold': self.bold_x,
-                    'bg_color': self.bg_color_label,
-                    'text_v_align': 2,
-                    'text_h_align': 1,
-                    'text_wrap': True},
-                'x_right': {
-                    'font_name': self.font_name,
-                    'font_size': self.font_size,
-                    'text_v_align': 2,
-                    'text_h_align': 3,
-                    'text_wrap': True},
-                'x_right_bold': {
-                    'font_name': self.font_name,
-                    'font_size': self.font_size,
-                    'text_v_align': 2,
-                    'text_h_align': 3,
-                    'text_wrap': True,
-                    'bold': True},
-                'x_right_italic': {
-                    'font_name': self.font_name,
-                    'font_size': self.font_size,
-                    'text_v_align': 2,
-                    'text_h_align': 3,
-                    'text_wrap': True,
-                    'italic': True},
-                'cell_details': {
-                    'font_name': self.font_name_tests,
-                    'font_size': self.font_size,
-                    'text_v_align': 2,
-                    'text_h_align': 1},
-                'x_right_nets': {
-                    'bold': self.bold_nets,
-                    'bg_color': self.bg_color_nets,
-                    'italic': self.italicise_nets,
-                    'font_name': self.font_name_nets,
-                    'font_size': self.font_size_nets,
-                    'font_color': self.font_color_nets,
-                    'text_v_align': 2,
-                    'text_h_align': 3,
-                    'text_wrap': True},
-                'x_right_descriptives': {
-                    'font_name': self.font_name_descriptives,
-                    'font_size': self.font_size_descriptives,
-                    'font_color': self.font_color_descriptives,
-                    'bold': self.bold_descriptives,
-                    'text_v_align': 2,
-                    'text_h_align': 3,
-                    'text_wrap': True},
-                'x_right_tests': {
-                    'num_format': '0.00',
-                    'font_name': self.font_name_tests,
-                    'font_size': self.font_size_tests,
-                    'font_color': self.font_color_tests,
-                    'font_script': self.font_super_tests,
-                    'bold': self.bold_tests,
-                    'text_v_align': 2,
-                    'text_h_align': 3,
-                    'text_wrap': True},
-                'x_right_ubase': {
-                    'font_name': self.font_name,
-                    'font_size': self.font_size,
-                    'font_color': self.font_color_ubase_text,
-                    'bold': self.bold_ubase_text,
-                    'text_v_align': 2,
-                    'text_h_align': 3,
-                    'text_wrap': True},
-                'x_right_base': {
-                    'font_name': self.font_name,
-                    'font_size': self.font_size,
-                    'font_color': self.font_color_base_text,
-                    'bold': self.bold_base_text,
-                    'text_v_align': 2,
-                    'text_h_align': 3,
-                    'text_wrap': True}})
+                "x_left_bold": {
+                    "font_name": self.font_name,
+                    "font_size": self.font_size,
+                    "font_color": self.font_color_label,
+                    "bold": self.bold_x,
+                    "bg_color": self.bg_color_label,
+                    "text_v_align": 2,
+                    "text_h_align": 1,
+                    "text_wrap": True,
+                },
+                "x_right": {
+                    "font_name": self.font_name,
+                    "font_size": self.font_size,
+                    "text_v_align": 2,
+                    "text_h_align": 3,
+                    "text_wrap": True,
+                },
+                "x_right_bold": {
+                    "font_name": self.font_name,
+                    "font_size": self.font_size,
+                    "text_v_align": 2,
+                    "text_h_align": 3,
+                    "text_wrap": True,
+                    "bold": True,
+                },
+                "x_right_italic": {
+                    "font_name": self.font_name,
+                    "font_size": self.font_size,
+                    "text_v_align": 2,
+                    "text_h_align": 3,
+                    "text_wrap": True,
+                    "italic": True,
+                },
+                "cell_details": {
+                    "font_name": self.font_name_tests,
+                    "font_size": self.font_size,
+                    "text_v_align": 2,
+                    "text_h_align": 1,
+                },
+                "x_right_nets": {
+                    "bold": self.bold_nets,
+                    "bg_color": self.bg_color_nets,
+                    "italic": self.italicise_nets,
+                    "font_name": self.font_name_nets,
+                    "font_size": self.font_size_nets,
+                    "font_color": self.font_color_nets,
+                    "text_v_align": 2,
+                    "text_h_align": 3,
+                    "text_wrap": True,
+                },
+                "x_right_descriptives": {
+                    "font_name": self.font_name_descriptives,
+                    "font_size": self.font_size_descriptives,
+                    "font_color": self.font_color_descriptives,
+                    "bold": self.bold_descriptives,
+                    "text_v_align": 2,
+                    "text_h_align": 3,
+                    "text_wrap": True,
+                },
+                "x_right_tests": {
+                    "num_format": "0.00",
+                    "font_name": self.font_name_tests,
+                    "font_size": self.font_size_tests,
+                    "font_color": self.font_color_tests,
+                    "font_script": self.font_super_tests,
+                    "bold": self.bold_tests,
+                    "text_v_align": 2,
+                    "text_h_align": 3,
+                    "text_wrap": True,
+                },
+                "x_right_ubase": {
+                    "font_name": self.font_name,
+                    "font_size": self.font_size,
+                    "font_color": self.font_color_ubase_text,
+                    "bold": self.bold_ubase_text,
+                    "text_v_align": 2,
+                    "text_h_align": 3,
+                    "text_wrap": True,
+                },
+                "x_right_base": {
+                    "font_name": self.font_name,
+                    "font_size": self.font_size,
+                    "font_color": self.font_color_base_text,
+                    "bold": self.bold_base_text,
+                    "text_v_align": 2,
+                    "text_h_align": 3,
+                    "text_wrap": True,
+                },
+            }
+        )
 
     def _add_left(self):
-        """ Create the key-value pairs for self.format_dict(),
+        """Create the key-value pairs for self.format_dict(),
         where key starts with 'left'
         """
         self._update_format_dict(
-            border='left',
-            additional_borders=['right', 'top', 'bottom'])
+            border="left", additional_borders=["right", "top", "bottom"]
+        )
 
     def _add_right(self):
-        """ Create the key-value pairs for self.format_dict(),
+        """Create the key-value pairs for self.format_dict(),
         where key starts with 'right'
         """
-        self._update_format_dict(
-            border='right',
-            additional_borders=['top', 'bottom'])
+        self._update_format_dict(border="right", additional_borders=["top", "bottom"])
 
     def _add_interior(self):
-        """ Create the key-value pairs for self.format_dict(),
+        """Create the key-value pairs for self.format_dict(),
         where key starts with 'right'
         """
         self._update_format_dict(
-            border='interior',
-            additional_borders=['top', 'bottom'])
+            border="interior", additional_borders=["top", "bottom"]
+        )
 
     def _update_format_dict(self, border, additional_borders):
-        """ Update self.format_dict() given border and
+        """Update self.format_dict() given border and
         additional_borders
         """
         additional_borders.extend(
@@ -1387,274 +1440,273 @@ class XlsxFormats(object):
                 chain(
                     *[
                         list(combinations(additional_borders, r))
-                        for r in range(2, len(additional_borders)+1)])))
-        borders_list = ['-']
+                        for r in range(2, len(additional_borders) + 1)
+                    ]
+                )
+            )
+        )
+        borders_list = ["-"]
         borders_list.extend(
             [
-                '-{}-'.format('-'.join(x)) if isinstance(x, tuple)
-                else '-{}-'.format(x) for x in additional_borders])
+                "-{}-".format("-".join(x)) if isinstance(x, tuple) else f"-{x}-"
+                for x in additional_borders
+            ]
+        )
         for borders in borders_list:
             for cell in CELL_LIST:
-                key = ''.join([border, borders, cell])
+                key = "".join([border, borders, cell])
                 self.format_dict.update({key: self._get_value(key)})
 
     def _get_value(self, key):
-        """ Get the value for format key.
-        """
+        """Get the value for format key."""
         # Add alignment
         result = {}
-        if not key.endswith('-STR'):
+        if not key.endswith("-STR"):
             result.update(self._get_alignments())
         # Add borders
-        for border in ['left', 'right', 'top', 'bottom']:
-            if '{}-'.format(border) in key:
+        for border in ["left", "right", "top", "bottom"]:
+            if f"{border}-" in key:
                 conditions = [
-                    not key.endswith(('NET', 'NET-UP', 'NET-DOWN', 'DESCRIPTIVES')),
+                    not key.endswith(("NET", "NET-UP", "NET-DOWN", "DESCRIPTIVES")),
                     all(
                         [
-                            key.endswith(('NET', 'NET-UP', 'NET-DOWN', 'DESCRIPTIVES')),
-                            not border == 'top'])]
+                            key.endswith(("NET", "NET-UP", "NET-DOWN", "DESCRIPTIVES")),
+                            border != "top",
+                        ]
+                    ),
+                ]
                 if any(conditions):
+                    result.update(self._get_border(border, self.border_style_ext))
+                elif key.endswith(("NET", "NET-UP", "NET-DOWN")):
                     result.update(
-                        self._get_border(border, self.border_style_ext))
-                elif key.endswith(('NET', 'NET-UP', 'NET-DOWN')):
+                        self._get_border(
+                            border, self.border_style_ext, self.border_color_nets_top
+                        )
+                    )
+                elif key.endswith(("DESCRIPTIVES", "DESCRIPTIVES-XT")):
                     result.update(
                         self._get_border(
                             border,
                             self.border_style_ext,
-                            self.border_color_nets_top))
-                elif key.endswith(('DESCRIPTIVES', 'DESCRIPTIVES-XT')):
-                    result.update(
-                        self._get_border(
-                            border,
-                            self.border_style_ext,
-                            self.border_color_descriptives_top))
-        if not 'left' in key:
-            if not key.endswith('-STR'):
-                result.update(
-                    self._get_border('left', self.border_style_int))
+                            self.border_color_descriptives_top,
+                        )
+                    )
+        if "left" not in key and not key.endswith("-STR"):
+            result.update(self._get_border("left", self.border_style_int))
         # Cell type
-        if key.endswith(('-DESCRIPTIVES', '-DESCRIPTIVES-XT')):
-            if not key.endswith('XT'):
-                for border in ['top', 'bottom']:
-                    if not border in list(result.keys()):
+        if key.endswith(("-DESCRIPTIVES", "-DESCRIPTIVES-XT")):
+            if not key.endswith("XT"):
+                for border in ["top", "bottom"]:
+                    if border not in list(result.keys()):
                         result.update(
                             self._get_border(
                                 border,
                                 self.border_style_int,
-                                self.border_color_descriptives_top))
-            result.update(self._get_num_format('DESCRIPTIVES'))
-            result.update(self._get_font_format('DESCRIPTIVES'))
-            result.update(self._get_bold_format('DESCRIPTIVES'))
-            if 'bg' in key: result.update(
-                self._get_bg_format('DESCRIPTIVES', True))
-        elif key.endswith('-DEFAULT'):
-            result.update(self._get_num_format('DEFAULT'))
-            result.update(self._get_font_format('DEFAULT'))
-            result.update(self._get_bg_format('DEFAULT', 'bg' in key))
-        elif key.endswith('-BASE'):
-            result.update(self._get_num_format('BASE'))
-            result.update(self._get_font_format('BASE'))
-        elif key.endswith('-UBASE'):
-            result.update(self._get_num_format('UBASE'))
-            result.update(self._get_font_format('UBASE'))
-        elif key.endswith('-N'):
-            result.update(self._get_num_format('N'))
-            result.update(self._get_font_format('N'))
-            result.update(self._get_bg_format('N', 'bg' in key))
-        elif key.endswith(('-N-NET', '-N-NET-UP', '-N-NET-DOWN')):
-            for border in ['top']:
-                if not border in list(result.keys()):
+                                self.border_color_descriptives_top,
+                            )
+                        )
+            result.update(self._get_num_format("DESCRIPTIVES"))
+            result.update(self._get_font_format("DESCRIPTIVES"))
+            result.update(self._get_bold_format("DESCRIPTIVES"))
+            if "bg" in key:
+                result.update(self._get_bg_format("DESCRIPTIVES", True))
+        elif key.endswith("-DEFAULT"):
+            result.update(self._get_num_format("DEFAULT"))
+            result.update(self._get_font_format("DEFAULT"))
+            result.update(self._get_bg_format("DEFAULT", "bg" in key))
+        elif key.endswith("-BASE"):
+            result.update(self._get_num_format("BASE"))
+            result.update(self._get_font_format("BASE"))
+        elif key.endswith("-UBASE"):
+            result.update(self._get_num_format("UBASE"))
+            result.update(self._get_font_format("UBASE"))
+        elif key.endswith("-N"):
+            result.update(self._get_num_format("N"))
+            result.update(self._get_font_format("N"))
+            result.update(self._get_bg_format("N", "bg" in key))
+        elif key.endswith(("-N-NET", "-N-NET-UP", "-N-NET-DOWN")):
+            for border in ["top"]:
+                if border not in list(result.keys()):
                     result.update(
                         self._get_border(
-                            border,
-                            self.border_style_int,
-                            self.border_color_nets_top))
-            result.update(self._get_num_format('N'))
-            result.update(self._get_font_format('NET'))
-            result.update(self._get_bold_format('NET'))
-            result.update(self._get_italic_format('NET'))
-            if 'bg' in key:
-                result.update(self._get_bg_format('N', True))
+                            border, self.border_style_int, self.border_color_nets_top
+                        )
+                    )
+            result.update(self._get_num_format("N"))
+            result.update(self._get_font_format("NET"))
+            result.update(self._get_bold_format("NET"))
+            result.update(self._get_italic_format("NET"))
+            if "bg" in key:
+                result.update(self._get_bg_format("N", True))
             else:
-                result.update(self._get_bg_format('NET', True))
-        elif key.endswith('-PCT'):
-            result.update(self._get_num_format('PCT'))
-            result.update(self._get_font_format('PCT'))
-            result.update(self._get_bg_format('PCT', 'bg' in key))
-        elif key.endswith(('-PCT-NET', '-PCT-NET-UP', '-PCT-NET-DOWN')):
-            for border in ['top']:
-                if not border in list(result.keys()):
+                result.update(self._get_bg_format("NET", True))
+        elif key.endswith("-PCT"):
+            result.update(self._get_num_format("PCT"))
+            result.update(self._get_font_format("PCT"))
+            result.update(self._get_bg_format("PCT", "bg" in key))
+        elif key.endswith(("-PCT-NET", "-PCT-NET-UP", "-PCT-NET-DOWN")):
+            for border in ["top"]:
+                if border not in list(result.keys()):
                     result.update(
                         self._get_border(
-                            border,
-                            self.border_style_int,
-                            self.border_color_nets_top))
-            result.update(self._get_num_format('PCT'))
-            result.update(self._get_font_format('NET'))
-            result.update(self._get_bold_format('NET'))
-            result.update(self._get_italic_format('NET'))
-            if 'bg' in key:
-                result.update(self._get_bg_format('PCT', True))
+                            border, self.border_style_int, self.border_color_nets_top
+                        )
+                    )
+            result.update(self._get_num_format("PCT"))
+            result.update(self._get_font_format("NET"))
+            result.update(self._get_bold_format("NET"))
+            result.update(self._get_italic_format("NET"))
+            if "bg" in key:
+                result.update(self._get_bg_format("PCT", True))
             else:
-                result.update(self._get_bg_format('NET', True))
-        elif key.endswith('-STR'):
-            if not 'right' in list(result.keys()):
-                result.update(self._get_border('right', self.border_style_int))
-            result.update(self._get_font_format('STR'))
-        elif '-TESTS' in key:
-            result.update(self._get_font_format('TESTS'))
-            result.update(self._get_bold_format('TESTS'))
-            result.update(self._get_bg_format('TESTS', 'bg' in key))
+                result.update(self._get_bg_format("NET", True))
+        elif key.endswith("-STR"):
+            if "right" not in list(result.keys()):
+                result.update(self._get_border("right", self.border_style_int))
+            result.update(self._get_font_format("STR"))
+        elif "-TESTS" in key:
+            result.update(self._get_font_format("TESTS"))
+            result.update(self._get_bold_format("TESTS"))
+            result.update(self._get_bg_format("TESTS", "bg" in key))
         # Add top row if "frow"
-        if 'frow' in key:
-            if not 'top' in key:
-                if key.endswith('DESCRIPTIVES'):
-                    result.update(
-                        self._get_border(
-                            'top',
-                            self.border_style_int,
-                            self.border_color_descriptives_top))
-                    result = {
-                        k: v for k, v in list(result.items())
-                              if 'bottom' not in k}
-                elif key.endswith(('NET', 'NET-UP', 'NET-DOWN')):
-                    result.update(
-                        self._get_border(
-                            'top',
-                            self.border_style_int,
-                            self.border_color_nets_top))
-                else:
-                    result.update(
-                        self._get_border('top', self.border_style_int))
-            # result = {
-            #     k: v for k, v in result.items()
-            #           if 'bottom' not in k}
+        if "frow" in key and "top" not in key:
+            if key.endswith("DESCRIPTIVES"):
+                result.update(
+                    self._get_border(
+                        "top", self.border_style_int, self.border_color_descriptives_top
+                    )
+                )
+                result = {k: v for k, v in list(result.items()) if "bottom" not in k}
+            elif key.endswith(("NET", "NET-UP", "NET-DOWN")):
+                result.update(
+                    self._get_border(
+                        "top", self.border_style_int, self.border_color_nets_top
+                    )
+                )
+            else:
+                result.update(self._get_border("top", self.border_style_int))
+        # result = {
+        #     k: v for k, v in result.items()
+        #           if 'bottom' not in k}
         # Delete bottom row if "mrow"
-        if 'mrow' in key:
+        if "mrow" in key:
             result = {
-                k: v for k, v in list(result.items())
-                if not k.startswith(('top', 'bottom'))}
+                k: v
+                for k, v in list(result.items())
+                if not k.startswith(("top", "bottom"))
+            }
         # Delete top row if "brow"
-        if 'brow' in key:
-            result = {
-                k: v for k, v in list(result.items())
-                if not k.startswith(('top'))}
+        if "brow" in key:
+            result = {k: v for k, v in list(result.items()) if not k.startswith("top")}
         # Is this an arrow format? If so, modify the font color.
-        if key.endswith('UP'):
-            result['font_color'] = self.arrow_color_high
-        elif key.endswith('DOWN'):
-            result['font_color'] = self.arrow_color_low
+        if key.endswith("UP"):
+            result["font_color"] = self.arrow_color_high
+        elif key.endswith("DOWN"):
+            result["font_color"] = self.arrow_color_low
         return result
 
     def _get_alignments(self):
-        """ Returns standard alignments.
-        """
-        result = {'text_v_align': 2, 'text_h_align': 2}
+        """Returns standard alignments."""
+        result = {"text_v_align": 2, "text_h_align": 2}
         return result
 
     def _get_border(self, border, border_style, border_color=None):
-        """ Returns left border with interior/ exterior style.
-        """
-        if not isinstance(border_color, (int, str)):
+        """Returns left border with interior/ exterior style."""
+        if not isinstance(border_color, int | str):
             border_color = self.border_color
-        result = {
-            border: border_style,
-            '{}_color'.format(border): border_color}
+        result = {border: border_style, f"{border}_color": border_color}
         return result
 
     def _get_num_format(self, cell):
-        """ Return number format based on cell type.
-        """
-        if cell == 'DESCRIPTIVES':
-            result = {'num_format': self.num_format_descriptives}
-        elif cell == 'DEFAULT':
-            result = {'num_format': self.num_format_default}
-        elif cell in ['BASE', 'UBASE', 'N']:
-            result = {'num_format': self.num_format_n}
-        elif cell == 'PCT':
-            result = {'num_format': self.num_format_pct}
+        """Return number format based on cell type."""
+        if cell == "DESCRIPTIVES":
+            result = {"num_format": self.num_format_descriptives}
+        elif cell == "DEFAULT":
+            result = {"num_format": self.num_format_default}
+        elif cell in ["BASE", "UBASE", "N"]:
+            result = {"num_format": self.num_format_n}
+        elif cell == "PCT":
+            result = {"num_format": self.num_format_pct}
         return result
 
     def _get_font_format(self, cell):
-        """ Return font format based on cell type.
-        """
-        if cell in ['DEFAULT', 'N', 'PCT']:
+        """Return font format based on cell type."""
+        if cell in ["DEFAULT", "N", "PCT"]:
+            result = {"font_name": self.font_name, "font_size": self.font_size}
+        elif cell == "BASE":
             result = {
-                'font_name': self.font_name, 'font_size': self.font_size}
-        elif cell == 'BASE':
+                "font_name": self.font_name,
+                "font_size": self.font_size,
+                "font_color": self.font_color_base,
+                "bold": self.bold_base,
+            }
+        elif cell == "UBASE":
             result = {
-                'font_name': self.font_name,
-                'font_size': self.font_size,
-                'font_color': self.font_color_base,
-                'bold': self.bold_base}
-        elif cell == 'UBASE':
+                "font_name": self.font_name,
+                "font_size": self.font_size,
+                "font_color": self.font_color_ubase,
+                "bold": self.bold_ubase,
+            }
+        elif cell == "DESCRIPTIVES":
             result = {
-                'font_name': self.font_name,
-                'font_size': self.font_size,
-                'font_color': self.font_color_ubase,
-                'bold': self.bold_ubase}
-        elif cell == 'DESCRIPTIVES':
+                "font_name": self.font_name_descriptives,
+                "font_size": self.font_size_descriptives,
+                "font_color": self.font_color_descriptives,
+            }
+        elif cell == "NET":
             result = {
-                'font_name': self.font_name_descriptives,
-                'font_size': self.font_size_descriptives,
-                'font_color': self.font_color_descriptives}
-        elif cell == 'NET':
+                "font_name": self.font_name_nets,
+                "font_size": self.font_size_nets,
+                "font_color": self.font_color_nets,
+            }
+        elif cell == "STR":
             result = {
-                'font_name': self.font_name_nets,
-                'font_size': self.font_size_nets,
-                'font_color': self.font_color_nets}
-        elif cell == 'STR':
+                "font_name": self.font_name_str,
+                "font_size": self.font_size_str,
+                "font_color": self.font_color_str,
+            }
+        elif cell == "TESTS":
             result = {
-                'font_name': self.font_name_str,
-                'font_size': self.font_size_str,
-                'font_color': self.font_color_str}
-        elif cell == 'TESTS':
-            result = {
-                'font_name': self.font_name_tests,
-                'font_size': self.font_size_tests,
-                'font_color': self.font_color_tests,
-                'font_script': self.font_super_tests}
+                "font_name": self.font_name_tests,
+                "font_size": self.font_size_tests,
+                "font_color": self.font_color_tests,
+                "font_script": self.font_super_tests,
+            }
         return result
 
     def _get_bold_format(self, cell):
-        """ Return bold format based on cell type.
-        """
-        if cell == 'DESCRIPTIVES':
-            result = {'bold': self.bold_descriptives}
-        elif cell == 'NET':
-            result = {'bold': self.bold_nets}
-        elif cell == 'TESTS':
-            result = {'bold': self.bold_tests}
+        """Return bold format based on cell type."""
+        if cell == "DESCRIPTIVES":
+            result = {"bold": self.bold_descriptives}
+        elif cell == "NET":
+            result = {"bold": self.bold_nets}
+        elif cell == "TESTS":
+            result = {"bold": self.bold_tests}
         return result
 
     def _get_bg_format(self, cell, required):
-        """ Return bold format based on cell type.
-        """
-        if cell in ['DEFAULT', 'N', 'PCT', 'DESCRIPTIVES']:
-            result = {'bg_color': self.bg_color if required else '#FFFFFF'}
-        elif cell in ['NET']:
-            result = {
-                'bg_color': self.bg_color_nets if required else '#FFFFFF'}
-        elif cell == 'TESTS':
-            result = {
-                'bg_color': self.bg_color_tests if required else '#FFFFFF'}
+        """Return bold format based on cell type."""
+        if cell in ["DEFAULT", "N", "PCT", "DESCRIPTIVES"]:
+            result = {"bg_color": self.bg_color if required else "#FFFFFF"}
+        elif cell in ["NET"]:
+            result = {"bg_color": self.bg_color_nets if required else "#FFFFFF"}
+        elif cell == "TESTS":
+            result = {"bg_color": self.bg_color_tests if required else "#FFFFFF"}
         return result
 
     def _get_italic_format(self, cell):
-        """ Return bold format based on cell type.
-        """
-        if cell in ['NET']:
-            result = {'italic': self.italicise_nets}
+        """Return bold format based on cell type."""
+        if cell in ["NET"]:
+            result = {"italic": self.italicise_nets}
         return result
 
     def _add_italic(self):
-        """ Add all format with italic set to True
-        """
+        """Add all format with italic set to True"""
         for key, value in list(self.format_dict.items()):
-            if not key.endswith(('STR', 'TESTS')):
-                new_key = '-'.join([key, 'italic'])
+            if not key.endswith(("STR", "TESTS")):
+                new_key = "-".join([key, "italic"])
                 self.format_dict[new_key] = pickle.loads(
-                    pickle.dumps(value, pickle.HIGHEST_PROTOCOL))
-                self.format_dict[new_key]['italic'] = True
-        return None
+                    pickle.dumps(value, pickle.HIGHEST_PROTOCOL)
+                )
+                self.format_dict[new_key]["italic"] = True
+        return

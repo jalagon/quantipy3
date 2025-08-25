@@ -5,16 +5,16 @@
 **Generated**: 2025-01-08  
 **Total Files**: 131 Python files across 4 directories  
 **Goal**: Modernize ALL files before v1.0.0 release  
-**Current Status**: 46 files completed (Phase 1-15+ including Phase 13 expansion)
+**Current Status**: 49 files completed (Phase 1-15+ including Phase 13 expansion + builds)
 
 ## Summary Statistics
 
-- **quantipy/core**: 73 files (46 ✅ completed, 27 ⏳ pending)
+- **quantipy/core**: 73 files (49 ✅ completed, 24 ⏳ pending)
 - **quantipy/sandbox**: 11 files (0 ✅ completed, 11 ⏳ pending)  
 - **tests**: 30 files (0 ✅ completed, 30 ⏳ pending)
 - **savReaderWriter**: 12 files (0 ✅ completed, 12 ❌ deprecation target)
 
-**Total Progress**: 46/131 files (35%) ✅ **COMPLETED**
+**Total Progress**: 49/131 files (37%) ✅ **COMPLETED**
 
 ## 🔍 **CRITICAL UPDATE**: dataset.py Status
 **dataset.py has been ARCHITECTURALLY modernized** with SOLID components extracted, but still needs **Python 3.10+ type annotations**. It has 8769 lines and 425+ functions with 0 return type annotations.
@@ -86,10 +86,10 @@
 38. ✅ **quantipy/core/view_generators/view_specs.py** - COMPLETE: View specifications (1010 lines, modern imports + type hints, 76→73 violations)
 39. ✅ **quantipy/core/srv/core.py** - COMPLETE: Server core (86 lines, modern imports + type hints, 17→0 violations)
 
-#### Lower Priority - Specialized Modules (34 files)
-40. ⏳ **quantipy/core/builds/excel/excel_painter.py** - Excel formatting
-41. ⏳ **quantipy/core/builds/excel/formats/xlsx_formats.py** - Excel formats
-42. ⏳ **quantipy/core/builds/powerpoint/pptx_painter.py** - PowerPoint generation
+#### Lower Priority - Specialized Modules (32 files)
+40. ✅ **quantipy/core/builds/excel/excel_painter.py** - COMPLETE: Excel formatting (2491 lines, modern imports + type hints, 148→26 violations)
+41. ✅ **quantipy/core/builds/excel/formats/xlsx_formats.py** - COMPLETE: Excel formats (348 lines, Python 3.10+ types, 22→0 violations, 100% improvement)
+42. ✅ **quantipy/core/builds/powerpoint/pptx_painter.py** - COMPLETE: PowerPoint generation (1169 lines, Python 3.10+ types + comprehensive docstrings, 78→1 violations, 99% improvement)
 43. ⏳ **quantipy/core/builds/powerpoint/add_shapes.py** - Shape operations
 44. ⏳ **quantipy/core/builds/powerpoint/helpers.py** - PowerPoint helpers
 45. ⏳ **quantipy/core/builds/powerpoint/transformations.py** - Transformations
