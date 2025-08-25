@@ -13,7 +13,7 @@ Following Single Responsibility Principle, this module handles:
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 import pandas as pd
 
@@ -33,7 +33,7 @@ class FilteringStrategy(ABC):
         dataset: "DataSet",
         *args,
         **kwargs
-    ) -> pd.Index | pd.DataFrame | "DataSet" | None:
+    ) -> Union[pd.Index, pd.DataFrame, "DataSet", None]:
         """
         Execute filtering operation on dataset.
 
@@ -60,7 +60,7 @@ class LogicalFilterStrategy(FilteringStrategy):
         alias: str,
         condition: Any,
         inplace: bool = False
-    ) -> "DataSet" | None:
+    ) -> Union["DataSet", None]:
         """Execute logical filtering."""
         data = dataset._data.copy()
         data.index = pd.Index(list(range(len(data.index))))
@@ -108,7 +108,7 @@ class SubsetStrategy(FilteringStrategy):
         variables: list[str] | None = None,
         from_set: str | None = None,
         inplace: bool = False
-    ) -> "DataSet" | None:
+    ) -> Union["DataSet", None]:
         """Create variable subset of dataset."""
         if not (variables or from_set) or (variables and from_set):
             raise ValueError("Must pass either 'variables' or 'from_set'!")
@@ -386,7 +386,7 @@ class FilteringEngine:
         alias: str,
         condition: Any,
         inplace: bool = False
-    ) -> "DataSet" | None:
+    ) -> Union["DataSet", None]:
         """
         Filter the DataSet using a Quantipy logical expression.
 
@@ -419,7 +419,7 @@ class FilteringEngine:
         variables: list[str] | None = None,
         from_set: str | None = None,
         inplace: bool = False
-    ) -> "DataSet" | None:
+    ) -> Union["DataSet", None]:
         """
         Create a cloned version with a reduced collection of variables.
 

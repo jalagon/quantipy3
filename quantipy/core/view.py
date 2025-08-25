@@ -16,8 +16,12 @@ Key Components:
 import copy
 from collections import OrderedDict
 from operator import add, mul, sub
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from quantipy.core.link import Link
 
 pd.set_option('display.encoding', 'utf-8')
 
@@ -39,7 +43,12 @@ class View(object):
         grp_text_map (dict): Text mapping for groups
     """
 
-    def __init__(self, link=None, name=None, kwargs=None):
+    def __init__(
+        self,
+        link: 'Link | None' = None,
+        name: str | None = None,
+        kwargs: dict[str, Any] | None = None
+    ) -> None:
         """
         Initialize a new View instance.
 
@@ -49,19 +58,19 @@ class View(object):
             kwargs (dict, optional): Analysis parameters. Defaults to None.
         """
         kwargs = None if kwargs is None else kwargs.copy()
-        self._kwargs = kwargs
-        self.name = name
+        self._kwargs: dict[str, Any] | None = kwargs
+        self.name: str | None = name
         if link is not None:
             self._link_meta(link)
-        self.dataframe = pd.DataFrame()
-        self._notation = None
-        self.rbases = None
-        self.cbases = None
-        self.grp_text_map = None
-        self._custom_txt = ''
-        self.add_base_text = True
+        self.dataframe: pd.DataFrame = pd.DataFrame()
+        self._notation: str | None = None
+        self.rbases: dict[str, Any] | None = None
+        self.cbases: dict[str, Any] | None = None
+        self.grp_text_map: dict[str, str] | None = None
+        self._custom_txt: str = ''
+        self.add_base_text: bool = True
 
-    def meta(self):
+    def meta(self) -> dict[str, Any]:
         """
         Get a summary on a View's meta information.
 
@@ -89,7 +98,7 @@ class View(object):
             viewmeta['agg']['add_base_text'] = self.add_base_text
         return viewmeta
 
-    def _link_meta(self, link):
+    def _link_meta(self, link: 'Link') -> None:
         metas = []
         xname = link.x
         yname = link.y
@@ -122,7 +131,11 @@ class View(object):
         self._x = metas[0]
         self._y = metas[1]
 
-    def _grp_text_map(self, logic, calc):
+    def _grp_text_map(
+        self,
+        logic: list[dict[str, Any]] | None,
+        calc: dict[str, Any] | None
+    ) -> dict[str, str] | None:
         if logic is not None:
             calc_only = self._kwargs.get('calc_only', False)
             net_texts = []
@@ -148,7 +161,7 @@ class View(object):
             grp_text_map = None
         return grp_text_map
 
-    def nests(self):
+    def nests(self) -> list['View']:
         """
         Slice a nested ``View.dataframe`` into its innermost column sections.
         """
@@ -172,7 +185,7 @@ class View(object):
             view_list.append(gview)
         return view_list
 
-    def describe_block(self):
+    def describe_block(self) -> OrderedDict[str, Any]:
         df = self.dataframe
         logic = self._kwargs['logic']
         global_expand = self._kwargs.get('expand', None)
@@ -199,7 +212,7 @@ class View(object):
 
         return block_ref
 
-    def notation(self, method, condition):
+    def notation(self, method: str, condition: str) -> str:
         """
         Generate the View's Stack key notation string.
 
@@ -235,7 +248,7 @@ class View(object):
                     condition = colon_form + condition
         return notation_strct.format(method, condition, rel_to, weights, name)
 
-    def get_std_params(self):
+    def get_std_params(self) -> tuple[Any, ...]:
         """
         Provides the View's standard kwargs with fallbacks to default values.
 
@@ -253,7 +266,7 @@ class View(object):
             self._kwargs.get('text', ''),
         )
 
-    def get_edit_params(self):
+    def get_edit_params(self) -> tuple[Any, ...]:
         """
         Provides the View's Link edit kwargs with fallbacks to default values.
 
@@ -284,7 +297,11 @@ class View(object):
             self._kwargs.get('rescale', None),
         )
 
-    def translate_metric(self, text_key=None, set_value=False):
+    def translate_metric(
+        self,
+        text_key: str | None = None,
+        set_value: bool = False
+    ) -> str | None:
         if not (self.is_stat() or self.is_base() or self.is_sum()):
             pass
         else:
@@ -348,14 +365,23 @@ class View(object):
     # Currently unused
     # Meant to be used in translate_metric with set_value='index'
     # --> can e.g. replace the inner index value with its translation
-    def _update_mi_value(self, axis='x', new_val=None):
+    def _update_mi_value(
+        self,
+        axis: Literal['x', 'y'] = 'x',
+        new_val: str | None = None
+    ) -> None:
         names = ['Question', 'Values']
         q_level = self.dataframe.index.get_level_values(0)[0]
         vals = [q_level, [new_val]]
         self.dataframe.index = pd.MultiIndex.from_product(vals, names=names)
         return None
 
-    def _frequency_condition(self, logic, conditionals, expand):
+    def _frequency_condition(
+        self,
+        logic: list[dict[str, Any]] | None,
+        conditionals: list[str] | None,
+        expand: str | None
+    ) -> str:
         axis = self._kwargs.get('axis', 'x')
         if conditionals:
             conditionals = list(reversed(conditionals))
@@ -379,7 +405,7 @@ class View(object):
                     logic_codes.append("{}[+{}]".format(axis, codes))
         return logic_codes
 
-    def _descriptives_condition(self, link):
+    def _descriptives_condition(self, link: 'Link') -> str:
         if self._kwargs.get('source', None):
             return self._kwargs['source']
         try:
@@ -411,7 +437,12 @@ class View(object):
                 condition = 'x' if self._kwargs.get('axis', 'x') == 'x' else 'y'
         return condition
 
-    def _calc_condition(self, logic, conditions, calc):
+    def _calc_condition(
+        self,
+        logic: list[dict[str, Any]] | None,
+        conditions: list[str] | None,
+        calc: dict[str, Any] | None
+    ) -> str:
         op = list(calc.values())[0][1]
         val1, val2 = list(calc.values())[0][0], list(calc.values())[0][2]
         # divmod replaces div from python2, is this correct?
@@ -437,7 +468,12 @@ class View(object):
         calc_string = 'x[{}]'.format(calc_string)
         return calc_string
 
-    def spec_condition(self, link, conditionals=None, expand=None):
+    def spec_condition(
+        self,
+        link: 'Link',
+        conditionals: list[str] | None = None,
+        expand: str | None = None
+    ) -> str:
         """
         Updates the View notation's condition component based on agg. details.
 
@@ -474,25 +510,25 @@ class View(object):
                 condition = ','.join(condition)
         return condition
 
-    def missing(self):
+    def missing(self) -> list[int] | None:
         """
         Returns any excluded value codes.
         """
         return self._kwargs.get('exclude', None)
 
-    def rescaling(self):
+    def rescaling(self) -> dict[str, Any] | None:
         """
         Returns the rescaling specification of value codes.
         """
         return self._kwargs.get('rescale', None)
 
-    def weights(self):
+    def weights(self) -> str | None:
         """
         Returns the weight variable name used in the aggregation.
         """
         return self._kwargs.get('weights', None)
 
-    def is_weighted(self):
+    def is_weighted(self) -> bool:
         """
         Tests if the View is performed on weighted data.
         """
@@ -502,7 +538,7 @@ class View(object):
         else:
             return False
 
-    def is_pct(self):
+    def is_pct(self) -> bool:
         """
         Tests if the View is a percentage representation of a frequency.
         """
@@ -515,7 +551,7 @@ class View(object):
         else:
             return False
 
-    def is_base(self):
+    def is_base(self) -> bool:
         """
         Tests if the View is a base size aggregation.
         """
@@ -528,7 +564,7 @@ class View(object):
         else:
             return False
 
-    def is_sum(self):
+    def is_sum(self) -> bool:
         """
         Tests if the View is a plain sum aggregation.
         """
@@ -541,7 +577,7 @@ class View(object):
         else:
             return False
 
-    def is_net(self):
+    def is_net(self) -> bool:
         """
         Tests if the View is a code group/net aggregation.
         """
@@ -554,7 +590,7 @@ class View(object):
         else:
             return False
 
-    def is_counts(self):
+    def is_counts(self) -> bool:
         """
         Tests if the View is a count representation of a frequency.
         """
@@ -567,7 +603,7 @@ class View(object):
         else:
             return False
 
-    def is_stat(self):
+    def is_stat(self) -> bool:
         """
         Tests if the View is a sample statistic.
         """
@@ -576,14 +612,14 @@ class View(object):
         else:
             return False
 
-    def _is_test(self):
+    def _is_test(self) -> bool:
         notation = self._notation.split('|')
         if 't.' in notation[1]:
             return True
         else:
             return False
 
-    def is_meanstest(self):
+    def is_meanstest(self) -> bool:
         """
         Tests if the View is a statistical test of differences in means.
         """
@@ -596,7 +632,7 @@ class View(object):
         else:
             return False
 
-    def is_propstest(self):
+    def is_propstest(self) -> bool:
         """
         Tests if the View is a statistical test of differences in proportions.
         """
@@ -609,7 +645,7 @@ class View(object):
         else:
             return False
 
-    def has_other_source(self):
+    def has_other_source(self) -> bool:
         """
         Tests if the View is generated with a swapped x-axis.
         """
@@ -620,16 +656,16 @@ class View(object):
         else:
             return False
 
-    def has_calc(self):
+    def has_calc(self) -> bool:
         return 'f.c' in self._notation.split('|')[1] and not self.is_cumulative()
 
-    def is_cumulative(self):
+    def is_cumulative(self) -> bool:
         """
         Tests if the View is a cumulative frequency.
         """
         return self._notation.split('|')[2] == 'x++:'
 
-    def _is_block(self):
+    def _is_block(self) -> bool:
         notation = self._notation.split('|')
         if notation[1] in ['f', 'f.c:f']:
             conditions = notation[2].split('[')
@@ -643,17 +679,17 @@ class View(object):
         else:
             False
 
-    def _has_code_expr(self):
+    def _has_code_expr(self) -> bool:
         notation = self._notation.split('|')
         if len(notation[2]) > 3 and not notation[2] == 'x++:':
             return True
         else:
             return False
 
-    def _shortname(self):
+    def _shortname(self) -> str:
         return self.name.split('|')[-1]
 
-    def _method(self):
+    def _method(self) -> str:
         method_part = self._notation.split('|')[1]
         if 'd.' in method_part:
             return 'descriptives'
@@ -665,7 +701,7 @@ class View(object):
             return method_part
 
     @staticmethod
-    def _metric_name_map():
+    def _metric_name_map() -> dict[str, str]:
         mdict = {
             # English
             'en-GB': {
@@ -845,7 +881,7 @@ class View(object):
 
         return mdict
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Message to be printed in stdout (print self)
 
         Example: << View.View Rows: 4, Columns: 3, Has Meta:False >>

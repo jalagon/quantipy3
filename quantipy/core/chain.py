@@ -7,9 +7,12 @@ View aggregations.
 """
 import pickle
 from collections import defaultdict
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from quantipy.core.stack import Stack
 
 
 class Chain(defaultdict):
@@ -22,7 +25,7 @@ class Chain(defaultdict):
     through the Chain or through the related Cluster object.
     """
 
-    def __init__(self, name: Optional[str] = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         """
         Initialize a Chain instance.
 
@@ -83,7 +86,7 @@ class Chain(defaultdict):
             iter(list(self.items())),
         )
 
-    def save(self, path: Optional[str] = None) -> None:
+    def save(self, path: str | None = None) -> None:
         """
         This method saves the current chain instance (self) to file (.chain) using cPickle.
 
@@ -121,8 +124,15 @@ class Chain(defaultdict):
         )
 
     def _derive_attributes(
-        self, data_key, filter, x_def, y_def, views, source_type=None, orientation=None
-    ):
+        self,
+        data_key: str,
+        filter: str | None,
+        x_def: list[str] | None,
+        y_def: list[str] | None,
+        views: list[str],
+        source_type: str | None = None,
+        orientation: str | None = None
+    ) -> None:
         """
         A simple method that is deriving attributes of the chain from its specification:
         (some attributes are only updated when chains get post-processed,
@@ -197,7 +207,7 @@ class Chain(defaultdict):
             concat_chain = pd.concat(contents, axis=1)
         return concat_chain
 
-    def view_sizes(self):
+    def view_sizes(self) -> list[list[tuple[int, int]]]:
 
         dk = self.data_key
         fk = self.filter
@@ -211,7 +221,7 @@ class Chain(defaultdict):
 
         return sizes
 
-    def view_lengths(self):
+    def view_lengths(self) -> list[int]:
 
         lengths = [
             next(zip(*view_size))
@@ -220,7 +230,12 @@ class Chain(defaultdict):
 
         return lengths
 
-    def describe(self, index=None, columns=None, query=None):
+    def describe(
+        self,
+        index: list[str] | None = None,
+        columns: list[str] | None = None,
+        query: str | None = None
+    ) -> list[str]:
         """Generates a list of all link defining stack keys."""
         stack_tree = []
         for dk in list(self.keys()):
@@ -257,7 +272,7 @@ class Chain(defaultdict):
     # STATIC METHODS
 
     @staticmethod
-    def load(filename):
+    def load(filename: str) -> 'Chain':
         """
         This method loads the pickled object that is made using method: save()
 

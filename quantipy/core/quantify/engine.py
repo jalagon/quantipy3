@@ -1,11 +1,14 @@
 import pandas as pd
 import numpy as np
-from scipy.stats.stats import _ttest_finish as get_pval
+from scipy.stats import t
 from itertools import combinations, chain, product
 from collections import defaultdict, OrderedDict
+from typing import TYPE_CHECKING, Any, Literal
 import quantipy as qp
-import pandas as pd
-import numpy as np
+
+if TYPE_CHECKING:
+    from quantipy.core.link import Link
+    from quantipy.core.dataset import DataSet
 from operator import add, sub, mul
 from operator import truediv as div
 from quantipy.core.view import View
@@ -24,7 +27,7 @@ import time
 
 np.seterr(invalid='ignore')
 
-class Quantity(object):
+class Quantity:
     """
     The Quantity object is the main Quantipy aggregation engine.
 
@@ -37,7 +40,13 @@ class Quantity(object):
     # -------------------------------------------------
     # Instance initialization
     # -------------------------------------------------
-    def __init__(self, link, weight=None, base_all=False, ignore_flags=False):
+    def __init__(
+        self,
+        link: 'Link',
+        weight: str | None = None,
+        base_all: bool = False,
+        ignore_flags: bool = False
+    ) -> None:
         # Collect information on wv, x- and y-section
         self._ignore_flags = ignore_flags
         self.ds = self._convert_to_dataset(link)
@@ -1989,7 +1998,9 @@ class Test(object):
                             in combinations(self.ebases[0], 2)]
             dof = ebases_pairs - self.overlap - 2
             dof[dof <= 1] = np.NaN
-            return get_pval(dof, teststat)[1]
+            # Modern replacement for deprecated _ttest_finish
+            # Calculate two-tailed p-values using t-distribution
+            return 2 * (1 - t.cdf(np.abs(teststat), dof))
         elif self.mimic == 'askia':
             return abs(teststat)
 

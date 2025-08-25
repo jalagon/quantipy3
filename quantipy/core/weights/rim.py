@@ -7,6 +7,7 @@ population characteristics.
 """
 import re
 import warnings
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -15,15 +16,15 @@ import pandas as pd
 class Rim:
     def __init__(
         self,
-        name,
-        max_iterations=1000,
-        convcrit=0.01,
-        cap=0,
-        dropna=True,
-        impute_method="mean",
-        weight_column_name=None,
-        total=0,
-    ):
+        name: str,
+        max_iterations: int = 1000,
+        convcrit: float = 0.01,
+        cap: float = 0,
+        dropna: bool = True,
+        impute_method: Literal["mean", "median", "mode"] = "mean",
+        weight_column_name: str | None = None,
+        total: float = 0,
+    ) -> None:
 
         # Default var init
         self.name = name
@@ -70,7 +71,11 @@ class Rim:
         self.groups[self._DEFAULT_NAME][self._TARGETS_INDEX] = None
         self.groups[self._DEFAULT_NAME][self._ITERATIONS_] = None
 
-    def set_targets(self, targets, group_name=None):
+    def set_targets(
+        self,
+        targets: dict[str, list[float]] | list[dict[str, list[float]]],
+        group_name: str | None = None
+    ) -> None:
         """
         Quickly set simple weight targets, optionally assigning a group name.
 
@@ -114,7 +119,12 @@ class Rim:
                 self.target_cols.append(list(target.keys())[0])
             self.groups[gn][self._TARGETS] = targets
 
-    def add_group(self, name=None, filter_def=None, targets=None):
+    def add_group(
+        self,
+        name: str | None = None,
+        filter_def: str | dict[str, Any] | None = None,
+        targets: list[dict[str, list[float]]] | None = None
+    ) -> None:
         """
         Set weight groups using flexible filter and target defintions.
 
@@ -152,7 +162,7 @@ class Rim:
         self.groups[gn][self._FILTER_DEF] = filter_def
         self.groups[gn][self._FILTER_DEF_ORG] = filter_def
 
-    def _compute(self):
+    def _compute(self) -> None:
         self._get_base_factors()
         self._df[self._weight_name()].replace(0.00, 1.00, inplace=True)
         self._df[self._weight_name()].replace(-1.00, np.NaN, inplace=True)
@@ -182,7 +192,7 @@ class Rim:
                 warnings.warn(warn)
         return self._df[self._weight_name()]
 
-    def _get_base_factors(self):
+    def _get_base_factors(self) -> None:
         wgt = self._weight_name()
         for group in self.groups:
             wdf = self._get_wdf(group)
@@ -212,7 +222,7 @@ class Rim:
         self._df.loc[filter_idx, wgt] = -1.00
         return None
 
-    def _scale_total(self):
+    def _scale_total(self) -> None:
         weight_var = self._weight_name()
         self._df[weight_var].replace(1.00, np.NaN, inplace=True)
         unw_total = len(self._df[weight_var].dropna().index)
@@ -221,7 +231,7 @@ class Rim:
         self._df[weight_var] = self._df[weight_var] / scale_factor
         self._df[weight_var].replace(0.00, 1.00, inplace=True)
 
-    def _adjust_groups(self):
+    def _adjust_groups(self) -> None:
         adj_w_vec = pd.Series()
         for group in self.groups:
             w_vec = self._df.query(self.groups[group][self._FILTER_DEF])[
@@ -241,7 +251,7 @@ class Rim:
             adj_w_vec = adj_w_vec.append(ratio).dropna()
         self._df[self._weight_name()] = adj_w_vec
 
-    def _get_group_filter_cols(self, filter_def):
+    def _get_group_filter_cols(self, filter_def: str | dict[str, Any] | None) -> list[str]:
         filter_cols = []
         if filter_def is not None:
             for colname in self._df.columns:
@@ -249,10 +259,10 @@ class Rim:
                     filter_cols.append(colname)
         return filter_cols
 
-    def _get_group_target_cols(self, targets):
+    def _get_group_target_cols(self, targets: list[dict[str, list[float]]]) -> list[str]:
         return [list(target.keys())[0] for target in targets]
 
-    def _get_wdf(self, group):
+    def _get_wdf(self, group: str) -> pd.DataFrame:
         filters = self.groups[group][self._FILTER_DEF]
         targets = self.groups[group][self._TARGETS]
         target_vars = self._get_group_target_cols(targets)

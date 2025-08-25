@@ -14,7 +14,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 5. Commit all changes to the feature branch
 
 ## Project Overview
-quantipy3 is a Python 3 port of the Quantipy library - a data processing, analysis and reporting software for "people data" (survey/market research data). It builds on pandas/numpy and offers specialized handling of survey data types, metadata, weights, and statistical analysis. We will be updating it to newer Python (3.10-3.12) and package versions.
+quantipy3 is a Python 3 port of the Quantipy library - a data processing, analysis and reporting software for "people data" (survey/market research data). It builds on pandas/numpy and offers specialized handling of survey data types, metadata, weights, and statistical analysis.
+
+### Modernization Status (2025-08-25)
+**Phase 1-11 COMPLETED**: 17 core files modernized with Python 3.10+ features
+- ✅ 9 SOLID architecture components with modern type hints
+- ✅ 8 critical core files (stack.py, batch.py, view.py, chain.py, rules.py, rim.py, weight_engine.py, engine.py)
+- ✅ Fixed all deprecated APIs (scipy._ttest_finish, pandas.core.index)
+- ✅ Python 3.10+ union syntax (X | Y) throughout
+- ✅ Comprehensive pytest test coverage
 
 ## Development Commands (Week 5 CI/CD Infrastructure - IMPLEMENTED)
 
@@ -76,9 +84,9 @@ quantipy3 is a Python 3 port of the Quantipy library - a data processing, analys
 ### Testing Standards & Quality Gates
 **SIGNIFICANT PROGRESS**: Major test issues have been addressed in feature-critical-refactoring branch:
 
-#### Test Implementation Status
-- ✅ `tests/test_stack.py` - RESTORED (32 tests active, Python 3 compatible)
-- ✅ `tests/test_view.py` - IMPLEMENTED (basic functionality tests added)  
+#### Test Implementation Status (Updated 2025-08-25)
+- ✅ `tests/test_stack.py` - **MIGRATED TO PYTEST** (comprehensive fixtures, 8 test classes)
+- ✅ `tests/test_view.py` - **FULLY IMPLEMENTED** (12 test classes, 40+ test methods)  
 - ⚠️ `tests/test_dataset.py` - Needs refactoring (violates SRP)
 - ✅ `tests/test_chain.py` - EXCELLENT (reference implementation)
 - ✅ `tests/test_batch.py` - GOOD (minor improvements needed)
