@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-"""
-Chain module for quantipy data processing.
-
-This module provides the Chain class for managing ordered Link definitions and
-associated Views, enabling systematic data analysis workflows through structured
-View aggregations.
-"""
 import pickle
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
@@ -14,7 +7,15 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 if TYPE_CHECKING:
-    from quantipy.core.stack import Stack
+    pass
+
+"""
+Chain module for quantipy data processing.
+
+This module provides the Chain class for managing ordered Link definitions and
+associated Views, enabling systematic data analysis workflows through structured
+View aggregations.
+"""
 
 
 class Chain(defaultdict):
@@ -36,7 +37,7 @@ class Chain(defaultdict):
         name : str, optional
             Name identifier for the Chain instance.
         """
-        super(Chain, self).__init__(Chain)
+        super().__init__(Chain)
         self.name = name
         self.orientation = None
         self.source_name = None
@@ -54,10 +55,10 @@ class Chain(defaultdict):
         self.y_hidden_codes = None
         self.x_new_order = None
         self.y_new_order = None
-        self.props_tests = list()
-        self.props_tests_levels = list()
-        self.means_tests = list()
-        self.means_tests_levels = list()
+        self.props_tests = []
+        self.props_tests_levels = []
+        self.means_tests = []
+        self.means_tests_levels = []
         self.has_props_tests = False
         self.has_means_tests = False
         self.is_banked = False
@@ -68,13 +69,7 @@ class Chain(defaultdict):
         self.annotations = None
 
     def __repr__(self) -> str:
-        return '%s:\norientation-axis: %s - %s,\ncontent-axis: %s, \nviews: %s' % (
-            Chain,
-            self.orientation,
-            self.source_name,
-            self.content_of_axis,
-            len(self.views),
-        )
+        return f'{Chain}:\norientation-axis: {self.orientation} - {self.source_name},\ncontent-axis: {self.content_of_axis}, \nviews: {len(self.views)}'
 
     def __setstate__(self, attr_dict: dict[str, Any]) -> None:
         self.__dict__.update(attr_dict)
@@ -97,15 +92,11 @@ class Chain(defaultdict):
               Specifies the location of the saved file, NOTE: has to end with '/'
               Example: './tests/'
         """
-        if path is None:
-            path_chain = "./{}.chain".format(self.name)
-        else:
-            path_chain = path
-        f = open(path_chain, 'wb')
-        pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
-        f.close()
+        path_chain = f"./{self.name}.chain" if path is None else path
+        with open(path_chain, 'wb') as f:
+            pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
 
-    def copy(self) -> 'Chain':
+    def copy(self) -> Chain:
         """
         Create a copy of self by serializing to/from a bytestring using
         cPickle.
@@ -118,7 +109,7 @@ class Chain(defaultdict):
         Apply lazy-name logic to chains created without an explicit name.
          - This method does not take any responsibilty for uniquley naming chains
         """
-        self.name = '%s.%s.%s.%s' % (
+        self.name = '{}.{}.{}.{}'.format(
             self.orientation,
             self.source_name,
             '.'.join(self.content_of_axis),
@@ -226,8 +217,8 @@ class Chain(defaultdict):
     def view_lengths(self) -> list[int]:
 
         lengths = [
-            next(zip(*view_size))
-            for view_size in [y_size for y_size in self.view_sizes()]
+            next(zip(*view_size, strict=False))
+            for view_size in list(self.view_sizes())
         ]
 
         return lengths
@@ -274,7 +265,7 @@ class Chain(defaultdict):
     # STATIC METHODS
 
     @staticmethod
-    def load(filename: str) -> 'Chain':
+    def load(filename: str) -> Chain:
         """
         This method loads the pickled object that is made using method: save()
 
@@ -283,7 +274,6 @@ class Chain(defaultdict):
               Specifies the name of the file to be loaded.
               Example of use: new_stack = Chain.load("./tests/ChainName.chain")
         """
-        f = open(filename, 'rb')
-        new_stack = pickle.load(f)
-        f.close()
+        with open(filename, 'rb') as f:
+            new_stack = pickle.load(f)
         return new_stack

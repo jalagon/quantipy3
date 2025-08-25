@@ -43,7 +43,7 @@ class Cluster(OrderedDict[str, Chain]):
     def __setstate__(self, attr_dict: dict[str, Any]) -> None:
         self.__dict__.update(attr_dict)
 
-    def __reduce__(self) -> tuple:
+    def __reduce__(self) -> tuple[type[Cluster], tuple[str], dict[str, Any], None, Any]:
         return (
             self.__class__,
             (self.name,),
@@ -114,64 +114,72 @@ class Cluster(OrderedDict[str, Chain]):
         return True
 
     def add_chain(self, chains: Chain | list[Chain] | None = None) -> None:
-        """Adds chains to a cluster"""
-        # If a single item was supplied, change it to a list of items
-        is_banked_spec = False
-        if not isinstance(chains, list | Chain | pd.DataFrame | dict):
-            raise TypeError(
-                "You must pass either a Chain, a list of Chains or a"
-                " banked chain definition (as a dict) into"
-                " Cluster.add_chain()."
-            )
-        if isinstance(chains, dict) and chains.get('type', None) == 'banked-chain':
-                is_banked_spec = True
-                if not self._verify_banked_chain_spec(chains):
+        """Adds chains to a cluster using structural pattern matching for type dispatch."""
+        # Modern pattern matching for chain type detection and processing
+        match chains:
+            case None:
+                raise TypeError(
+                    "You must pass either a Chain, a list of Chains or a"
+                    " banked chain definition (as a dict) into"
+                    " Cluster.add_chain()."
+                )
+
+            case Chain() as chain:
+                # Single Chain object
+                self[chain.name] = chain
+
+            case dict(type='banked-chain') as banked_spec:
+                # Banked chain specification
+                if not self._verify_banked_chain_spec(banked_spec):
                     raise TypeError(
                         "Your banked-chain definition is not correctly"
                         " formed. Please check it again."
                     )
+                self[banked_spec.get('name')] = banked_spec
 
-        if isinstance(chains, Chain):
-            self[chains.name] = chains
-
-        elif is_banked_spec:
-            self[chains.get('name')] = chains
-
-        elif isinstance(chains, list) and all(
-            isinstance(chain, Chain) or self._verify_banked_chain_spec(chain)
-            for chain in chains
-        ):
-            # Ensure that all items in chains is of the type Chain.
-            for chain in chains:
-                if chain.get('type', None) == 'banked-chain':
-                    self[chain.get('name')] = chain
-                else:
-                    self[chain.name] = chain
-
-        elif isinstance(chains, pd.DataFrame):
-            if any(
-                isinstance(idx, pd.MultiIndex)
-                for idx in [chains.index, chains.columns]
+            case list() as chain_list if all(
+                isinstance(item, Chain) or (
+                    isinstance(item, dict) and item.get('type') == 'banked-chain'
+                )
+                for item in chain_list
             ):
-                if isinstance(chains.index, pd.MultiIndex):
-                    idxs = '_'.join(chains.index.levels[0].tolist())
-                else:
-                    idxs = chains.index
-                if isinstance(chains.columns, pd.MultiIndex):
-                    cols = '_'.join(chains.columns.levels[0].tolist())
-                else:
-                    idxs = chains.columns
-                self['_|_'.join([idxs, cols])] = chains
-            else:
-                self['_'.join(chains.columns.tolist())] = chains
+                # List of chains (regular or banked)
+                for chain in chain_list:
+                    match chain:
+                        case dict(type='banked-chain') as banked_chain:
+                            self[banked_chain.get('name')] = banked_chain
+                        case Chain() as regular_chain:
+                            self[regular_chain.name] = regular_chain
 
-        else:
-            # One or more of the items in chains is not a chain.
-            raise TypeError(
-                "One or more of the supplied chains has an inappropriate type."
-            )
+            case pd.DataFrame() as df:
+                # DataFrame with potential MultiIndex
+                match (df.index, df.columns):
+                    case (pd.MultiIndex() as idx, pd.MultiIndex() as cols):
+                        # Both MultiIndex
+                        idxs = '_'.join(idx.levels[0].tolist())
+                        cols_str = '_'.join(cols.levels[0].tolist())
+                        self[f'{idxs}_|_{cols_str}'] = df
+                    case (pd.MultiIndex() as idx, _):
+                        # Index is MultiIndex, columns are not
+                        idxs = '_'.join(idx.levels[0].tolist())
+                        self[f'{idxs}_|_{df.columns}'] = df
+                    case (_, pd.MultiIndex() as cols):
+                        # Columns are MultiIndex, index is not
+                        cols_str = '_'.join(cols.levels[0].tolist())
+                        self[f'{df.index}_|_{cols_str}'] = df
+                    case _:
+                        # Neither is MultiIndex
+                        self[f'{df.index}_|_{df.columns}'] = df
 
-    def bank_chains(self, spec: dict[str, Any], text_key: str) -> None:
+            case _:
+                # Unsupported type
+                raise TypeError(
+                    "You must pass either a Chain, a list of Chains or a"
+                    " banked chain definition (as a dict) into"
+                    " Cluster.add_chain()."
+                )
+
+    def bank_chains(self, spec: dict[str, Any], text_key: str | dict[str, list[str]]) -> Chain:
         """
         Return a banked chain as defined by spec.
 
@@ -182,15 +190,15 @@ class Cluster(OrderedDict[str, Chain]):
 
         Parameters
         ----------
-        spec : dict
+        spec : dict[str, Any]
             The banked chain specification object.
-        text_key : str, default='values'
+        text_key : str | dict[str, list[str]], default='values'
             Paint the x-axis of the banked chain using the spec provided
             and this text_key.
 
         Returns
         -------
-        bchain : quantipy.Chain
+        Chain
             The banked chain.
         """
 
@@ -339,21 +347,41 @@ class Cluster(OrderedDict[str, Chain]):
         return bchain
 
     def _build(self, type: str) -> pd.DataFrame:
-        """The Build exports the chains using methods supplied with 'type'."""
+        """The Build exports the chains using methods supplied with 'type'.
+
+        Parameters
+        ----------
+        type : str
+            The export type specification.
+
+        Returns
+        -------
+        pd.DataFrame
+            The exported chain data.
+        """
 
     def merge(self) -> pd.DataFrame:
         """
-        Merges all Chains found in the Cluster into a new pandas.DataFrame.
+        Merges all Chains found in the Cluster into a new pandas.DataFrame using pattern matching.
         """
-        orient = self[list(self.keys())[0]].orientation
         chainnames = list(self.keys())
-        if orient == 'y':
-            return pd.concat(
-                [self[chainname].concat() for chainname in chainnames], axis=1
-            )
-        return pd.concat(
-            [self[chainname].concat() for chainname in chainnames], axis=0
-        )
+        if not chainnames:
+            return pd.DataFrame()
+
+        orient = self[chainnames[0]].orientation
+        chain_dfs = [self[chainname].concat() for chainname in chainnames]
+
+        # Modern pattern matching for orientation-based concatenation
+        match orient:
+            case 'y':
+                # Y-orientation: concatenate horizontally (axis=1)
+                return pd.concat(chain_dfs, axis=1)
+            case 'x' | None:
+                # X-orientation or None: concatenate vertically (axis=0)
+                return pd.concat(chain_dfs, axis=0)
+            case _:
+                # Fallback for unknown orientations
+                return pd.concat(chain_dfs, axis=0)
 
     def save(self, path_cluster: str) -> None:
         """

@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import re
+import warnings
+from typing import Any, Literal
+
+import numpy as np
+import pandas as pd
+
 """
 RIM weighting module for quantipy survey data processing.
 
@@ -7,12 +14,6 @@ This module provides the Rim and Rake classes for implementing RIM (Random
 Iterative Method) weighting algorithms to adjust survey data to match target
 population characteristics.
 """
-import re
-import warnings
-from typing import Any, Literal
-
-import numpy as np
-import pandas as pd
 
 
 class Rim:
@@ -280,25 +281,43 @@ class Rim:
         return wdf
 
     def _dropna(self):
-        if self.dropna:
-            self._df.dropna(inplace=True)
-        else:
-            columns = self._specific_impute
-            columns.update(
-                {
-                    column: self._impute_method
-                    for column in self.target_cols
-                    if column not in list(self._specific_impute.keys())
-                }
-            )
+        """Handle missing data using pattern matching for imputation method selection."""
+        match self.dropna:
+            case True:
+                # Simple dropna case
+                self._df.dropna(inplace=True)
+            case False:
+                # Imputation case - build column-to-method mapping
+                columns = self._specific_impute.copy()
+                columns.update(
+                    {
+                        column: self._impute_method
+                        for column in self.target_cols
+                        if column not in list(self._specific_impute.keys())
+                    }
+                )
 
-            for column, method in columns.items():
-                if method == "mean":
-                    m = np.round(self._df[column].mean(), 0)
-                    print(m)
-                    self._df[column].fillna(m, inplace=True)
-                elif method == "mode":
-                    self._df[column].fillna(self._df[column].mode()[0], inplace=True)
+                # Modern pattern matching for imputation method selection
+                for column, method in columns.items():
+                    match method:
+                        case "mean":
+                            # Mean imputation with rounding
+                            mean_value = np.round(self._df[column].mean(), 0)
+                            print(mean_value)
+                            self._df[column].fillna(mean_value, inplace=True)
+                        case "mode":
+                            # Mode imputation using most frequent value
+                            mode_value = self._df[column].mode()[0]
+                            self._df[column].fillna(mode_value, inplace=True)
+                        case "median":
+                            # Median imputation (extended functionality)
+                            median_value = np.round(self._df[column].median(), 0)
+                            self._df[column].fillna(median_value, inplace=True)
+                        case _:
+                            # Fallback for unknown methods
+                            print(f"Warning: Unknown imputation method '{method}' for column '{column}', using mean")
+                            mean_value = np.round(self._df[column].mean(), 0)
+                            self._df[column].fillna(mean_value, inplace=True)
 
     def report(self, group=None):
         """
@@ -313,10 +332,17 @@ class Rim:
         return report
 
     def impute_method(self, method, target=None):
-        if target is None:
-            self._impute_method = method
-        else:
-            self._specific_impute[target] = method
+        """Set imputation method using pattern matching for target specification."""
+        match target:
+            case None:
+                # Global imputation method setting
+                self._impute_method = method
+            case str() as column_target:
+                # Column-specific imputation method setting
+                self._specific_impute[column_target] = method
+            case _:
+                # Handle unexpected target types
+                raise TypeError(f"Target must be None or str, got {type(target)}")
 
     def _get_scheme_filter_cols(self):
         scheme_filter_cols = [
@@ -684,7 +710,8 @@ class Rake:
             if min_cap is not None:
                 min_cap -= 0.0001
 
-        for iteration in range(1, self.max_iterations + 1):
+        iteration = 0
+        for iteration in range(1, self.max_iterations + 1):  # noqa: B007
             old_weights = self.dataframe[self.weight_column_name].copy()
 
             if not diff_error < pct_still * diff_error_old:

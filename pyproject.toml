@@ -73,10 +73,12 @@ profile = "black"
 py_version = 310
 line_length = 88
 
-# Modern Ruff Configuration - Week 2 Implementation  
+# Modern Ruff Configuration - Sprint 5 CI/CD Enhancement
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+show-fixes = true
+fix = true
 
 [tool.ruff.lint]
 select = [
@@ -86,26 +88,43 @@ select = [
     "UP",  # pyupgrade rules (Python 3.10+ syntax)
     "I",   # isort
     "N",   # pep8-naming
-    "B",   # flake8-bugbear
+    "B",   # flake8-bugbear (bug detection)
     "C4",  # flake8-comprehensions
-    "PIE", # flake8-pie
+    "PIE", # flake8-pie (misc lints)
     "SIM", # flake8-simplify
     "RET", # flake8-return
+    "C90", # mccabe complexity checking
+    "PL",  # pylint rules
+    "S",   # flake8-bandit (security)
 ]
 ignore = [
-    "E501",   # Line too long (handled by black)
+    "E501",   # Line too long (handled by formatter)
     "RET504", # Unnecessary variable assignment before return statement
     "SIM118", # Use dict.keys() directly instead of dict.keys() iteration
+    "PLR2004", # Magic value used in comparison
+    "PLR0913", # Too many arguments in function definition
+    "S101",   # Use of assert detected (common in tests)
+    "S311",   # Standard pseudo-random generators (acceptable for non-crypto)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["N802", "N803"]  # Allow lowercase class/method names in tests
-"__init__.py" = ["F401"]      # Allow unused imports in __init__.py
+"tests/*" = ["N802", "N803", "S101", "PLR2004"]  # Allow test conventions
+"__init__.py" = ["F401", "F403"]                 # Allow re-exports
+"quantipy/core/tools/dp/spss/*" = ["S301"]       # Allow pickle usage in SPSS tools
 
-# MyPy Configuration - Non-strict start as per plan
+[tool.ruff.lint.mccabe]
+max-complexity = 12  # Moderate complexity threshold
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-string-normalization = false
+line-ending = "auto"
+
+# MyPy Configuration - Sprint 5 Enhanced Type Checking
 [tool.mypy]
 python_version = "3.10"
-# Start non-strict as specified
+# Progressive strictness - start moderate, move to strict
 disallow_untyped_defs = false
 disallow_incomplete_defs = false  
 check_untyped_defs = true
@@ -115,6 +134,38 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 strict_optional = true
 no_implicit_reexport = true
+show_error_codes = true
+pretty = true
+color_output = true
+error_summary = true
+
+# Enhanced modules get stricter checking
+[[tool.mypy.overrides]]
+module = [
+    "quantipy.core.stack", 
+    "quantipy.core.rules", 
+    "quantipy.core.cluster", 
+    "quantipy.core.weights.rim",
+    "quantipy.core.cache", 
+    "quantipy.core.options", 
+    "quantipy.core.chain", 
+    "quantipy.core.tools.dp.query",
+    "quantipy.core.weights.weight_engine"
+]
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+# Ignore missing imports for external packages
+[[tool.mypy.overrides]]
+module = [
+    "pandas.*",
+    "numpy.*", 
+    "scipy.*",
+    "pyreadstat.*",
+    "ftfy.*",
+    "lxml.*"
+]
+ignore_missing_imports = true
 
 # Pytest Configuration with Coverage
 [tool.pytest.ini_options]
@@ -151,3 +202,27 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+# Bandit Security Configuration
+[tool.bandit]
+exclude_dirs = ["tests", "docs", "build"]
+tests = ["B201", "B301", "B302", "B303", "B304", "B305", "B306", "B307", "B308", "B309", "B310", "B311", "B312", "B313", "B314", "B315", "B316", "B317", "B318", "B319", "B320", "B321", "B322", "B323", "B324", "B325", "B401", "B402", "B403", "B404", "B405", "B406", "B407", "B408", "B409", "B410", "B411", "B412", "B413", "B501", "B502", "B503", "B504", "B505", "B506", "B507", "B601", "B602", "B603", "B604", "B605", "B606", "B607", "B608", "B609", "B610", "B611", "B701", "B702", "B703"]
+skips = ["B101", "B601"]  # Skip assert_used and shell injection for specific cases
+
+[tool.bandit.assert_used]
+exclude = ["*/tests/*"]
+
+# Development and Build Tools Configuration
+[tool.setuptools_scm]
+write_to = "quantipy/_version.py"
+version_scheme = "python-simplified-semver"
+local_scheme = "no-local-version"
+
+# Wheel building configuration  
+[tool.wheel]
+universal = false
+
+# Additional development tool configurations for modern Python
+[tool.codespell]
+skip = "*.po,*.ts,*.js,*.map,*.lock"
+ignore-words-list = "quantipy,datasmoothie,xlsx"

@@ -1,15 +1,22 @@
+default_language_version:
+  python: python3.10
+
 repos:
-  # Ruff for linting and formatting
+  # Ruff for linting and formatting with Python 3.10+ rules
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.7
     hooks:
-      # Run the linter
+      # Run the linter with modern Python rules
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        name: 🔍 Lint with ruff (Python 3.10+ rules)
+        args: [--fix, --exit-non-zero-on-fix, --select=E,W,F,UP,B,SIM,C90]
         types_or: [python, pyi, jupyter]
+        description: "Lint with ruff including Python 3.10+ upgrade rules"
       # Run the formatter  
       - id: ruff-format
+        name: 🎨 Format with ruff
         types_or: [python, pyi, jupyter]
+        description: "Format code with ruff"
 
   # Built-in pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks

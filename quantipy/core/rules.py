@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-"""
-Rules module for quantipy data processing.
-
-This module provides the Rules class for defining and applying data processing
-rules, sorting operations, and statistical transformations to survey data
-analysis workflows.
-"""
 import copy
 import re
 import warnings
@@ -18,13 +11,21 @@ import pandas as pd
 
 import quantipy as qp
 
+"""
+Rules module for quantipy data processing.
+
+This module provides the Rules class for defining and applying data processing
+rules, sorting operations, and statistical transformations to survey data
+analysis workflows.
+"""
+
 
 class Rules:
 
     # ------------------------------------------------------------------------
     # init
     # ------------------------------------------------------------------------
-    def __init__(self, link: 'qp.Link', view_name: str, axes: list[str] | None = None, rweight: str | None = None) -> None:
+    def __init__(self, link: qp.Link, view_name: str, axes: list[str] | None = None, rweight: str | None = None) -> None:
         if axes is None:
             axes = ['x', 'y']
         self.link = link
@@ -146,10 +147,7 @@ class Rules:
         self.get_slicer()
 
         viable_axes = self.rule_viable_axes()
-        if not viable_axes:
-            df = self.view_df
-        else:
-            df = self.view_df.copy()
+        df = self.view_df if not viable_axes else self.view_df.copy()
 
         if 'x' in viable_axes and self.x_slicer is not None:
             rule_codes = set(self.x_slicer)
@@ -198,7 +196,7 @@ class Rules:
 
                 # sort expanded nets
                 if expanded_net and not self.array_summary:
-                    if not sort_on == '@':
+                    if sort_on != '@':
                         msg = 'Cannot sort expanded nets on {}.'
                         raise AttributeError(msg.format(sort_on))
                     view = self.link_base[col_key]['@'][expanded_net]
@@ -244,7 +242,7 @@ class Rules:
             ]
             if not (weight == view_weight or weight in link_weights):
                 msg = "\n{}: view-weight and weight to sort on differ ('{}' vs '{}')\n"
-                warnings.warn(msg.format(col, view_weight, weight or None))
+                warnings.warn(msg.format(col, view_weight, weight or None), stacklevel=2)
         try:
             if self.transposed_summary:
                 f = self.link_base['@'][col][vk].dataframe.T
@@ -260,11 +258,20 @@ class Rules:
     def _get_descriptive_via_stack(self, col: str, desc: str = 'mean') -> pd.Series:
         link = self.link_base[col]['@']
         w = self._sort_weight
-        desc_key = [
-            k
-            for k in list(link.keys())
-            if f'd.{desc}' in k.split('|')[1] and k.split('|')[-2] == w
-        ]
+        desc_key = []
+
+        # Modern pattern matching for descriptive view key parsing
+        for k in list(link.keys()):
+            key_parts = k.split('|')
+            match len(key_parts):
+                case n if n >= 3:
+                    match key_parts:
+                        case [_, method, *_, weight] if (
+                            f'd.{desc}' in method and weight == w
+                        ):
+                            desc_key.append(k)
+                case _:
+                    continue
         if not desc_key:
             msg = "No {} view to sort '{}' on found!"
             raise RuntimeError(msg.format(desc, col))
@@ -279,13 +286,26 @@ class Rules:
         link = self.link_base[col]['@']
         w = self._sort_weight
         net_no = int(net.split('_')[-1])
-        net_key = [
-            k
-            for k in list(link.keys())
-            if k.split('|')[-1] == 'net'
-            and len(k.split('|')[2].split(',x')) >= net_no
-            and k.split('|')[-2] == w
-        ]
+        net_key = []
+
+        # Modern pattern matching for net view key parsing
+        for k in list(link.keys()):
+            key_parts = k.split('|')
+            match len(key_parts):
+                case n if n >= 4:
+                    match key_parts:
+                        case [_, _, relation, *_, weight, 'net'] if (
+                            weight == w and
+                            len(relation.split(',x')) >= net_no
+                        ):
+                            net_key.append(k)
+                        case [_, _, relation, weight, 'net'] if (
+                            weight == w and
+                            len(relation.split(',x')) >= net_no
+                        ):
+                            net_key.append(k)
+                case _:
+                    continue
         if not net_key:
             msg = "No net view to sort '{}' on found!"
             raise RuntimeError(msg.format(col))
@@ -302,9 +322,8 @@ class Rules:
         if not apply_rules:
             apply_rules = list(rulesx.keys())
         for r, method in list(rulesx.items()):
-            if apply_rules and r in apply_rules:
-                if r in rules:
-                    f = method(f, **rules[r])
+            if apply_rules and r in apply_rules and r in rules:
+                f = method(f, **rules[r])
         rules_slicer = f.index.values.tolist()
         col_key = f.index.levels[0].tolist()[0]
         if (col_key, 'All') in rules_slicer:
@@ -313,14 +332,32 @@ class Rules:
         return rules_slicer
 
     def _find_expanded_nets(self, all_views: list[str], rule_axis: str) -> list[str]:
-        expanded_net = [
-            v
-            for v in all_views
-            if '}+]' in v
-            and v.split('|')[-2] == self._sort_weight
-            and v.split('|')[1] == 'f'
-            and not v.split('|')[3] == 'x'
-        ]
+        """Find expanded net views using pattern matching for view key analysis."""
+        expanded_net = []
+
+        for v in all_views:
+            if '}+]' not in v:
+                continue
+
+            view_parts = v.split('|')
+            match len(view_parts):
+                case n if n >= 4:
+                    # Standard view key structure: [prefix, method, relation, axis, weight, stat]
+                    match view_parts:
+                        case [_, 'f', _, axis, weight, *_] if (
+                            axis != 'x' and
+                            weight == self._sort_weight
+                        ):
+                            expanded_net.append(v)
+                        case [_, method, _, axis, weight, *_] if (
+                            method == 'f' and
+                            axis != 'x' and
+                            weight == self._sort_weight
+                        ):
+                            expanded_net.append(v)
+                case _:
+                    # Fallback for non-standard view keys
+                    continue
 
         return expanded_net[0] if expanded_net else None
 
@@ -340,7 +377,7 @@ class Rules:
         groups['codes'] = [c for c, d in list(description.items()) if d == 'normal']
         return groups
 
-    def sort_expanded_nets(self, view: 'qp.View', sortx: dict[str, Any]) -> list[str]:
+    def sort_expanded_nets(self, view: qp.View, sortx: dict[str, Any]) -> list[str]:
         within = sortx.get('within', True)
         between = sortx.get('between', True)
         ascending = sortx.get('ascending', False)
@@ -354,10 +391,7 @@ class Rules:
         if not fix:
             fix_codes = []
         else:
-            if not isinstance(fix, list):
-                fix_codes = [fix]
-            else:
-                fix_codes = fix
+            fix_codes = [fix] if not isinstance(fix, list) else fix
             fix_codes = [
                 c for c in fix_codes if c in df.index.get_level_values(1).tolist()
             ]
@@ -603,34 +637,55 @@ class Rules:
             y, x = self.link.x, self.link.y
         else:
             x, y = self.link.x, self.link.y
+
+        # Parse view key using structural pattern matching
         vk = self.view_name
         array_summary = x in meta['masks'] and y == '@'
-        v_method = vk.split('|')[1]
-        relation = vk.split('|')[2]
-        s_name = vk.split('|')[-1]
-        descriptive = v_method.startswith('.d')
-        exp_net = '}+]' in relation
-        array_sum_freqs = array_summary and s_name in ['counts', 'c%', 'r%']
+        view_parts = vk.split('|')
 
-        if (relation.split(":")[0].startswith('x') and not exp_net) or descriptive:
-            if not array_summary:
-                condensed_x = True
-        elif relation.split(":")[1].startswith('y'):
-            condensed_y = True
-        else:
-            if re.search('x\\[.+:y$', relation) is not None:
-                condensed_x = True
-            elif re.search('x:y\\[.+', relation) is not None:
-                condensed_y = True
-            if re.search('y\\[.+:x$', relation) is not None:
-                condensed_y = True
-            elif re.search('y:x\\[.+', relation) is not None:
-                condensed_x = True
+        # Modern pattern matching for view key structure
+        match len(view_parts):
+            case n if n >= 4:
+                # Standard view key: method|relation|....|stat_name
+                _, v_method, relation, *middle_parts, s_name = view_parts
+                descriptive = v_method.startswith('.d')
+                exp_net = '}+]' in relation
+                array_sum_freqs = array_summary and s_name in ['counts', 'c%', 'r%']
 
-        if condensed_x or x == '@':
-            viable_axes.remove('x')
-        if condensed_y or (y == '@' and not array_sum_freqs):
-            viable_axes.remove('y')
+                # Pattern match relation patterns for axis condensation
+                relation_parts = relation.split(":")
+                match (relation_parts, descriptive, exp_net, array_summary):
+                    case ([rel_start, *_], True, _, _) if rel_start.startswith('x'):
+                        # Descriptive methods on x-axis
+                        if not array_summary:
+                            condensed_x = True
+                    case ([rel_start, *_], False, False, _) if rel_start.startswith('x'):
+                        # Non-expanded net x-axis methods
+                        if not array_summary:
+                            condensed_x = True
+                    case ([_, rel_end], _, _, _) if rel_end.startswith('y'):
+                        # Y-axis condensed relations
+                        condensed_y = True
+                    case _:
+                        # Complex relation pattern matching using regex fallback
+                        if re.search('x\\[.+:y$', relation) is not None:
+                            condensed_x = True
+                        elif re.search('x:y\\[.+', relation) is not None:
+                            condensed_y = True
+                        if re.search('y\\[.+:x$', relation) is not None:
+                            condensed_y = True
+                        elif re.search('y:x\\[.+', relation) is not None:
+                            condensed_x = True
+            case _:
+                # Fallback for malformed view keys
+                pass
+
+        # Remove non-viable axes based on condensation rules
+        match (condensed_x, condensed_y, x == '@', y == '@', array_sum_freqs):
+            case (True, _, _, _, _) | (_, _, True, _, _):
+                viable_axes.remove('x')
+            case (_, True, _, _, _) | (_, _, _, True, False):
+                viable_axes.remove('y')
 
         return viable_axes
 
@@ -673,19 +728,19 @@ class Rules:
                     if len(value) == 1:
                         value = set(value)
                     else:
-                        value = set(
-                            [
+                        value = {
+
                                 int(i) if i.isdigit() else i
                                 for i in list(value[1:-1].split(','))
-                            ]
-                        )
+
+                        }
                     value = cols.intersection(value)
                     if not value:
                         value = ''
                     elif len(value) == 1:
                         value = str(list(value))
                     else:
-                        value = str(sorted(list(value)))
+                        value = str(sorted(value))
                 if is_minimum:
                     value = value + '**'
                 elif is_small:
@@ -696,7 +751,7 @@ class Rules:
                 return value
             return value
 
-        cols = set([int(v) for v in zip(*[c for c in df.columns], strict=False)[1]])
+        cols = {int(v) for v in zip(*list(df.columns), strict=False)[1]}
         df = df.applymap(verify_test_value)
 
         return df

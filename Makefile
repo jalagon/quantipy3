@@ -27,13 +27,23 @@ test: ## Run test suite
 	@echo "$(BLUE)Running test suite...$(RESET)"
 	pytest tests/ -v
 
-test-cov: ## Run tests with coverage report
-	@echo "$(BLUE)Running tests with coverage...$(RESET)"
-	pytest tests/ --cov=quantipy --cov-report=term-missing --cov-report=html
+test-cov: ## Run tests with 80% coverage threshold
+	@echo "$(BLUE)Running tests with 80% coverage threshold...$(RESET)"
+	pytest tests/ --cov=quantipy --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=80
 
 test-fast: ## Run tests in parallel
 	@echo "$(BLUE)Running tests in parallel...$(RESET)"
 	pytest tests/ -n auto
+
+coverage: ## Comprehensive coverage analysis with 80% threshold
+	@echo "$(BLUE)Running comprehensive coverage analysis...$(RESET)"
+	./scripts/run-coverage.sh
+
+coverage-html: ## Generate HTML coverage report and open in browser
+	@echo "$(BLUE)Generating HTML coverage report...$(RESET)"
+	pytest tests/ --cov=quantipy --cov-report=html --cov-fail-under=80
+	@echo "$(GREEN)Opening coverage report in browser...$(RESET)"
+	@python -c "import webbrowser; webbrowser.open('htmlcov/index.html')" 2>/dev/null || echo "Open htmlcov/index.html manually"
 
 lint: ## Run ruff linter
 	@echo "$(BLUE)Running ruff linter...$(RESET)"
@@ -62,9 +72,23 @@ type-check: ## Run type checking on enhanced files
 	mypy quantipy/core/chain.py --ignore-missing-imports || true
 	mypy quantipy/core/stack.py --ignore-missing-imports || true
 
-security: ## Run security checks
-	@echo "$(BLUE)Running security analysis...$(RESET)"
-	bandit -r quantipy/
+security: ## Run comprehensive security analysis
+	@echo "$(BLUE)Running comprehensive security analysis...$(RESET)"
+	./scripts/security-check.sh
+
+security-quick: ## Quick security check (bandit + safety)
+	@echo "$(BLUE)Running quick security checks...$(RESET)"
+	bandit -r quantipy/ --exclude tests/
+	safety check
+
+security-bandit: ## Run only Bandit code security scan
+	@echo "$(BLUE)Running Bandit security scan...$(RESET)"
+	bandit -r quantipy/ --exclude tests/ -f json -o security-reports/bandit.json || true
+	bandit -r quantipy/ --exclude tests/
+
+security-deps: ## Check dependencies for vulnerabilities
+	@echo "$(BLUE)Checking dependencies for vulnerabilities...$(RESET)"
+	safety check --json --output security-reports/safety.json || true
 	safety check
 
 quality: lint format-check type-check ## Run all quality checks
@@ -117,8 +141,14 @@ unused: ## Find unused code
 	@echo "$(BLUE)Finding unused code...$(RESET)"
 	vulture quantipy/ || pip install vulture && vulture quantipy/
 
-ci: quality test security ## Run full CI pipeline locally
+ci: quality test-cov security ## Run full CI pipeline locally with coverage
 	@echo "$(GREEN)Full CI pipeline completed successfully!$(RESET)"
+
+ci-fast: quality test security-quick ## Run full CI pipeline without coverage (quick security)
+	@echo "$(GREEN)Fast CI pipeline completed successfully!$(RESET)"
+
+ci-security: quality security ## Run quality checks and comprehensive security analysis
+	@echo "$(GREEN)Security-focused CI pipeline completed successfully!$(RESET)"
 
 # Environment targets
 check-env: ## Check Python environment

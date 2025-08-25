@@ -61,8 +61,11 @@ class Cache(defaultdict[str, dict[str, Any]]):
 
         Returns
         -------
-        Union[Any, Tuple[Any, ...]]
-            The cached object mapped to the passed key or default tuple.
+        Any
+            The cached object mapped to the passed key or default value.
+            Returns (None, None) for 'matrices' collection default,
+            7-element None tuple for 'squeezed' collection default,
+            or None for other collections when key not found.
         '''
         if collection == 'matrices':
             return self[collection].get(key, (None, None))

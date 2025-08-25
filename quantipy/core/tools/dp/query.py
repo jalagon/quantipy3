@@ -16,7 +16,7 @@ import pandas as pd
 import quantipy as qp
 
 
-def get_views(qp_structure: dict[str, Any]) -> Generator['qp.View', None, None]:
+def get_views(qp_structure: dict[str, Any]) -> Generator[qp.View, None, None]:
     '''Generator replacement for nested loops to return all view objects
     stored in a given qp container structure.
     Currently supports chain-classed shapes and cluster objects natively.
@@ -152,7 +152,7 @@ def shake_descriptives(lst: list[str], descriptives: list[str]) -> list[str]:
 
 
 def request_views(
-    stack: 'qp.Stack',
+    stack: qp.Stack,
     data_key: str | list[str] | tuple[str, ...] | None = None,
     filter_key: str | list[str] | tuple[str, ...] | None = None,
     weight: str | None = None,

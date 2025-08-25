@@ -84,6 +84,10 @@ pip install \
     build==1.0.3 \
     wheel==0.42.0
 
+# Install additional security tools
+print_status "Installing security analysis tools..."
+pip install pip-audit coverage || print_warning "Some security tools may not be available"
+
 # Install type stubs
 print_status "Installing type stubs..."
 pip install pandas-stubs types-requests || print_warning "Some type stubs may not be available"
@@ -121,6 +125,12 @@ for file in "${TYPE_CHECK_FILES[@]}"; do
         mypy "$file" --ignore-missing-imports || print_warning "Type issues in $file"
     fi
 done
+
+# Quick security check
+echo "🔒 Running basic security checks..."
+mkdir -p security-reports
+bandit -r quantipy/ --exclude tests/ -f txt -o security-reports/initial-bandit.txt || print_warning "Security scan found issues"
+safety check || print_warning "Dependency vulnerability check found issues"
 
 # Test imports
 print_status "Testing critical imports..."

@@ -517,7 +517,7 @@ class FilteringEngine:
         strategy = self._strategies["filter_variable"]
         return strategy.filter(self._dataset, "extend", name, logic, extend_as=extend_as)
 
-    def reduce_filter_var(self, name: str, values: List[int]) -> None:
+    def reduce_filter_var(self, name: str, values: list[int]) -> None:
         """
         Reduce filter variable to specific values.
 
@@ -544,7 +544,7 @@ class FilteringEngine:
         strategy = self._strategies["filter_variable"]
         return strategy.filter(self._dataset, "manifest", name)
 
-    def merge_filter(self, name: str, filters: List[str]) -> None:
+    def merge_filter(self, name: str, filters: list[str]) -> None:
         """
         Merge multiple filter variables using OR logic.
 
@@ -558,7 +558,7 @@ class FilteringEngine:
         strategy = self._strategies["filter_variable"]
         return strategy.filter(self._dataset, "merge", name, filters)
 
-    def compare_filter(self, name1: str, name2: str) -> Dict[str, int]:
+    def compare_filter(self, name1: str, name2: str) -> dict[str, int]:
         """
         Compare two filter variables.
 
@@ -605,7 +605,7 @@ class FilteringEngine:
         strategy = self._strategies[strategy_name]
         return strategy.filter(self._dataset, *args, **kwargs)
 
-    def get_filtering_info(self) -> Dict[str, Any]:
+    def get_filtering_info(self) -> dict[str, Any]:
         """Get information about filtering capabilities."""
         return {
             "supported_strategies": self.get_supported_filters(),
@@ -630,7 +630,7 @@ class FilteringEngine:
         # For now, return a placeholder
         return str(logic)
 
-    def get_filter_statistics(self) -> Dict[str, Any]:
+    def get_filter_statistics(self) -> dict[str, Any]:
         """Get statistics about current filtering state."""
         total_rows = len(self._dataset._data) if self._dataset._data is not None else 0
         filter_vars = [col for col in (self._dataset._data.columns if self._dataset._data is not None else [])

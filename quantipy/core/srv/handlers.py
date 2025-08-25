@@ -1,8 +1,16 @@
-import http.server
-import urllib.parse
-import cgi
+"""HTTP request handlers for quantipy3 server functionality.
 
-from .core import shutdown_server, save_string_in_tmp_folder
+This module provides web-based editing handlers for quantipy server operations,
+including GET and POST request processing for interactive data editing.
+"""
+
+from __future__ import annotations
+
+import cgi
+import http.server
+
+from .core import save_string_in_tmp_folder, shutdown_server
+
 
 class WebEditHandler(http.server.SimpleHTTPRequestHandler):
 
@@ -25,7 +33,7 @@ class WebEditHandler(http.server.SimpleHTTPRequestHandler):
             print(item.name)
             if item.name == "obj_json":
                 save_string_in_tmp_folder(
-                    data=item.value, 
+                    data=item.value,
                     filename="obj.json")
                 break
 

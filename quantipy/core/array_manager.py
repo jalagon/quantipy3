@@ -630,7 +630,7 @@ class ArrayAnalysisStrategy(ArrayStrategy):
         name: str,
         condition: Any | None = None,
         by_name: bool = True
-    ) -> list[str, List[int]]:
+    ) -> list[str, list[int]]:
         """Find empty array items."""
         if not dataset.is_array(name):
             raise ValueError(f"'{name}' is not an array")
@@ -1120,7 +1120,7 @@ class ArrayManager:
         name: str,
         condition: Any | None = None,
         by_name: bool = True
-    ) -> list[str, List[int]]:
+    ) -> list[str, list[int]]:
         """
         Find empty array items.
 

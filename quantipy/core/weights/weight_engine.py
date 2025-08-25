@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-"""Weight Engine module for quantipy survey data processing.
-
-This module provides the WeightEngine class for coordinating and managing
-various weighting schemes and algorithms for survey data adjustment.
-"""
-
 import re
 from typing import Any
 
 import pandas as pd
 
 from quantipy.core.dataset import DataSet
+
+"""Weight Engine module for quantipy survey data processing.
+
+This module provides the WeightEngine class for coordinating and managing
+various weighting schemes and algorithms for survey data adjustment.
+"""
 
 
 class WeightEngine:

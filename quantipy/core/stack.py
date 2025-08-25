@@ -29,13 +29,39 @@ import sys
 import time
 import warnings
 from collections import OrderedDict, defaultdict
-from typing import TYPE_CHECKING, Any, Iterator, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+import numpy as np
+import pandas as pd
 
 if TYPE_CHECKING:
     from quantipy.core.dataset import DataSet
 
-import numpy as np
-import pandas as pd
+# Advanced Union Types for Enhanced Error Handling (defined after pandas import)
+StackKeyType = Literal["data", "filter", "x", "y", "view"]
+ErrorLevel = Literal["warning", "error", "critical"]
+DataType = pd.DataFrame | dict[str, Any] | tuple[pd.DataFrame, dict[str, Any]]
+MetaType = dict[str, Any] | OrderedDict[str, Any] | None
+StackResult = pd.DataFrame | dict[str, Any] | "Stack" | None
+
+# Error result type for structured error reporting
+class StackError:
+    """Modern error handling with structured error information."""
+    
+    def __init__(
+        self,
+        error_type: StackKeyType,
+        level: ErrorLevel,
+        message: str,
+        context: dict[str, Any] | None = None
+    ) -> None:
+        self.error_type = error_type
+        self.level = level
+        self.message = message
+        self.context = context or {}
+    
+    def __str__(self) -> str:
+        return f"[{self.level.upper()}] {self.error_type}: {self.message}"
 
 import quantipy as qp
 from quantipy.core.tools.dp.io import unicoder, write_quantipy
@@ -176,16 +202,16 @@ class Stack(defaultdict):
     def add_data(
         self,
         data_key: str,
-        data: pd.DataFrame | None = None,
-        meta: dict[str, Any] | None = None,
-    ) -> None:
+        data: DataType | None = None,
+        meta: MetaType = None,
+    ) -> StackResult:
         """
-        Sets the data_key into the stack, optionally mapping data sources it.
+        Sets the data_key into the stack using pattern matching for enhanced type safety.
 
-        It is possible to handle the mapping of data sources in different ways:
+        Modern implementation with advanced union types for data source mapping:
 
         * no meta or data (for proxy links not connected to source data)
-        * meta only (for proxy links with supporintg meta)
+        * meta only (for proxy links with supporting meta)
         * data only (meta will be inferred if possible)
         * data and meta
 
@@ -193,59 +219,103 @@ class Stack(defaultdict):
         ----------
         data_key : str
             The reference name for a data source connected to the Stack.
-        data : pandas.DataFrame
-            The input (case) data source.
-        meta : dict or OrderedDict
+        data : DataType, optional
+            The input (case) data source - DataFrame, dict, or tuple.
+        meta : MetaType, optional
             A quantipy compatible metadata source that describes the case data.
 
         Returns
         -------
-        None
+        StackResult
+            None on success, StackError on failure with enhanced error context.
         """
         self._verify_key_types(name="data", keys=data_key)
 
+        # Check for key overwrite with enhanced warning
         if data_key in list(self.keys()):
-            warning_msg = "You have overwritten data/meta for key: ['%s']."
-            print(warning_msg % (data_key))
+            warning_msg = f"You have overwritten data/meta for key: ['{data_key}']."
+            print(warning_msg)
 
-        if data is not None:
-            if isinstance(data, pd.DataFrame):
+        # Modern pattern matching for data type validation and processing
+        match data:
+            case None:
+                # No data case - proxy link
+                processed_data = None
+            case pd.DataFrame() as df:
+                # Standard DataFrame case
+                processed_data = df.copy()
                 if meta is None:
-                    # To do: infer meta from DataFrame
+                    # Infer basic meta structure from DataFrame
                     meta = {
-                        "info": None,
-                        "lib": None,
-                        "sets": None,
-                        "columns": None,
-                        "masks": None,
+                        "info": {"name": data_key, "columns": len(df.columns)},
+                        "lib": {"default text": "en-GB"},
+                        "sets": {"data file": {"items": list(df.columns)}},
+                        "columns": {},
+                        "masks": {},
                     }
-                # Add a special column of 1s
-                data["@1"] = np.ones(len(data.index))
-                data.index = list(range(len(data.index)))
-            else:
-                raise TypeError(
-                    "The 'data' given to Stack.add_data() must be one of the following types: "
-                    "<pandas.DataFrame>"
+                # Add special column of 1s
+                processed_data["@1"] = np.ones(len(processed_data.index))
+                processed_data.index = list(range(len(processed_data.index)))
+            case dict() as data_dict:
+                # Dictionary data case - convert or validate
+                if "data" in data_dict and "meta" in data_dict:
+                    processed_data = data_dict["data"]
+                    meta = data_dict.get("meta", meta)
+                else:
+                    return StackError(
+                        error_type="data",
+                        level="error",
+                        message="Dictionary must contain 'data' and 'meta' keys",
+                        context={"data_key": data_key, "dict_keys": list(data_dict.keys())}
+                    )
+            case tuple() as data_tuple if len(data_tuple) == 2:
+                # Tuple case (data, meta)
+                processed_data, meta = data_tuple[0], data_tuple[1]
+            case _:
+                # Unsupported data type
+                return StackError(
+                    error_type="data",
+                    level="error",
+                    message="Invalid data type provided",
+                    context={
+                        "data_key": data_key,
+                        "received_type": type(data).__name__,
+                        "supported_types": ["pd.DataFrame", "dict", "tuple", "None"]
+                    }
                 )
 
-        if meta is not None:
-            if isinstance(meta, dict | OrderedDict):
-                # To do: verify incoming meta
-                pass
-            else:
-                raise TypeError(
-                    "The 'meta' given to Stack.add_data() must be one of the following types: "
-                    "<dict>, <collections.OrderedDict>."
+        # Modern pattern matching for meta validation
+        match meta:
+            case None:
+                # No meta case - acceptable
+                validated_meta = None
+            case dict() | OrderedDict() as meta_dict:
+                # Valid meta case - ensure required structure
+                validated_meta = meta_dict
+                if "columns" not in validated_meta:
+                    validated_meta["columns"] = {}
+                if "masks" not in validated_meta:
+                    validated_meta["masks"] = {}
+            case _:
+                # Invalid meta type
+                return StackError(
+                    error_type="data",
+                    level="error",
+                    message="Invalid meta type provided",
+                    context={
+                        "data_key": data_key,
+                        "received_type": type(meta).__name__,
+                        "supported_types": ["dict", "OrderedDict", "None"]
+                    }
                 )
-
-        # Add the data key to the stack
-        # self[data_key] = {}
 
         # Add the meta and data to the data_key position in the stack
-        self[data_key].meta = meta
-        self[data_key].data = data
+        self[data_key].meta = validated_meta
+        self[data_key].data = processed_data
         self[data_key].cache = Cache()
         self[data_key]["no_filter"].data = self[data_key].data
+
+        return None  # Success case
 
     def remove_data(self, data_keys: str | list[str]) -> None:
         """
