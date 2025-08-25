@@ -1,32 +1,20 @@
-#-*- coding: utf-8 -*-
-from .view_mapper import ViewMapper
+from __future__ import annotations
+
+import builtins
+import contextlib
+import warnings
+
+import quantipy as qp
+import quantipy.core.tools as tools
+from quantipy.core.quantify.engine import Level
+from quantipy.core.tools.view.logic import (
+    not_count,
+)
 from quantipy.core.view import View
 
-import pandas as pd
-import numpy as np
-import copy
-import traceback
-import warnings
-from collections import defaultdict
-from itertools import combinations
-from operator import add, sub, mul
-from operator import truediv as div
+from .view_mapper import ViewMapper
 
-from quantipy.core.tools.view.logic import (
-    has_any, has_all, has_count,
-    not_any, not_all, not_count,
-    is_lt, is_ne, is_gt,
-    is_le, is_eq, is_ge,
-    union, intersection, get_logic_index)
 
-from quantipy.core.helpers import functions as helpers
-import quantipy.core.tools as tools
-import quantipy as qp
-
-from quantipy.core.cache import Cache
-from quantipy.core.quantify.engine import Level
-
-import time
 class QuantipyViews(ViewMapper):
     """
     A collection of extendable MR aggregation and statistic methods.
@@ -35,7 +23,7 @@ class QuantipyViews(ViewMapper):
     aggregations. Their behaviour is controlled via ``kwargs``.
     """
     def __init_known_methods__(self):
-        super(QuantipyViews, self).__init_known_methods__()
+        super().__init_known_methods__()
         self.known_methods['default']= {
             'method': 'default',
             'kwargs': {
@@ -201,14 +189,14 @@ class QuantipyViews(ViewMapper):
         """
         view = View(link, name, kwargs)
         pos, relation, rel_to, weights, text = view.get_std_params()
-        meta = link.get_meta()
+        link.get_meta()
         categorical = ['single', 'delimited set']
         numeric = ['int', 'float']
         string = ['string']
         categorizable = categorical + numeric
         x_type, y_type, transpose = self._get_method_types(link)
         q = qp.Quantity(link, weight=weights)
-        if q.type == 'array' and not q.y == '@':
+        if q.type == 'array' and q.y != '@':
             pass
         else:
             if link.y == '@':
@@ -218,7 +206,7 @@ class QuantipyViews(ViewMapper):
                     view_df = q.summarize().result
                     view_df.drop((link.x, 'All'), axis=0, inplace=True)
                 elif x_type in string:
-                    view_df = tools.view.agg.make_default_str_view(data, x=link.x)
+                    view_df = tools.view.agg.make_default_str_view(link.get_data(), x=link.x)
             elif link.x == '@':
                 if y_type in categorical:
                     view_df = q.count().result
@@ -311,7 +299,7 @@ class QuantipyViews(ViewMapper):
         # We need to avoid the forced overwriting of the kwarg and use the actual
         # rel_to != 'x', 'y', 'counts_sum' string...
         per_cell = False
-        if not rel_to in ['', None, 'x', 'y', 'counts_sum']:
+        if rel_to not in ['', None, 'x', 'y', 'counts_sum']:
             view._kwargs['rel_to'] = 'y'
             rel_to_kind = rel_to.split('.')
             if len(rel_to_kind) == 2:
@@ -320,15 +308,13 @@ class QuantipyViews(ViewMapper):
                     per_cell = True
                 elif rel_to_kind[1] == 'y':
                     per_cell = False
-            try:
-                link['x|f|:||{}|counts'.format(weights)]._kwargs['rebased'] = True
-            except:
-                pass
+            with contextlib.suppress(builtins.BaseException):
+                link[f'x|f|:||{weights}|counts']._kwargs['rebased'] = True
         # ====================================================================
         w = weights if weights is not None else None
-        ignore = True if name == 'cbase_gross' else False
+        ignore = name == 'cbase_gross'
         q = qp.Quantity(link, w, ignore_flags=ignore)
-        if q.type == 'array' and not q.y == '@':
+        if q.type == 'array' and q.y != '@':
             pass
         else:
             if q.leveled:
@@ -344,16 +330,18 @@ class QuantipyViews(ViewMapper):
                 try:
                     q.group(groups=logic, axis=axis, expand=expand, complete=complete)
                 except NotImplementedError as e:
-                    warnings.warn('NotImplementedError: {}'.format(e))
-                    return None
+                    warnings.warn(f'NotImplementedError: {e}', stacklevel=2)
+                    return
                 q.count(axis=None, as_df=False, margin=False)
                 condition = view.spec_condition(link, q.logical_conditions, expand)
             else:
-                eff = True if name == 'ebase' else False
-                raw = True if name in ['counts_sum', 'c%_sum'] else False
-                cum_sum = True if name in ['counts_cumsum', 'c%_cumsum'] else False
-                if cum_sum: axis = None
-                if eff: axis = 'x'
+                eff = name == 'ebase'
+                raw = name in ['counts_sum', 'c%_sum']
+                cum_sum = name in ['counts_cumsum', 'c%_cumsum']
+                if cum_sum:
+                    axis = None
+                if eff:
+                    axis = 'x'
                 q.count(axis=axis, raw_sum=raw, effective=eff, cum_sum=cum_sum,
                         margin=False, as_df=False)
             if rel_to is not None:
@@ -436,7 +424,7 @@ class QuantipyViews(ViewMapper):
 
             if kwargs.get('source', None):
                 q = self._swap_and_rebase(q, kwargs['source'])
-            if q.type == 'array' and not q.y == '@':
+            if q.type == 'array' and q.y != '@':
                 pass
             else:
                 if exclude is not None:
@@ -544,13 +532,13 @@ class QuantipyViews(ViewMapper):
                                     cwi_filter=True)
                 view_df = test.run()
                 notation = view.notation('t.{}.{}.{}{}'.format(metric, mimic,
-                                     '{:.2f}'.format(test.level)[2:],
+                                     f'{test.level:.2f}'[2:],
                                      '+@' if test_total else ''),
                                      condition)
                 view.dataframe = view_df
                 view._notation = notation
                 link[notation] = view
-            except:
+            except Exception:
                 pass
 
     @staticmethod
@@ -560,11 +548,11 @@ class QuantipyViews(ViewMapper):
         quantity.swap(var=variable, axis=axis, update_axis_def=False)
         try:
             quantity.filter(rebase_on, keep_base=False, inplace=True)
-        except:
+        except Exception:
             warn = "Couldn't rebase 'source'-swapped array-type Quantity: {} "
             warn += "on {}\nPlease check descriptive stats results for correct "
             warn += "base sizes!"
-            warnings.warn(warn.format(org_x, variable))
+            warnings.warn(warn.format(org_x, variable), stacklevel=2)
         return quantity
 
     @staticmethod
@@ -596,8 +584,8 @@ class QuantipyViews(ViewMapper):
                                'c%_sum', 'cbase_gross']
                 view_name_list = [v for v in allviews
                                   if v.split('|')[1].startswith('f')
-                                  and not v.split('|')[3]=='y'
-                                  and not v.split('|')[-1] in ignorenames
+                                  and v.split('|')[3] != 'y'
+                                  and v.split('|')[-1] not in ignorenames
                                   and v.split('|')[-2] == w]
             else:
                 view_name_list = [v for v in allviews

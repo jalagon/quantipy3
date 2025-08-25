@@ -1,5 +1,14 @@
-import requests as req
+from __future__ import annotations
+
+"""Forsta API client for survey data retrieval and upload.
+
+This module provides functions to interact with the Forsta API for retrieving
+survey data and metadata, as well as uploading filtered survey responses.
+"""
+
 import json
+
+import requests as req
 
 
 def get_surveys(projectid, public_url, idp_url, client_id, client_secret, schema_vars=None, data_filter=None):

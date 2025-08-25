@@ -1,4 +1,3 @@
-from . import agg
-from . import meta
-from . import struct
-from . import query
+from __future__ import annotations
+
+from . import agg, meta, query, struct

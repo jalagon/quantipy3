@@ -1,2 +1,3 @@
-from . import dp
-from . import view
+from __future__ import annotations
+
+from . import dp, view

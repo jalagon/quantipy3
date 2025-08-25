@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import itertools
 import json
@@ -912,12 +914,9 @@ def is_mapped_meta(item):
     syntax.
     """
 
-    if isinstance(item, str):
-        if item.split('@')[0] in ['lib', 'columns', 'masks', 'info', 'sets']:
-            if re.match(MAPPED_PATTERN, item):
-                return True
-
-    return False
+    return (isinstance(item, str) and
+            item.split('@')[0] in ['lib', 'columns', 'masks', 'info', 'sets'] and
+            re.match(MAPPED_PATTERN, item) is not None)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1973,7 +1972,7 @@ def create_range_as_list(rng, as_type=str):
             res.extend(list(range(int(lo), int(hi) + 1)))
         else:
             res.append(sub_rng)
-    if as_type == str:
+    if as_type is str:
         return res
     return list(map(as_type, res))
 
@@ -2913,8 +2912,7 @@ def get_default_num_stat(default_num_view, stat, drop_bases=True, as_df=True):
 
     if as_df:
         return df
-    df.values
-    return None
+    return df.values
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3047,7 +3045,7 @@ def make_delimited_from_dichotmous(df, use_col_values=False):
         return delimited
 
     if use_col_values:
-        for i, col in enumerate(df.columns, start=1):
+        for _i, col in enumerate(df.columns, start=1):
             df[col] = df[col].replace(1, col)
     else:
         for i, col in enumerate(df.columns, start=1):

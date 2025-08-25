@@ -1,10 +1,11 @@
-#-*- coding: utf-8 -*-
-import marshal
+from __future__ import annotations
+
 import copy
-from types import FunctionType
+import marshal
 from collections import OrderedDict
 from itertools import product
-import quantipy as qp
+from types import FunctionType
+
 
 class ViewMapper(OrderedDict):
     """
@@ -13,7 +14,7 @@ class ViewMapper(OrderedDict):
     process.
     """
     def __init__(self, views=None, template=None):
-        super(ViewMapper, self).__init__() # Initiate the ordered dict
+        super().__init__() # Initiate the ordered dict
 
         self.known_methods = OrderedDict()
         self.__init_known_methods__()
@@ -80,13 +81,13 @@ class ViewMapper(OrderedDict):
         view_method = eval('qp.QuantipyViews().' + method)
         if iterators is not None:
             template = {'method': view_method,
-                        'kwargs': {'iterators': {k: v for k, v in list(iterators.items())}}}
+                        'kwargs': {'iterators': dict(list(iterators.items()))}}
         else:
             template = {'method': view_method, 'kwargs': {}}
         self.template = template
         return self
 
-    def add_method(self, name=None, method=None, kwargs={}, template=None):
+    def add_method(self, name=None, method=None, kwargs=None, template=None):
         """
         Add a method to the instance of the ViewMapper.
 
@@ -107,10 +108,12 @@ class ViewMapper(OrderedDict):
         None
             Updates the ViewMapper instance with a new method definiton.
         """
-        if template is None and not self.template is None:
+        if kwargs is None:
+            kwargs = {}
+        if template is None and self.template is not None:
             template = self.template
 
-        if not template is None:
+        if template is not None:
             name = template.get('name', name)
             method = template.get('method', method)
             kwargs = dict(template.get('kwargs', {}), **kwargs)
@@ -120,11 +123,8 @@ class ViewMapper(OrderedDict):
                 "You must provide a 'name' and 'method' to add_method(), \n"
                 "either directly in the method call or through a ViewMapper template. \n"
                 "You gave: \n"
-                "name: {name} \n"
-                "method: {method} \n".format(
-                    name=name,
-                    method=method
-                )
+                f"name: {name} \n"
+                f"method: {method} \n"
             )
 
         self[name] = {'method': method, 'kwargs': kwargs}
@@ -153,7 +153,7 @@ class ViewMapper(OrderedDict):
             raise KeyError(
                 "None of the view keys you attempted to extract using 'subset' "
                 "were found in this ViewMapper instance. "
-                "You requested: %s, found: %s" % (views, list(self.keys()))
+                f"You requested: {views}, found: {list(self.keys())}"
             )
         if strict_selection:
             invalid_keys = requested_keys - self_keys
@@ -161,11 +161,11 @@ class ViewMapper(OrderedDict):
                 raise KeyError(
                     "Some of the view keys you attempted to extract using 'subset' "
                     "were not found in this ViewMapper instance. "
-                    "You requested: %s, found: %s" % (views, list(self.keys()))
+                    f"You requested: {views}, found: {list(self.keys())}"
                 )
         subset = self.copy()
         for view in list(subset.keys()):
-            if not view in views:
+            if view not in views:
                 del subset[view]
         return subset
 
@@ -179,8 +179,8 @@ class ViewMapper(OrderedDict):
         """
         Returns a string that is used to determine how to generate the View.
         """
-        x = link.x if not link.x == '@' else link.y
-        y = link.y if not link.y == '@' else link.x
+        x = link.x if link.x != '@' else link.y
+        y = link.y if link.y != '@' else link.x
 
         transpose = False
         meta = link.get_meta()
@@ -202,8 +202,8 @@ class ViewMapper(OrderedDict):
                 if y_type in ["categorical set", "dichotomous set",
                               "delimited set", "array"]:
                     transpose = False
-            except:
-                print("Can't find a y called %s" % (link.y))
+            except Exception:
+                print(f"Can't find a y called {link.y}")
 
         else:
             # Infer the type from the pandas types
@@ -219,7 +219,7 @@ class ViewMapper(OrderedDict):
             x_dtype = data.dtypes[x].name
             y_dtype = data.dtypes[y].name
             types = []
-            for index, dtype in enumerate([x_dtype, y_dtype]):
+            for _index, dtype in enumerate([x_dtype, y_dtype]):
                 if 'int' in dtype:
                     types.append('int')
                 elif 'float' in dtype:
@@ -264,16 +264,16 @@ class ViewMapper(OrderedDict):
             if weights is None:
                 override_weights = False
                 weights = kwargs.get('weights', None)
-                if not isinstance(weights, (list, tuple)):
+                if not isinstance(weights, list | tuple):
                     weights = [weights]
             else:
                 override_weights = True
-                if not isinstance(weights, (list, tuple)):
+                if not isinstance(weights, list | tuple):
                     weights = [weights]
 
             # Get rel_to from kwargs and ensure it is a list
             rel_to = kwargs.get('rel_to', None)
-            if not isinstance(rel_to, (list, tuple)):
+            if not isinstance(rel_to, list | tuple):
                 rel_to = [rel_to]
 
             # Get iterators from kwargs, or create default if none is found
@@ -283,7 +283,7 @@ class ViewMapper(OrderedDict):
             # Where weights have been given via apply_to(weights), allow
             # them to override anything that may have been picked up via
             # an iterator object
-            if override_weights or not 'weights' in iterators:
+            if override_weights or 'weights' not in iterators:
                 iterators['weights'] = weights
 
             # Make sure the given weights provided are in the iterator weights keys
@@ -292,7 +292,7 @@ class ViewMapper(OrderedDict):
             # In these situations the iterated weights should be the combination of
             # both instructions
             for weight in weights:
-                if not weight in iterators['weights']:
+                if weight not in iterators['weights']:
                     iterators['weights'].append(weight)
 
             # Make sure the given rel_tos provided are in the iterator rel_to keys
@@ -300,10 +300,10 @@ class ViewMapper(OrderedDict):
             # have also been provided somehow
             # In these situations the iterated weights should be the combination of
             # both instructions
-            if not 'rel_to' in iterators:
+            if 'rel_to' not in iterators:
                 iterators['rel_to'] = rel_to
             for rel in rel_to:
-                if not rel in iterators['rel_to']:
+                if rel not in iterators['rel_to']:
                     iterators['rel_to'].append(rel_to)
 
             # Get the product of all the targeted iterators
@@ -319,7 +319,7 @@ class ViewMapper(OrderedDict):
 
     # Private
     def __print_exception_message__(self,message, link, name):
-        print("Error generating View: '{name}', x: '{x}', y: '{y}'. Error : '{message}'.\n".format(name=name, x=link.x, y=link.y, message=message))
+        print(f"Error generating View: '{name}', x: '{link.x}', y: '{link.y}'. Error : '{message}'.\n")
 
     # "proxy" methods. The core class doesn't know any view methods but this method can be extended.
     def __init_custom_methods__(self):
@@ -345,7 +345,7 @@ class ViewMapper(OrderedDict):
         ----------
         iterations : list of dicts
         '''
-        keys, items = list(zip(*list(iterators.items())))
-        iterations = [dict(list(zip(keys, x))) for x in product(*items)]
+        keys, items = list(zip(*list(iterators.items()), strict=False))
+        iterations = [dict(list(zip(keys, x, strict=False))) for x in product(*items)]
 
         return iterations

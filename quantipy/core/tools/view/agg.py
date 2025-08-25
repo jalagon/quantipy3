@@ -1,9 +1,5 @@
-"""Aggregation functions for quantipy survey data analysis.
+from __future__ import annotations
 
-This module provides statistical aggregation functions for categorical and numeric
-survey data, including weighted calculations, descriptive statistics, and
-crosstabulation functionality.
-"""
 import math
 from collections import defaultdict
 from itertools import combinations
@@ -13,6 +9,13 @@ import pandas as pd
 from scipy.stats import t
 
 from quantipy.core.tools.view import struct
+
+"""Aggregation functions for quantipy survey data analysis.
+
+This module provides statistical aggregation functions for categorical and numeric
+survey data, including weighted calculations, descriptive statistics, and
+crosstabulation functionality.
+"""
 
 
 def describe(data, x, weights=None):
@@ -35,8 +38,8 @@ def describe(data, x, weights=None):
     )
     # percentile information (incorrect for weighted data!) excluded for now...
     # desc_df.drop(['Lower quartile', 'Median', 'Upper quartile'], inplace=True)
-    if not len(data.index) == 0:
-        if not weights == '@1':
+    if len(data.index) != 0:
+        if weights != '@1':
             count = data[weights].sum()
             norm_wvector_coef = (
                 1 if len(data.index) == count else len(data.index) / count
@@ -198,8 +201,7 @@ def make_default_num_view(
         view_df = struct.set_qp_multiindex(df, x, y)
 
         return view_df
-    else:
-        return df.T[get_only].T
+    return df.T[get_only].T
 
 
 def calc_nets(
@@ -248,7 +250,7 @@ def calc_nets(
         else:
             net_values = np.zeros(link['default'].dataframe.shape[1] - 1)
     else:
-        if not link.y == '@':
+        if link.y != '@':
             matrix, xdef, ydef = get_matrix(
                 link, weights=source_view.meta['agg']['weights'], data=casedata
             )
@@ -355,8 +357,7 @@ def get_default_num_stat(default_num_view, stat, drop_bases=True, as_df=True):
 
     if as_df:
         return df
-    else:
-        df.values
+    return df.values
 
 
 def _aggregate_matrix(value_matrix, x_def, y_def, calc_bases=True, as_df=True):
@@ -438,18 +439,13 @@ def _aggregate_matrix(value_matrix, x_def, y_def, calc_bases=True, as_df=True):
             agg_df = freq_df
 
         return agg_df
-    else:
-        if calc_bases:
-            return freq, [cb, rb, tb]
-        else:
-            return freq
+    if calc_bases:
+        return freq, [cb, rb, tb]
+    return freq
 
 
 def aggregate_matrix(mat, xdef, ydef, get='full'):
-    if np.size(mat) == 0:
-        empty = True
-    else:
-        empty = False
+    empty = np.size(mat) == 0
     if get == 'freqs':
         return _cell_n(mat, xdef, ydef) if not empty else np.zeros(1)
     if get == 'cbase':
@@ -468,8 +464,8 @@ def aggregate_matrix(mat, xdef, ydef, get='full'):
                 _row_n(mat, xdef),
                 _total_n(mat),
             )
-        else:
-            return np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1)
+        return np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1)
+    return None
 
 
 def _default_cat_df(mat, xdef, ydef):
@@ -603,8 +599,7 @@ def _cat_to_dummies(data, limit_to=None, style='freq', as_df=False):
         dummy_df = _limit_dummy_df(dummy_df, limit_to)
     if as_df:
         return dummy_df
-    else:
-        return dummy_df.values, dummy_df.columns.tolist()
+    return dummy_df.values, dummy_df.columns.tolist()
 
 
 def _limit_dummy_df(dummy_df, codes):
@@ -625,11 +620,10 @@ def _limit_dummy_df(dummy_df, codes):
     dummy_df : pd.DataFrame (dummy-transformed, with limited columns)
     '''
     if len(dummy_df.index) > 0:
-        if not sorted(codes) == sorted(dummy_df.columns):
+        if sorted(codes) != sorted(dummy_df.columns):
             codes = [code for code in codes if code in dummy_df.columns]
         return dummy_df[codes]
-    else:
-        return dummy_df
+    return dummy_df
 
 
 def _df_to_num_matrix(data, x, y=None, exclude=None, rescale=None, weights=None):
@@ -746,7 +740,7 @@ def _dispersion_from_mat(num_matrix, x_def, y_def, measure='stddev', return_mean
         var = [
             np.true_divide(
                 np.nansum(
-                    (
+
                         num_matrix[num_matrix[:, -ycode] == 1][:, [0]]
                         * (
                             num_matrix_no_w[num_matrix_no_w[:, -ycode] == 1][
@@ -755,7 +749,7 @@ def _dispersion_from_mat(num_matrix, x_def, y_def, measure='stddev', return_mean
                             - means[-ycode + (len(y_def))]
                         )
                         ** 2
-                    )
+
                 ),
                 np.nansum(
                     num_matrix[(num_matrix_no_w[:, -ycode] == 1) & (wv_mask)][:, [0]]
@@ -767,10 +761,10 @@ def _dispersion_from_mat(num_matrix, x_def, y_def, measure='stddev', return_mean
     else:
         var = np.true_divide(
             np.nansum(
-                (
+
                     num_matrix[wv_mask][:, [0]]
                     * (num_matrix_no_w[wv_mask][:, 1 : len(x_def) + 1] - means) ** 2
-                )
+
             ),
             np.nansum(num_matrix[wv_mask][:, [0]]) - 1,
         )
@@ -780,12 +774,11 @@ def _dispersion_from_mat(num_matrix, x_def, y_def, measure='stddev', return_mean
 
     if return_mean and measure == 'stddev':
         return means, np.sqrt(var)
-    elif not return_mean and measure == 'stddev':
+    if not return_mean and measure == 'stddev':
         return np.sqrt(var)
-    elif measure == 'varcoeff':
+    if measure == 'varcoeff':
         return np.sqrt(var) / means
-    else:
-        return var
+    return var
 
 
 def _effbase_from_mat(num_matrix, x_def, y_def):
@@ -872,8 +865,7 @@ def _sum_w_squared_from_mat(num_matrix, x_def, y_def, base_ratio=True):
     if base_ratio:
         bases = _base_from_mat(num_matrix, x_def, y_def, effbase=False)
         return sws / bases
-    else:
-        return sws
+    return sws
 
 
 def _base_from_mat(num_matrix, x_def, y_def, effbase=True):
@@ -915,8 +907,7 @@ def _base_from_mat(num_matrix, x_def, y_def, effbase=True):
     if effbase:
         effbases = _effbase_from_mat(num_matrix, x_def, y_def)
         return bases, effbases
-    else:
-        return bases
+    return bases
 
 
 def calc_stat_from_mat(mat, xdef, ydef, stat):
@@ -1048,10 +1039,7 @@ def _deviations_from_mean(matrix, x_def, y_def, known_mean=None):
     -------
     mean-centered matrix : np.array
     '''
-    if known_mean is None:
-        mean = _mean_from_mat(matrix, x_def, y_def)
-    else:
-        mean = known_mean
+    mean = _mean_from_mat(matrix, x_def, y_def) if known_mean is None else known_mean
 
     matrix_no_w = matrix
     matrix_no_w[:, 1 : 1 + len(x_def) * 2] = (
@@ -1255,8 +1243,7 @@ def _convert_test_statistic(test_statistic, overlaps, effbases, package='Dim'):
         t_stat = abs(test_statistic)
     if t_stat.shape[0] == 1:
         return t_stat[0]
-    else:
-        return t_stat
+    return t_stat
 
 
 def _convert_test_level(level, package):
@@ -1338,8 +1325,7 @@ def _z_score(counts, bases, return_diffs=True):
 
     if return_diffs:
         return prop_diff_pairs / unp_sd_pairs, prop_diff_pairs
-    else:
-        return prop_diff_pairs / unp_sd_pairs
+    return prop_diff_pairs / unp_sd_pairs
 
 
 def _calc_sd_unpooled_props_pairs(counts, bases):
@@ -1349,7 +1335,7 @@ def _calc_sd_unpooled_props_pairs(counts, bases):
     return np.hstack(
         [
             np.sqrt(unp_sd[:, [cat1]] + unp_sd[:, [cat2]])
-            for cat1, cat2 in combinations(range(0, unp_sd.shape[1]), 2)
+            for cat1, cat2 in combinations(range(unp_sd.shape[1]), 2)
         ]
     )
 
@@ -1551,8 +1537,9 @@ def _filter_for_sigs(diff, test_df, level, package='Dim'):
     '''
     if package == 'Dim':
         return diff[(diff != 0) & (test_df < level)]
-    elif package == 'askia':
+    if package == 'askia':
         return diff[(diff != 0) & (test_df > level)]
+    return None
 
 
 def _make_sigtest_df(sig_res):
@@ -1574,7 +1561,7 @@ def _make_sigtest_df(sig_res):
                 col_res[int(colpair[1])].append(-1)
                 col_res[int(colpair[0])].append(-1)
         row_res = {
-            int(col): str(sorted(list(set(res)))).replace('-1, ', '')
+            int(col): str(sorted(set(res))).replace('-1, ', '')
             for col, res in list(col_res.items())
         }
         res_collec.append(pd.DataFrame(row_res, index=[int(row)]))
@@ -1592,13 +1579,13 @@ def _overlap(mat, xdef, ydef):
     w_sum_sq_paired = np.hstack(
         [
             np.nansum(mat[:, [col1]] + mat[:, [col2]], axis=0) ** 2
-            for col1, col2 in combinations(range(0, mat.shape[1]), 2)
+            for col1, col2 in combinations(range(mat.shape[1]), 2)
         ]
     )
     w_sq_sum_paired = np.hstack(
         [
             np.nansum(mat[:, [col1]] ** 2 + mat[:, [col2]] ** 2)
-            for col1, col2 in combinations(range(0, mat.shape[1]), 2)
+            for col1, col2 in combinations(range(mat.shape[1]), 2)
         ]
     )
 
@@ -1739,7 +1726,7 @@ def get_matrix(link, weights, data=None):
         data = link.get_data().copy()
     weight = weights if weights is not None else '@1'
     if link.x == '@' or link.y == '@':
-        var = link.x if not link.x == '@' else link.y
+        var = link.x if link.x != '@' else link.y
         data = data[[weight, var]].replace('', np.NaN)
         # data.dropna(inplace=True)
         wv = data[[weight]].values
@@ -1827,8 +1814,7 @@ def _make_dummies(
         _rescale_codes(dummy_df, rescale)
     if as_df:
         return dummy_df
-    else:
-        return dummy_df.values, dummy_df.columns.tolist()
+    return dummy_df.values, dummy_df.columns.tolist()
 
 
 def _clean_matrix(mat, xdef, ydef):
@@ -1857,8 +1843,7 @@ def _clean_matrix(mat, xdef, ydef):
     if ydef is not None:
         ymask = np.sum(mat[:, len(xdef) + 1 :], axis=1) > 0
         return mat[xmask & ymask]
-    else:
-        return mat[xmask]
+    return mat[xmask]
 
 
 def weight_matrix(mat, xdef):
@@ -1935,10 +1920,9 @@ def _get_drop_idx(xdef, codes, keep):
     '''
     if codes is None:
         return None
-    elif keep:
+    if keep:
         return [xdef.index(code) for code in xdef if code not in codes]
-    else:
-        return [xdef.index(code) for code in codes if code in xdef]
+    return [xdef.index(code) for code in codes if code in xdef]
 
 
 def missingfy_matrix(mat, xdef, codes, keep=False):
@@ -1989,8 +1973,7 @@ def _get_ysect(mat, ydef):
     if ydef is not None:
         ysec = reversed(range(1, len(ydef) + 1))
         return [mat[mat[:, -y] == 1] for y in ysec]
-    else:
-        return [mat]
+    return [mat]
 
 
 ''' Aggregation functions that produce raw frequencies from a
@@ -2008,16 +1991,14 @@ def _cell_n(mat, xdef, ydef):
             ]
         )
 
-    else:
-        return np.sum(mat[:, 1 : len(xdef) + 1], axis=0)
+    return np.sum(mat[:, 1 : len(xdef) + 1], axis=0)
 
 
 def _col_n(mat, xdef, ydef):
     if ydef is not None:
         ycodes = reversed(range(1, len(ydef) + 1))
         return np.array([np.nansum(mat[:, [0]] * mat[:, [-ycode]]) for ycode in ycodes])
-    else:
-        return np.nansum(mat[:, [0]])
+    return np.nansum(mat[:, [0]])
 
 
 def _row_n(mat, xdef):
@@ -2039,8 +2020,7 @@ def _effective_n(mat, ydef):
                 for ycode in ycodes
             ]
         )
-    else:
-        return np.array(np.nansum(mat[:, [0]]) ** 2 / np.nansum(mat[:, [0]] ** 2))
+    return np.array(np.nansum(mat[:, [0]]) ** 2 / np.nansum(mat[:, [0]] ** 2))
 
 
 ''' Functions to generate statistical summary information / descriptives
@@ -2153,18 +2133,14 @@ def _dispersion(mat, xdef, ydef, measure='sd', return_mean=False):
     if measure == 'sd':
         if return_mean:
             return means, np.array(np.sqrt(var))
-        else:
-            return np.array(np.sqrt(var))
-    elif measure == 'vcoef':
+        return np.array(np.sqrt(var))
+    if measure == 'vcoef':
         if return_mean:
             return means, np.array(np.sqrt(var) / means)
-        else:
-            return np.array(np.sqrt(var) / means)
-    else:
-        if return_mean:
-            return means, var
-        else:
-            return var
+        return np.array(np.sqrt(var) / means)
+    if return_mean:
+        return means, var
+    return var
 
 
 def _sum_sq_w(mat, xdef, ydef, base_ratio=True):
@@ -2179,8 +2155,7 @@ def _sum_sq_w(mat, xdef, ydef, base_ratio=True):
     if base_ratio:
         cb = _col_n(mat, xdef, ydef)
         return np.array(ssw / cb)
-    else:
-        return np.array(ssw)
+    return np.array(ssw)
 
 
 def verify_logic_values(values, func_name):
@@ -2198,18 +2173,17 @@ def verify_logic_values(values, func_name):
     -------
     None
     """
-    if isinstance(values, (list, tuple)):
+    if isinstance(values, list | tuple):
         for value in values:
             if not isinstance(value, int):
                 raise TypeError(
-                    "The values given to has_%s() are not correctly "
-                    "typed. Expected list of <int>, found a %s."
-                    % (func_name, type(value))
+                    f"The values given to has_{func_name}() are not correctly "
+                    f"typed. Expected list of <int>, found a {type(value)}."
                 )
     else:
         raise TypeError(
-            "The values given to has_%s() must be given as a list. "
-            "Expected a <list>, found a %s" % (func_name, type(values))
+            f"The values given to has_{func_name}() must be given as a list. "
+            f"Expected a <list>, found a {type(values)}"
         )
 
 
@@ -2231,9 +2205,8 @@ def verify_logic_series(series, func_name):
     """
     if series.dtype not in ['object', 'int64', 'float64']:
         raise TypeError(
-            "The series given to has_%s() must be a supported dtype. "
-            "Expected 'object', 'int64' or 'float64', found a '%s'."
-            % (func_name, series.dtype)
+            f"The series given to has_{func_name}() must be a supported dtype. "
+            f"Expected 'object', 'int64' or 'float64', found a '{series.dtype}'."
         )
 
 
@@ -2256,12 +2229,12 @@ def verify_count_responses(responses):
 
     if isinstance(responses, int):
         responses = [responses]
-    elif isinstance(responses, (list, tuple)):
-        if not len(responses) in [2, 3]:
+    elif isinstance(responses, list | tuple):
+        if len(responses) not in [2, 3]:
             raise IndexError(
                 "The responses list given to has_count() is must have "
                 "either 2 or 3 items in the form: "
-                "[min, max, [values subset]]. Found %s." % (responses)
+                f"[min, max, [values subset]]. Found {responses}."
             )
         valid_types = [int, int, (list, tuple)]
         for r, response in enumerate(responses):
@@ -2270,7 +2243,7 @@ def verify_count_responses(responses):
                     "The responses list given to has_count() has "
                     "incorrectly typed items. It must be either 2 or 3 "
                     "items in the form: [int, int, list/tuple]. "
-                    "Found %s." % (responses)
+                    f"Found {responses}."
                 )
             if r == 3:
                 for value in response:
@@ -2279,7 +2252,7 @@ def verify_count_responses(responses):
                             "The values subset given as the third item "
                             "in has_count(responses) is not correctly "
                             "typed. Each value must be int. "
-                            "Found %s." % (response)
+                            f"Found {response}."
                         )
 
     return responses
@@ -2315,8 +2288,7 @@ def _any_all_none(series, values, func_name):
         # If not valid columns are availabe, the result is no rows
         if not cols:
             return []
-        else:
-            dummies = dummies[cols]
+        dummies = dummies[cols]
         # Slice the dummies row-wise for only rows with any/all/none of
         # the targeted responses
         if func_name == 'any':
@@ -2332,7 +2304,7 @@ def _any_all_none(series, values, func_name):
         # Return the index
         return dummies.index
 
-    elif series.dtype in ['int64', 'float64']:
+    if series.dtype in ['int64', 'float64']:
         # Slice the series row-wise for only rows with any/all of the
         # targets responses
         if func_name == 'any' or (func_name == 'all' and len(values) == 1):
@@ -2347,11 +2319,10 @@ def _any_all_none(series, values, func_name):
         # Return the index
         return series.index
 
-    else:
-        raise TypeError(
-            "The dtype '%s' of series is incompatible with has_%s()" % series.dtype,
-            func_name,
-        )
+    raise TypeError(
+        "The dtype '{}' of series is incompatible with has_{}()".format(*series.dtype),
+        func_name,
+    )
 
 
 def has_any(values):
@@ -2543,8 +2514,7 @@ def _count(series, responses):
             # If not valid columns are availabe, the result is no rows
             if not cols:
                 return []
-            else:
-                dummies = dummies[cols]
+            dummies = dummies[cols]
         except BaseException:
             pass
 
@@ -2571,12 +2541,9 @@ def _count(series, responses):
         # Return the index
         return dummies.index
 
-    else:
-        raise TypeError(
-            "The dtype '{}' of series is incompatible with has_count()".format(
-                series.dtype
-            )
-        )
+    raise TypeError(
+        f"The dtype '{series.dtype}' of series is incompatible with has_count()"
+    )
 
 
 def get_logic_key_chunk(has_func, values):
@@ -2600,15 +2567,15 @@ def get_logic_key_chunk(has_func, values):
 
     if has_func is _any:
         values = [str(v) for v in values]
-        chunk = '%s' % (','.join(values))
+        chunk = '{}'.format(','.join(values))
 
     elif has_func is _all:
         values = [str(v) for v in values]
-        chunk = '%s' % ('&'.join(values))
+        chunk = '{}'.format('&'.join(values))
 
     elif has_func is _none:
         values = [str(v) for v in values]
-        chunk = '~(%s)' % (','.join(values))
+        chunk = '~({})'.format(','.join(values))
 
     elif has_func is _count:
         # Get the min, max and targeted responses
@@ -2627,15 +2594,15 @@ def get_logic_key_chunk(has_func, values):
             if min_responses == max_responses:
                 min_max = min_responses
             else:
-                min_max = '%s-%s' % (min_responses, max_responses)
+                min_max = f'{min_responses}-{max_responses}'
 
         if values is None:
             if max_responses is None:
-                chunk = '{%s}' % (min_responses)
+                chunk = f'{{{min_responses}}}'
             else:
-                chunk = '{%s}' % (min_max)
+                chunk = f'{{{min_max}}}'
         else:
-            chunk = '(%s){%s}' % (','.join(values), min_max)
+            chunk = '({}){{{}}}'.format(','.join(values), min_max)
 
     return chunk
 
@@ -2664,11 +2631,11 @@ def get_logic_index(series, logic):
     if isinstance(logic, list):
         return _any(series, logic)
 
-    elif isinstance(logic, tuple):
+    if isinstance(logic, tuple):
 
         has_func, values = logic
         idx = has_func(series, values)
 
-        vkey = 'x[%s]:y' % (get_logic_key_chunk(has_func, values))
+        vkey = f'x[{get_logic_key_chunk(has_func, values)}]:y'
 
     return idx, vkey
