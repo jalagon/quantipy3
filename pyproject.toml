@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantipy3"
-version = "0.3.0-sprint2"
+version = "0.3.0"
 description = "Python 3 port of Quantipy - survey data processing, analysis and reporting with modern Python 3.10+ features"
 readme = "README.md"
 requires-python = ">=3.10"
