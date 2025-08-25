@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd
 
 import quantipy as qp
-import pyreadstat
 from quantipy.core.helpers.functions import emulate_meta
 from quantipy.core.tools.dp.spss.modern_io import write_sav as modern_write_sav
 

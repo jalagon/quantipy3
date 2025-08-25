@@ -331,15 +331,17 @@ def request_views(
     for level in sig_levels:
         # Remove leading 0
         if not isinstance(level, str):
-            level = str(level)
-        if level[0] == '0':
-            level = level[1:]
-        if level in list(levels_ref.keys()):
-            lvls.append(levels_ref[level])
-        elif re.match('\\.[0-9]$', level) is not None:
-            lvls.append(f'{level}0')
+            level_str = str(level)
         else:
-            lvls.append(level)
+            level_str = level
+        if level_str[0] == '0':
+            level_str = level_str[1:]
+        if level_str in list(levels_ref.keys()):
+            lvls.append(levels_ref[level_str])
+        elif re.match('\\.[0-9]$', level_str) is not None:
+            lvls.append(f'{level_str}0')
+        else:
+            lvls.append(level_str)
     sig_levels = [str(i)[-3:] for i in sorted([float(s) for s in lvls])]
     sig_levels = [
         s if s.startswith('.') else f'{s[1:]}{0}' for s in sig_levels
@@ -419,7 +421,7 @@ def request_views(
                     eq_relation = vc[0].split('|')[2] == vt.split('|')[2]
                     eq_weight = vc[0].split('|')[4] == vt.split('|')[4]
                     if eq_relation and eq_weight:
-                        net_cs[i].append(vt)
+                        vc.append(vt)
                         net_ps[i].append(vt)
                         net_cps[i].append(vt)
     else:

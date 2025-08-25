@@ -22,10 +22,10 @@ from quantipy.core.tools.view.logic import get_logic_index, has_any, intersectio
 
 
 def recode_into(
-    data: pd.DataFrame, 
-    col_from: str, 
-    col_to: str, 
-    assignment: list[tuple], 
+    data: pd.DataFrame,
+    col_from: str,
+    col_to: str,
+    assignment: list[tuple],
     multi: bool = False
 ) -> pd.DataFrame:
     ''' Recodes one column based on the values of another column
@@ -42,9 +42,9 @@ def recode_into(
     return data
 
 def create_column(
-    name: str, 
-    type_name: str, 
-    text: str = '', 
+    name: str,
+    type_name: str,
+    text: str = '',
     values: list[dict] | None = None
 ) -> dict[str, Any]:
     ''' Returns a column object that can be stored into a Quantipy meta
@@ -299,16 +299,16 @@ def condense_dichotomous_set(df, values_from_labels=True, sniff_single=False,
     for v, col in enumerate(df_str.columns, start=1):
         if values_from_labels:
             if values_regex is None:
-                v = col.split('_')[-1]
+                value = col.split('_')[-1]
             else:
                 try:
-                    v = str(int(re.match(values_regex, col).groups()[0]))
+                    value = str(int(re.match(values_regex, col).groups()[0]))
                 except AttributeError:
                     raise AttributeError(
                         "Your values_regex may have failed to find a match"
                         f" using re.match('{values_regex}', '{col}')") from None
         else:
-            v = str(v)
+            value = str(v)
         # Convert to categorical set
         df_str[col].replace(
             {
@@ -320,8 +320,8 @@ def condense_dichotomous_set(df, values_from_labels=True, sniff_single=False,
         )
         df_str[col].replace(
             {
-                f'{yes}': v,
-                f'{yes}.0': v
+                f'{yes}': value,
+                f'{yes}.0': value
             },
             inplace=True
         )
@@ -644,7 +644,8 @@ def crosstab(meta, data, x, y, get='count', decimals=1, weight=None,
                 meta, data, x,
                 get=get, decimals=decimals, weight=weight, show=show)
             f = f.loc[df.index.values]
-        except Exception:
+        except (KeyError, ValueError, AttributeError):
+            # Failed to process crosstab, continue without it
             pass
         df = pd.concat([f, df], axis=1)
 
@@ -1205,8 +1206,8 @@ def merge_meta(meta_left, meta_right, from_set, overwrite_text=False,
                 cols.append(name)
             elif source == 'masks':
                 masks.append(name)
-                for item in meta_right['masks'][name]['items']:
-                    s, n = item['source'].split('@')
+                for mask_item in meta_right['masks'][name]['items']:
+                    s, n = mask_item['source'].split('@')
                     if s == 'columns':
                         cols.append(n)
                         if meta_right['masks'][name].get('values'):

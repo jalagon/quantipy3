@@ -64,14 +64,14 @@ def ddf_to_pandas(path_ddf: str) -> dict[str, pd.DataFrame]:
     with sqlite3.connect(path_ddf) as conn:
         tables_df = pd.read_sql('SELECT * FROM sqlite_master;', conn)
         sql = {
-            table_name: pd.read_sql('SELECT * FROM '+table_name+';', conn)
+            table_name: pd.read_sql(f'SELECT * FROM "{table_name}"', conn)
             for table_name in tables_df['tbl_name'].values
             if table_name.startswith('L')
         }
         table_info = {}
         for table_name in list(sql.keys()):
             table_info[table_name] = pd.read_sql(
-                "PRAGMA table_info('"+table_name+"');",
+                f"PRAGMA table_info('{table_name}');",
                 conn
             )
         sql['table_info'] = table_info

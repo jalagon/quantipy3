@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import webbrowser
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
@@ -163,7 +164,6 @@ def save_json(
 
 
 def df_to_browser(df: pd.DataFrame, path_html: str = "df.html", **kwargs: Any) -> None:
-    import webbrowser
 
     with open(path_html, "w") as f:
         f.write(df.to_html(**kwargs))

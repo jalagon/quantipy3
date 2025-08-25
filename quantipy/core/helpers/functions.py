@@ -4,14 +4,23 @@ import copy
 import itertools
 import json
 import math
+import os
 import pickle
 import re
 import string
+import webbrowser
 from collections import OrderedDict
 from typing import Any
 
 import numpy as np
 import pandas as pd
+
+try:
+    from IPython.display import Image, display
+except ImportError:
+    # IPython not available, define fallback functions
+    Image = None
+    display = None
 
 import quantipy as qp
 from quantipy.core.view import View
@@ -55,8 +64,6 @@ def save_json(obj: Any, path_json: str) -> None:
 
 
 def df_to_browser(df, path_html='df.html', **kwargs):
-
-    import webbrowser
 
     with open(path_html, 'w') as f:
         f.write(df.to_html(**kwargs))
@@ -160,9 +167,8 @@ def has_collapsed_axis(df, axis=0):
     if axis == 0:
         if df.index.get_level_values(1)[0].startswith(agg_func):
             return True
-    else:
-        if df.T.index.get_level_values(1)[0].startswith(agg_func):
-            return True
+    elif df.T.index.get_level_values(1)[0].startswith(agg_func):
+        return True
     return None
 
 
@@ -826,11 +832,10 @@ def get_text(text, text_key, axis=None):
                 for key in text_key:
                     if key in text:
                         return text[key]
-        else:
-            if axis in list(text_key.keys()):
-                for key in text_key[axis]:
-                    if key in text:
-                        return text[key]
+        elif axis in list(text_key.keys()):
+            for key in text_key[axis]:
+                if key in text:
+                    return text[key]
 
         raise KeyError(
             f"No matching text key from the list {text_key} was not found in the"
@@ -933,9 +938,13 @@ def get_mapped_meta(meta, mapped):
     steps = mapped.split('@')
     key = steps.pop()
     for step in steps:
-        if isinstance(meta, list):
-            step = int(step)
-        meta = meta[step]
+        # Modern pattern matching for step processing
+        match isinstance(meta, list):
+            case True:
+                step_index = int(step)
+            case False:
+                step_index = step
+        meta = meta[step_index]
 
     if key in meta:
         if isinstance(meta[key], dict | OrderedDict):
@@ -1398,7 +1407,7 @@ def update_view_meta(
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def create_NA_view(x, y):
+def create_na_view(x, y):
     '''Creates an empty view without data and meta.'''
     df = pd.DataFrame(data=['N/A'], index=[x], columns=[y])
     view = View(df, meta='unavailable')
@@ -1807,105 +1816,103 @@ def categorical_value_counts(df, is_single=False, x_is_multi=False, y_is_multi=F
 
     # 2D links, bivariate aggregates
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    elif len(df.dropna().index) == 0:
+        ct = pd.DataFrame(0, ['nan'], ['nan']).T
+        margin = 0
+    elif x_is_multi and y_is_multi:
+        df = df.dropna()
+        dummy_x_df = (
+            df[df.columns[0]]
+            .str.get_dummies(';')
+            .astype(int)
+            .mul(df[df.columns[-1]], axis=0)
+        )
+        dummy_y_df = df[df.columns[1]].str.get_dummies(';').astype(int)
+        dummy_y_df_columns = dummy_y_df.columns
+        dummy_y_df.columns = [
+            df.columns[1] + '_' + code for code in dummy_y_df.columns
+        ]
+        dummy_full_df = pd.concat(
+            [dummy_x_df, dummy_y_df, df[df.columns[-1]]], axis=1
+        )
+        margin = [
+            dummy_full_df[dummy_full_df[code] == 1][df.columns[-1]].sum(axis=0)
+            for code in dummy_y_df.columns
+        ]
+        ct = pd.concat(
+            [
+                dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
+                    axis=0
+                )
+                for code in dummy_y_df.columns
+            ],
+            axis=1,
+        )
+        ct.columns = dummy_y_df_columns
+
+    elif y_is_multi:
+        dummy_x_df = pd.DataFrame(
+            pd.get_dummies(df[df.columns[0]]).mul(df[df.columns[-1]], axis=0)
+        )
+        dummy_y_df = df[df.columns[1]].str.get_dummies(';').astype(int)
+        dummy_y_df_columns = dummy_y_df.columns
+        dummy_y_df.columns = [
+            df.columns[1] + '_' + code for code in dummy_y_df.columns
+        ]
+        dummy_full_df = pd.concat([dummy_x_df, dummy_y_df], axis=1)
+        ct = pd.concat(
+            [
+                dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
+                    axis=0
+                )
+                for code in dummy_y_df.columns
+            ],
+            axis=1,
+        )
+        ct.index = ct.index.astype(int)
+        margin = ct.sum(axis=0).values
+        ct.columns = dummy_y_df_columns
+
+    elif x_is_multi:
+        df = df.dropna()
+        dummy_x_df = (
+            df[df.columns[0]]
+            .str.get_dummies(';')
+            .astype(int)
+            .mul(df[df.columns[-1]], axis=0)
+        )
+        dummy_y_df = pd.DataFrame(pd.get_dummies(df[df.columns[1]].astype(int)))
+        dummy_y_df_columns = dummy_y_df.columns
+        dummy_y_df.columns = [
+            df.columns[1] + '_' + str(code) for code in dummy_y_df.columns
+        ]
+        dummy_full_df = pd.concat(
+            [dummy_x_df, dummy_y_df, df[df.columns[-1]]], axis=1
+        )
+        margin = [
+            dummy_full_df[dummy_full_df[code] == 1][df.columns[-1]].sum(axis=0)
+            for code in dummy_y_df.columns
+        ]
+        ct = pd.concat(
+            [
+                dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
+                    axis=0
+                )
+                for code in dummy_y_df.columns
+            ],
+            axis=1,
+        )
+        ct.columns = dummy_y_df_columns
+
     else:
-        if len(df.dropna().index) == 0:
-            ct = pd.DataFrame(0, ['nan'], ['nan']).T
-            margin = 0
-        else:
-            if x_is_multi and y_is_multi:
-                df = df.dropna()
-                dummy_x_df = (
-                    df[df.columns[0]]
-                    .str.get_dummies(';')
-                    .astype(int)
-                    .mul(df[df.columns[-1]], axis=0)
-                )
-                dummy_y_df = df[df.columns[1]].str.get_dummies(';').astype(int)
-                dummy_y_df_columns = dummy_y_df.columns
-                dummy_y_df.columns = [
-                    df.columns[1] + '_' + code for code in dummy_y_df.columns
-                ]
-                dummy_full_df = pd.concat(
-                    [dummy_x_df, dummy_y_df, df[df.columns[-1]]], axis=1
-                )
-                margin = [
-                    dummy_full_df[dummy_full_df[code] == 1][df.columns[-1]].sum(axis=0)
-                    for code in dummy_y_df.columns
-                ]
-                ct = pd.concat(
-                    [
-                        dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
-                            axis=0
-                        )
-                        for code in dummy_y_df.columns
-                    ],
-                    axis=1,
-                )
-                ct.columns = dummy_y_df_columns
-
-            elif y_is_multi:
-                dummy_x_df = pd.DataFrame(
-                    pd.get_dummies(df[df.columns[0]]).mul(df[df.columns[-1]], axis=0)
-                )
-                dummy_y_df = df[df.columns[1]].str.get_dummies(';').astype(int)
-                dummy_y_df_columns = dummy_y_df.columns
-                dummy_y_df.columns = [
-                    df.columns[1] + '_' + code for code in dummy_y_df.columns
-                ]
-                dummy_full_df = pd.concat([dummy_x_df, dummy_y_df], axis=1)
-                ct = pd.concat(
-                    [
-                        dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
-                            axis=0
-                        )
-                        for code in dummy_y_df.columns
-                    ],
-                    axis=1,
-                )
-                ct.index = ct.index.astype(int)
-                margin = ct.sum(axis=0).values
-                ct.columns = dummy_y_df_columns
-
-            elif x_is_multi:
-                df = df.dropna()
-                dummy_x_df = (
-                    df[df.columns[0]]
-                    .str.get_dummies(';')
-                    .astype(int)
-                    .mul(df[df.columns[-1]], axis=0)
-                )
-                dummy_y_df = pd.DataFrame(pd.get_dummies(df[df.columns[1]].astype(int)))
-                dummy_y_df_columns = dummy_y_df.columns
-                dummy_y_df.columns = [
-                    df.columns[1] + '_' + str(code) for code in dummy_y_df.columns
-                ]
-                dummy_full_df = pd.concat(
-                    [dummy_x_df, dummy_y_df, df[df.columns[-1]]], axis=1
-                )
-                margin = [
-                    dummy_full_df[dummy_full_df[code] == 1][df.columns[-1]].sum(axis=0)
-                    for code in dummy_y_df.columns
-                ]
-                ct = pd.concat(
-                    [
-                        dummy_full_df[dummy_full_df[code] == 1][dummy_x_df.columns].sum(
-                            axis=0
-                        )
-                        for code in dummy_y_df.columns
-                    ],
-                    axis=1,
-                )
-                ct.columns = dummy_y_df_columns
-
-            else:
-                df = df.dropna()
-                ct = pd.crosstab(
-                    index=df[df.columns[0]].astype(int),
-                    columns=df[df.columns[1]].astype(int),
-                    values=df[df.columns[2]],
-                    aggfunc='sum',
-                )
-                margin = ct.sum(axis=0)
+        df = df.dropna()
+        ct = pd.crosstab(
+            index=df[df.columns[0]].astype(int),
+            columns=df[df.columns[1]].astype(int),
+            values=df[df.columns[2]],
+            aggfunc='sum',
+        )
+        margin = ct.sum(axis=0)
 
     # create All = margin index/column
     ct = ct.T
@@ -3090,11 +3097,10 @@ def filtered_set(
 
     if strings is None:
         strings = 'keep'
-    else:
-        if strings not in ['keep', 'drop', 'only']:
-            raise ValueError(
-                "'strings' must be either None, 'keep', 'drop' or" "'only'."
-            )
+    elif strings not in ['keep', 'drop', 'only']:
+        raise ValueError(
+            "'strings' must be either None, 'keep', 'drop' or" "'only'."
+        )
 
     pattern = "\\[(.*?)\\]"
 
@@ -3148,9 +3154,6 @@ def cpickle_copy(obj):
 
 
 def parrot():
-    import os
-
-    from IPython.display import Image, display
 
     filename = os.path.dirname(__file__) + '\\parrot.gif'
     try:

@@ -601,7 +601,8 @@ def _count(series, responses, exclusive=False, _not=False):
                 other_dummies = dummies[other_cols]
                 other_dummies = other_dummies[(other_dummies.T == 1).any()]
             dummies = dummies[cols]
-        except BaseException:
+        except (KeyError, IndexError, ValueError):
+            # Column selection failed, continue with original dummies
             pass
 
         # Get a count of the number of responses
@@ -1194,9 +1195,8 @@ def get_logic_key_chunk(func, values, exclusive=False):
         if _max is not None:
             if _min == _max:
                 min_max = _min
-            else:
-                if op_func is None:
-                    min_max = f'{_min}-{_max}'
+            elif op_func is None:
+                min_max = f'{_min}-{_max}'
 
         if values is None:
             chunk = f'{_not}{{{min_max}}}'

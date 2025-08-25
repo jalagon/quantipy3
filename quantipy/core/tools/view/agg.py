@@ -20,8 +20,8 @@ crosstabulation functionality.
 
 
 def describe(
-    data: pd.DataFrame, 
-    x: str, 
+    data: pd.DataFrame,
+    x: str,
     weights: str | None = None
 ) -> pd.DataFrame:
     '''Replacement of (wrapper around) the df.describe() method that can deal with
@@ -89,7 +89,7 @@ def describe(
 
 
 def make_default_cat_view(
-    link: dict[str, Any], 
+    link: dict[str, Any],
     weights: str | None = None
 ) -> pd.DataFrame:
     '''
@@ -125,8 +125,8 @@ def make_default_cat_view(
 
 
 def make_default_str_view(
-    data: pd.DataFrame, 
-    x: str, 
+    data: pd.DataFrame,
+    x: str,
     y: str | None = None
 ) -> pd.DataFrame:
 
@@ -344,9 +344,9 @@ def calc_pct(source: pd.DataFrame, base: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_default_num_stat(
-    default_num_view: pd.DataFrame, 
-    stat: str, 
-    drop_bases: bool = True, 
+    default_num_view: pd.DataFrame,
+    stat: str,
+    drop_bases: bool = True,
     as_df: bool = True
 ) -> pd.DataFrame | np.ndarray:
     '''
@@ -1289,12 +1289,11 @@ def _convert_test_level(level, package):
             elif package == 'askia':
                 comparelevel = 2.576
                 siglevel = 0.01
-    else:
-        if package == 'Dim':
-            comparelevel = siglevel = level
-        elif package == 'askia':
-            comparelevel = 1.65
-            siglevel = 0.10
+    elif package == 'Dim':
+        comparelevel = siglevel = level
+    elif package == 'askia':
+        comparelevel = 1.65
+        siglevel = 0.10
 
     return comparelevel, siglevel
 
@@ -1727,8 +1726,8 @@ def _calc_pooled_props_pairs(counts, bases):
 
 
 def get_matrix(
-    link: dict[str, Any], 
-    weights: str | None, 
+    link: dict[str, Any],
+    weights: str | None,
     data: pd.DataFrame | None = None
 ) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
     '''
@@ -2108,30 +2107,29 @@ def _percentile(mat, xdef, ydef, perc=0.5):
 
     for mat in ysects:
         sortidx = np.argsort(mat[:, 1])
-        mat = np.take(mat, sortidx, axis=0)
-        wsum = np.sum(mat[:, 0], axis=0)
-        wcsum = np.cumsum(mat[:, 0], axis=0)
+        sorted_mat = np.take(mat, sortidx, axis=0)
+        wsum = np.sum(sorted_mat[:, 0], axis=0)
+        wcsum = np.cumsum(sorted_mat[:, 0], axis=0)
         k = (wsum + 1) * perc
 
         if wcsum[0] > k:
             wcsum_k = wcsum[0]
-            percs.append(mat[0, 1])
+            percs.append(sorted_mat[0, 1])
         elif wcsum[-1] < k:
-            percs.append(mat[-1, 1])
+            percs.append(sorted_mat[-1, 1])
         else:
             wcsum_k = wcsum[wcsum <= k][-1]
             p_k_idx = np.searchsorted(np.ndarray.flatten(wcsum), wcsum_k)
-            p_k = mat[p_k_idx, 1]
-            p_k1 = mat[p_k_idx + 1, 1]
-            w_k1 = mat[p_k_idx + 1, 0]
+            p_k = sorted_mat[p_k_idx, 1]
+            p_k1 = sorted_mat[p_k_idx + 1, 1]
+            w_k1 = sorted_mat[p_k_idx + 1, 0]
             excess = k - wcsum_k
             if excess >= 1.0:
                 percs.append(p_k1)
+            elif w_k1 >= 1.0:
+                percs.append((1.0 - excess) * p_k + excess * p_k1)
             else:
-                if w_k1 >= 1.0:
-                    percs.append((1.0 - excess) * p_k + excess * p_k1)
-                else:
-                    percs.append((1.0 - excess / w_k1) * p_k + (excess / w_k1) * p_k1)
+                percs.append((1.0 - excess / w_k1) * p_k + (excess / w_k1) * p_k1)
 
     return np.array(percs)
 
@@ -2542,7 +2540,8 @@ def _count(series, responses):
             if not cols:
                 return []
             dummies = dummies[cols]
-        except BaseException:
+        except (KeyError, IndexError, ValueError):
+            # Column selection failed, continue with original dummies
             pass
 
         # Get a count of the number of responses
