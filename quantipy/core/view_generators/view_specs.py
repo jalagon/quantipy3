@@ -1,15 +1,20 @@
-import pandas as pd
-from quantipy.core.tools.qp_decorators import modify
-from collections import OrderedDict
-from itertools import chain
-from operator import add, sub, mul
-from operator import truediv as div
+from __future__ import annotations
 
 import re
 import warnings
+from collections import OrderedDict
+from itertools import chain
+from operator import add, mul, sub
+from operator import truediv as div
+from typing import Any
 
-class ViewManager(object):
-    def __init__(self, stack):
+import pandas as pd
+
+from quantipy.core.tools.qp_decorators import modify
+
+
+class ViewManager:
+    def __init__(self, stack: Any) -> None:
         self.stack = stack
         self.basics = None
         self.nets = None
@@ -22,18 +27,28 @@ class ViewManager(object):
         self.sums_pos = None
         self._base_views = None
         self._grouped_views = None
-        return None
+        return
 
 
-    def _base_len(self):
+    def _base_len(self) -> int | None:
         """
         """
         return len(self._base_views) if self._base_views else None
 
-    def get_views(self, data_key=None, filter_key=None, weight=None,
-                  freqs=True, nets=True, stats=['mean', 'stddev'],
-                  sums='bottom', tests=None, cell_items='colpct',
-                  ci_order='normal', bases='auto'):
+    def get_views(
+        self,
+        data_key: str | None = None,
+        filter_key: str | None = None,
+        weight: str | None = None,
+        freqs: bool = True,
+        nets: bool = True,
+        stats: list[str] | None = None,
+        sums: str = 'bottom',
+        tests: Any = None,
+        cell_items: str = 'colpct',
+        ci_order: str = 'normal',
+        bases: str = 'auto'
+    ) -> ViewManager:
         """
         Query the ``qp.Stack`` for the desired set of ``Views``.
 
@@ -83,6 +98,8 @@ class ViewManager(object):
         -------
         self
         """
+        if stats is None:
+            stats = ['mean', 'stddev']
         self.basics = freqs
         self.nets = nets
         self.stats = stats
@@ -94,13 +111,13 @@ class ViewManager(object):
             if cell_items == old:
                 cell_items = new
                 msg = "'{}' is an old cell item reference, please use '{}' instead."
-                warnings.warn(msg.format(old, new))
+                warnings.warn(msg.format(old, new), stacklevel=2)
         valid_ci = ['counts', 'colpct', 'rowpct',
                     'counts_colpct', 'counts_rowpct', 'colpct_rowpct',
                     'counts_colpct_rowpct']
         valid_bases = ['auto', 'both', 'weighted', 'unweighted']
         if bases not in valid_bases:
-            err = "'bases must be one of {}, not '{}'!".format(valid_bases, bases)
+            err = f"'bases must be one of {valid_bases}, not '{bases}'!"
             raise ValueError(err)
         self.base_spec = bases
         if cell_items not in valid_ci:
@@ -112,21 +129,19 @@ class ViewManager(object):
                 err = ("Must provide 'data_key' if more than one datasets are "
                        "connected to the Stack!")
                 raise ValueError(err)
-            else:
-                data_key = list(stack.keys())[0]
+            data_key = list(stack.keys())[0]
         if not filter_key:
             no_filter_ph = 'no_filter' in stack[data_key] and list(stack[data_key].keys())
             if len(list(stack[data_key].keys())) > 1 and not no_filter_ph:
                 err = ("Must provide 'filter_key' if more than one filter is "
                        "applied to the Stack!")
                 raise ValueError(err)
-            else:
-                filter_key = list(stack[data_key].keys())[0]
+            filter_key = list(stack[data_key].keys())[0]
 
         views = self._request_views(
             data_key=data_key, filter_key=filter_key, weight=self.weighted,
             frequencies=self.basics, nets=self.nets, descriptives=self.stats,
-            sums=self.sums_pos, coltests=True if self.tests else False,
+            sums=self.sums_pos, coltests=bool(self.tests),
             sig_levels=self.tests if self.tests else [])
         self._grouped_views = views['grouped_views'][cell_items]
         self.views = views['get_chain'][cell_items]
@@ -134,10 +149,10 @@ class ViewManager(object):
         # See also: .set_bases()
         views = self.views[:]
         if self.weighted:
-            base_views = views[:6]
+            views[:6]
             other_views = views[6:]
         else:
-            base_views = views[:3]
+            views[:3]
             other_views = views[3:]
         if bases == 'auto':
             wparam = 'w' if self.weighted else 'uw'
@@ -155,9 +170,16 @@ class ViewManager(object):
             self.group(switch=True)
         return self
 
-    def set_bases(self, base='w', gross=False, effective=False, rbase=False,
-                    order=['base', 'gross', 'rbase', 'effective'],
-                    uw_pos='before', sticky_gross=False):
+    def set_bases(
+        self,
+        base: str = 'w',
+        gross: bool | str = False,
+        effective: bool | str = False,
+        rbase: bool | str = False,
+        order: list[str] | None = None,
+        uw_pos: str = 'before',
+        sticky_gross: bool = False
+    ) -> None:
         """
         Set the base (sample size) view presentation.
 
@@ -193,19 +215,25 @@ class ViewManager(object):
         -------
         None
         """
+        if order is None:
+            order = ['base', 'gross', 'rbase', 'effective']
         if not self.views:
             err = 'Cannot set base views, please run .get_views() before!'
             raise RuntimeError(err)
         bases = []
         # test for reasonable setup
         if not self.weighted:
-            if base: base = 'uw'
-            if gross: gross = 'uw'
-            if effective: effective = 'uw'
-            if rbase: rbase = 'uw'
+            if base:
+                base = 'uw'
+            if gross:
+                gross = 'uw'
+            if effective:
+                effective = 'uw'
+            if rbase:
+                rbase = 'uw'
         valid_order_items = ['base', 'gross', 'rbase', 'effective']
         if not all(b in valid_order_items for b in order):
-            err = "Items in 'order' must be one of: {}!".format(valid_order_items)
+            err = f"Items in 'order' must be one of: {valid_order_items}!"
             raise ValueError(err)
         # view key definitions
         base_vk = 'x|f|x:||{}|cbase'
@@ -257,7 +285,7 @@ class ViewManager(object):
         # final list of base views:
         self.views = bases + self.views[self._base_len():]
         self._base_views = bases
-        return None
+        return
 
     def group(self, style='reduce', switch=False):
         """
@@ -326,10 +354,7 @@ class ViewManager(object):
         stats = []
         sums = []
         for v in views:
-            if isinstance(v, list):
-                split = v[0].split('|')
-            else:
-                split = v.split('|')
+            split = v[0].split('|') if isinstance(v, list) else v.split('|')
             if split[-1].endswith('_sum'):
                 sums.append(v)
             elif split[1].startswith('d.'):
@@ -346,20 +371,16 @@ class ViewManager(object):
     def _switch(views):
         n_views = []
         for v in views:
-            if not isinstance(v, list):
-                n_views.append(v)
-            elif v[0].split('|')[1].startswith('d.'):
-                n_views.append(v)
-            elif len(v) < 3 and any(view.split('|')[1].startswith('t.') for view in v):
+            if not isinstance(v, list) or v[0].split('|')[1].startswith('d.') or len(v) < 3 and any(view.split('|')[1].startswith('t.') for view in v):
                 n_views.append(v)
             else:
                 n_views.append(v[1::-1] + v[2:])
         return n_views
 
     def _request_views(self, data_key=None, filter_key=None, weight=None,
-                      frequencies=True, nets=True, descriptives=["mean"],
+                      frequencies=True, nets=True, descriptives=None,
                       sums=None, coltests=True, mimic='Dim',
-                      sig_levels=[".05"], x=None, y=None):
+                      sig_levels=None, x=None, y=None):
         """
         Get structured, request-ready views from ``self.stack``.
 
@@ -430,26 +451,30 @@ class ViewManager(object):
             }
 
         """
+        if sig_levels is None:
+            sig_levels = [".05"]
+        if descriptives is None:
+            descriptives = ["mean"]
         stack = self.stack
         described = stack.describe()
 
-        if not data_key is None:
-            if not isinstance(data_key, (list, tuple)):
+        if data_key is not None:
+            if not isinstance(data_key, list | tuple):
                 data_key = [data_key]
             described = described.loc[described['data'].isin(data_key)]
 
-        if not filter_key is None:
-            if not isinstance(filter_key, (list, tuple)):
+        if filter_key is not None:
+            if not isinstance(filter_key, list | tuple):
                 filter_key = [filter_key]
             described = described.loc[described['filter'].isin(filter_key)]
 
-        if not x is None:
-            if not isinstance(x, (list, tuple)):
+        if x is not None:
+            if not isinstance(x, list | tuple):
                 x = [x]
             described = described.loc[described['x'].isin(x)]
 
-        if not y is None:
-            if not isinstance(y, (list, tuple)):
+        if y is not None:
+            if not isinstance(y, list | tuple):
                 y = [y]
             described = described.loc[described['y'].isin(y)]
 
@@ -467,22 +492,22 @@ class ViewManager(object):
         if weight is None:
             weight = ''
         else:
-            bases.append('x|f|x:||%s|cbase_gross' % (weight))
-            bases.append('x|f|x:||%s|cbase' % (weight))
-            bases.append('x|f|x:||%s|ebase' % (weight))
+            bases.append(f'x|f|x:||{weight}|cbase_gross')
+            bases.append(f'x|f|x:||{weight}|cbase')
+            bases.append(f'x|f|x:||{weight}|ebase')
 
         # Main views
         if frequencies:
-            cs = ['x|f|:||%s|counts' % (weight)]
-            ps = ['x|f|:|y|%s|c%%' % (weight)]
-            rps = ['x|f|:|x|%s|r%%' % (weight)]
+            cs = [f'x|f|:||{weight}|counts']
+            ps = [f'x|f|:|y|{weight}|c%']
+            rps = [f'x|f|:|x|{weight}|r%']
             cps = cs[:] + ps [:]
             crps = cs[:] + rps[:]
             psrps = ps[:] + rps[:]
             cpsrps = cs[:] + ps [:] + rps[:]
-            csc = ['x|f.c:f|x++:||%s|counts_cumsum' % (weight)]
+            csc = [f'x|f.c:f|x++:||{weight}|counts_cumsum']
             csc = csc if csc[0] in all_views else []
-            psc = ['x|f.c:f|x++:|y|%s|c%%_cumsum' % (weight)]
+            psc = [f'x|f.c:f|x++:|y|{weight}|c%_cumsum']
             psc = psc if psc[0] in all_views else []
             cpsc = csc[:] + psc[:]
         else:
@@ -503,23 +528,24 @@ class ViewManager(object):
             "high": ".01"
         }
 
-        if not isinstance(sig_levels, (list, tuple)):
+        if not isinstance(sig_levels, list | tuple):
             sig_levels = [sig_levels]
         lvls = []
         for level in sig_levels:
             # Remove leading 0
             if not isinstance(level, str):
                 level = str(level)
-            if level[0]=='0': level = level[1:]
+            if level[0]=='0':
+                level = level[1:]
             if level in list(levels_ref.keys()):
                 lvls.append(levels_ref[level])
-            elif not re.match('\.[0-9]$', level) is None:
-                lvls.append('{}0'.format(level))
+            elif re.match(r'\.[0-9]$', level) is not None:
+                lvls.append(f'{level}0')
             else:
                 lvls.append(level)
         sig_levels = [str(i)[-3:] for i in sorted([float(s) for s in lvls])]
         sig_levels = [
-            s if s.startswith('.') else '{}{}'.format(s[1:], 0)
+            s if s.startswith('.') else f'{s[1:]}{0}'
             for s in sig_levels]
 
         # Column tests for main views
@@ -528,10 +554,7 @@ class ViewManager(object):
                 # Main regular test views
                 props_test_views = [
                     v for v in all_views
-                    if 't.props.{}{}'.format(
-                        mimic,
-                        level
-                    ) in v
+                    if f't.props.{mimic}{level}' in v
                     and v.split('|')[2]==':'
                     and v.split('|')[4]==weight
                 ]
@@ -545,10 +568,7 @@ class ViewManager(object):
 
                 props_test_views_cumsum = [
                     v for v in all_views
-                    if 't.props.{}{}'.format(
-                        mimic,
-                        level
-                    ) in v
+                    if f't.props.{mimic}{level}' in v
                     and v.split('|')[2]=='x++:'
                     and v.split('|')[4]==weight
                 ]
@@ -619,7 +639,7 @@ class ViewManager(object):
                         # Net test views
                         net_test_views.extend([
                             v for v in all_views
-                            if 't.props.{}{}'.format(mimic, level) in v.split('|')[1]
+                            if f't.props.{mimic}{level}' in v.split('|')[1]
                             and v.split('|')[2].startswith('x[')
                             and v.split('|')[4]==weight
                         ])
@@ -631,10 +651,14 @@ class ViewManager(object):
                             net_cs[i].append(vt)
                             net_ps[i].append(vt)
                             net_cps[i].append(vt)
-                            if net_rps: net_rps[i].append(vt)
-                            if net_crps: net_crps[i].append(vt)
-                            if net_psrps: net_psrps[i].append(vt)
-                            if net_cpsrps: net_cpsrps[i].append(vt)
+                            if net_rps:
+                                net_rps[i].append(vt)
+                            if net_crps:
+                                net_crps[i].append(vt)
+                            if net_psrps:
+                                net_psrps[i].append(vt)
+                            if net_cpsrps:
+                                net_cpsrps[i].append(vt)
         else:
             net_cs = False
             net_ps = False
@@ -670,8 +694,6 @@ class ViewManager(object):
                 sums_ps_flat = []
                 sums_cps_flat = []
 
-            sum_chains = [sums_cs_flat, sums_ps_flat, sums_cps_flat]
-            sum_gvs = [sums_cs, sums_ps, sums_cps]
         # Descriptive statistics views
         if descriptives:
             views = {}
@@ -679,14 +701,14 @@ class ViewManager(object):
             for descriptive in descriptives:
                 views[descriptive] = [
                     [v] for v in all_views
-                    if v.split('|')[1].startswith('d.{}'.format(descriptive))
+                    if v.split('|')[1].startswith(f'd.{descriptive}')
                     and v.split('|')[4] == weight
                 ]
                 for desv in views[descriptive]:
                     rel = desv[0].split('|')[2]
                     w = desv[0].split('|')[4]
-                    if not tuple([rel, w]) in rel_w:
-                        rel_w.append(tuple([rel, w]))
+                    if (rel, w) not in rel_w:
+                        rel_w.append((rel, w))
 
                 # Column tests
                 if descriptive=='mean' and coltests:
@@ -695,10 +717,7 @@ class ViewManager(object):
                         # Means test views
                         means_test_views.extend([
                             v for v in all_views
-                            if v.split('|')[1].startswith('t.means.{}{}'.format(
-                                mimic,
-                                level
-                            ))
+                            if v.split('|')[1].startswith(f't.means.{mimic}{level}')
                             and v.split('|')[4]==weight
                         ])
 
@@ -764,7 +783,7 @@ class ViewManager(object):
                 net_rps_flat = self._shake_nets([v for item in net_rps for v in item])
             else:
                 net_rps_flat = []
-            net_cps_flat = self._shake_nets([v for item in net_cps for v in item])
+            self._shake_nets([v for item in net_cps for v in item])
 
             if net_crps:
                 net_crps_flat = self._shake_nets([v for item in net_crps for v in item])
@@ -924,14 +943,14 @@ class ViewManager(object):
         grouped = df.groupby(2)
 
         slicer = []
-        for name, group in grouped:
+        for _name, group in grouped:
             s = group[1]
 
-            for i, desc in enumerate(descriptives):
+            for _i, desc in enumerate(descriptives):
                 mean_found = False
                 tests_done = False
                 for idx in s.index:
-                    if s[idx].startswith('d.{}'.format(desc)):
+                    if s[idx].startswith(f'd.{desc}'):
                         slicer.append(idx)
                         if desc=='mean':
                             mean_found = True
@@ -946,7 +965,12 @@ class ViewManager(object):
 
 
 @modify(to_list='text_key')
-def net(append_to=[], condition=None, text='', text_key=None):
+def net(
+    append_to: list[Any] | dict[str, Any] | None = None,
+    condition: Any = None,
+    text: str | dict[str, str] = '',
+    text_key: str | list[str] | None = None
+) -> list[Any] | None:
     """
     Add a well-formed instruction dict for net to a net_map.
 
@@ -965,18 +989,26 @@ def net(append_to=[], condition=None, text='', text_key=None):
     text_key: str, list of str
         If text is a str, it will be added for all defined text_keys.
     """
+    if append_to is None:
+        append_to = []
     if not (isinstance(text, dict) or text_key):
         raise ValueError("'text' must be a dict or a text_key must be provided.")
-    elif not isinstance(text, dict):
-        text = {tk: text for tk in text_key}
+    if not isinstance(text, dict):
+        text = dict.fromkeys(text_key, text)
     if isinstance(append_to, dict):
         append_to['text'].update(text)
     else:
         net = {len(append_to) + 1: condition, 'text': text}
         append_to.append(net)
         return append_to
+    return None
 
-def calc(expression, text, text_key=None, exclusive=False):
+def calc(
+    expression: Any,
+    text: str | dict[str, str],
+    text_key: str | list[str] | None = None,
+    exclusive: bool = False
+) -> OrderedDict[str, Any]:
     """
     Produce a well-formed instruction dict for a calculated net.
 
@@ -1000,10 +1032,10 @@ def calc(expression, text, text_key=None, exclusive=False):
     """
     if not (isinstance(text, dict) or text_key):
         raise ValueError("'text' must be a dict or a text_key must be provided.")
-    elif not isinstance(text, dict):
-        text = {tk: text for tk in text_key}
+    if not isinstance(text, dict):
+        text = dict.fromkeys(text_key, text)
     operator = {'+': add, '-': sub, '*': mul, '/': div}
-    instruction = OrderedDict([('calc', tuple(operator.get(e, 'net_{}'.format(e))
+    instruction = OrderedDict([('calc', tuple(operator.get(e, f'net_{e}')
                                                            for e in expression)),
                    ('calc_only', exclusive),
                    ('text', text)])
