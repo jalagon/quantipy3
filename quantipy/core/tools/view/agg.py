@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from itertools import combinations
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -18,8 +19,12 @@ crosstabulation functionality.
 """
 
 
-def describe(data, x, weights=None):
-    '''Replacment of (wrapper around) the df.describe() method that can deal with
+def describe(
+    data: pd.DataFrame, 
+    x: str, 
+    weights: str | None = None
+) -> pd.DataFrame:
+    '''Replacement of (wrapper around) the df.describe() method that can deal with
     weighted data. Weight vectors are allowed to be non-normalized, i.e.
     sum of weights <> number of cases in sample. Quartile information currently
     dropped from output, variance is unbiased variance.
@@ -83,7 +88,10 @@ def describe(data, x, weights=None):
     )
 
 
-def make_default_cat_view(link, weights=None):
+def make_default_cat_view(
+    link: dict[str, Any], 
+    weights: str | None = None
+) -> pd.DataFrame:
     '''
     This function is creates Quantipy's default categorical aggregations:
     The x axis has to be a catgeorical single or multicode variable, the y axis
@@ -116,7 +124,11 @@ def make_default_cat_view(link, weights=None):
     return view_df
 
 
-def make_default_str_view(data, x, y=None):
+def make_default_str_view(
+    data: pd.DataFrame, 
+    x: str, 
+    y: str | None = None
+) -> pd.DataFrame:
 
     df = pd.DataFrame({x: data[x]})
 
@@ -124,8 +136,14 @@ def make_default_str_view(data, x, y=None):
 
 
 def make_default_num_view(
-    data, x, y=None, weights=None, drop=None, rescale=None, get_only=None
-):
+    data: pd.DataFrame,
+    x: str,
+    y: str | None = None,
+    weights: str | None = None,
+    drop: list[int] | None = None,
+    rescale: dict[int, int] | None = None,
+    get_only: str | None = None
+) -> pd.DataFrame:
     '''
     This function is creates Quantipy's default numeric aggregations:
     The x axis has to be a numeric variable of type int or float, the y axis
@@ -321,11 +339,16 @@ def _rescale_codes(matrix, scaling):
     return matrix.rename(columns=scaling, inplace=True)
 
 
-def calc_pct(source, base):
+def calc_pct(source: pd.DataFrame, base: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(np.divide(source.values, base.values) * 100)
 
 
-def get_default_num_stat(default_num_view, stat, drop_bases=True, as_df=True):
+def get_default_num_stat(
+    default_num_view: pd.DataFrame, 
+    stat: str, 
+    drop_bases: bool = True, 
+    as_df: bool = True
+) -> pd.DataFrame | np.ndarray:
     '''
     Is used to extract a specific statistical figure from
     a given numerical default aggregation.
@@ -1703,7 +1726,11 @@ def _calc_pooled_props_pairs(counts, bases):
 '''
 
 
-def get_matrix(link, weights, data=None):
+def get_matrix(
+    link: dict[str, Any], 
+    weights: str | None, 
+    data: pd.DataFrame | None = None
+) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
     '''
 
     Example A - unweighted, x=single, y=multi:

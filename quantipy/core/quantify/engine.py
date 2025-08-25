@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pandas as pd
 import numpy as np
 from scipy.stats import t
@@ -93,7 +95,7 @@ class Quantity:
         self.calc_x = self.calc_y = None
         self._has_x_margin = self._has_y_margin = False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.result is not None:
             return '%s' % (self.result)
         else:
@@ -103,7 +105,7 @@ class Quantity:
     # -------------------------------------------------
     # Matrix creation and retrievel
     # -------------------------------------------------
-    def _convert_to_dataset(self, link):
+    def _convert_to_dataset(self, link: Link) -> Any:
         ds = qp.DataSet('')
         ds._data = link.stack[link.data_key].data
         ds._meta = link.get_meta()

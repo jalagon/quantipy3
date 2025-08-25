@@ -8,6 +8,7 @@ import pickle
 import re
 import string
 from collections import OrderedDict
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -21,7 +22,7 @@ from .constants import DTYPE_MAP, MAPPED_PATTERN
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def load_json(path_json, hook=OrderedDict):
+def load_json(path_json: str, hook: type = OrderedDict) -> Any:
     '''Returns a python object from the json file located at path_json'''
 
     with open(path_json) as f:
@@ -33,7 +34,7 @@ def load_json(path_json, hook=OrderedDict):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def loads_json(json_text, hook=OrderedDict):
+def loads_json(json_text: str, hook: type = OrderedDict) -> Any:
     '''Returns a python object from the json string json_text'''
 
     obj = json.loads(json_text, object_pairs_hook=hook)
@@ -44,7 +45,7 @@ def loads_json(json_text, hook=OrderedDict):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def save_json(obj, path_json):
+def save_json(obj: Any, path_json: str) -> None:
 
     with open(path_json, 'w+') as f:
         json.dump(obj, f)
@@ -87,7 +88,7 @@ def get_delimited_value_map(ds, ds_split=None, sep=';'):
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def verify_dtypes_vs_meta(data, meta):
+def verify_dtypes_vs_meta(data: pd.DataFrame, meta: dict[str, Any]) -> pd.DataFrame:
     '''Returns a df showing the pandas dtype for each column in data compared
     to the type indicated for that variable name in meta plus a 'verified'
     column indicating if quantipy determines the comparison as viable.

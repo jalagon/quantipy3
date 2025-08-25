@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import contextlib
 import warnings
+from typing import Any
 
 import quantipy as qp
 import quantipy.core.tools as tools
@@ -22,7 +23,7 @@ class QuantipyViews(ViewMapper):
     View methods are used to generate various numerical or categorical data
     aggregations. Their behaviour is controlled via ``kwargs``.
     """
-    def __init_known_methods__(self):
+    def __init_known_methods__(self) -> None:
         super().__init_known_methods__()
         self.known_methods['default']= {
             'method': 'default',
@@ -166,7 +167,7 @@ class QuantipyViews(ViewMapper):
             }
         }
 
-    def default(self, link, name, kwargs):
+    def default(self, link: dict[str, Any], name: str, kwargs: dict[str, Any]) -> View:
         """
         Adds a file meta dependent aggregation to a Stack.
 
@@ -225,7 +226,7 @@ class QuantipyViews(ViewMapper):
             view._notation = notation
             link[notation] = view
 
-    def frequency(self, link, name, kwargs):
+    def frequency(self, link: dict[str, Any], name: str, kwargs: dict[str, Any]) -> View:
         """
         Adds count-based views on a Link defintion to the Stack object.
 
@@ -369,7 +370,7 @@ class QuantipyViews(ViewMapper):
 
             link[notation] = view
 
-    def descriptives(self, link, name, kwargs):
+    def descriptives(self, link: dict[str, Any], name: str, kwargs: dict[str, Any]) -> None:
         """
         Adds num. distribution statistics of a Link defintion to the Stack.
 
@@ -453,7 +454,7 @@ class QuantipyViews(ViewMapper):
                 view._kwargs['exclude'] = q.miss_x
                 link[notation] = view
 
-    def coltests(self, link, name, kwargs):
+    def coltests(self, link: dict[str, Any], name: str, kwargs: dict[str, Any]) -> None:
         """
         Will test appropriate views from a Stack for stat. sig. differences.
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import re
 import warnings
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,13 @@ from quantipy.core.tools.dp.query import uniquify_list
 from quantipy.core.tools.view.logic import get_logic_index, has_any, intersection
 
 
-def recode_into(data, col_from, col_to, assignment, multi=False):
+def recode_into(
+    data: pd.DataFrame, 
+    col_from: str, 
+    col_to: str, 
+    assignment: list[tuple], 
+    multi: bool = False
+) -> pd.DataFrame:
     ''' Recodes one column based on the values of another column
     codes = [([10, 11], 1), ([8, 9], 2), ([1, 2, 3, 5, 6, 7, ], 3)]
     data = recode_into(data, 'CONNECTIONS4', 'CONNECTIONS4_nps', codes)
@@ -34,7 +41,12 @@ def recode_into(data, col_from, col_to, assignment, multi=False):
     data[col_to] = s
     return data
 
-def create_column(name, type_name, text='', values=None):
+def create_column(
+    name: str, 
+    type_name: str, 
+    text: str = '', 
+    values: list[dict] | None = None
+) -> dict[str, Any]:
     ''' Returns a column object that can be stored into a Quantipy meta
     document.
     '''
@@ -220,7 +232,7 @@ def derotate(data, input_mapper, output_mapper, others=None, dropna=True):
 
     return df
 
-def start_meta(text_key='main'):
+def start_meta(text_key: str = 'main') -> dict[str, Any]:
     """
     Starts a new Quantipy meta document.
 

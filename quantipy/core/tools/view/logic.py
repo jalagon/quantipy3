@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from operator import eq, ge, gt, le, lt, ne
+from typing import Any
 
 import pandas as pd
 
@@ -17,7 +18,7 @@ __index_symbol__ = {
 __index_symbol__[Index.symmetric_difference] = '^'
 
 
-def verify_logic_values(values, func_name):
+def verify_logic_values(values: list, func_name: str) -> None:
     """Verifies that the values given are a list of ints.
 
     Parameters
@@ -46,7 +47,7 @@ def verify_logic_values(values, func_name):
         )
 
 
-def verify_logic_series(series, func_name):
+def verify_logic_series(series: pd.Series, func_name: str) -> None:
     """Verifies that the series given is a compatible type (object,
     int64 or float64).
 
@@ -279,7 +280,7 @@ def _any_all(series, values, func_name, exclusive=False, _not=False):
     )
 
 
-def has_any(values, exclusive=False):
+def has_any(values: list, exclusive: bool = False) -> dict[str, Any]:
     """Convenience for managing 'any' part of the 'logic' instructions
     provided in a freq method's kwargs.
 
@@ -300,7 +301,7 @@ def has_any(values, exclusive=False):
     return _has_any, values, exclusive
 
 
-def _has_any(series, values, exclusive=False):
+def _has_any(series: pd.Series, values: list, exclusive: bool = False) -> pd.Series:
     """Returns the index of rows from series containing any of the
     given values.
 

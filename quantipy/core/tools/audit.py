@@ -11,6 +11,7 @@ import copy
 import json
 from collections import OrderedDict
 from difflib import SequenceMatcher
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -40,7 +41,12 @@ class Audit(object):
     # Conventions
     # ------------------------------------------------------------------------
 
-    def __init__(self, datasets, path=None, dimensions_comp=True):
+    def __init__(
+        self, 
+        datasets: list[Any] | Any, 
+        path: str | None = None, 
+        dimensions_comp: bool = True
+    ) -> None:
         self.datasets = []
         self.path = path
         self._dimensions_comp = dimensions_comp
@@ -86,7 +92,7 @@ class Audit(object):
     # file i/o
     # ------------------------------------------------------------------------
 
-    def _load_ds(self, name):
+    def _load_ds(self, name: str) -> Any:
         path_json = '{}/{}.json'.format(self.path, name)
         path_csv = '{}/{}.csv'.format(self.path, name)
         dataset = qp.DataSet(name, self._dimensions_comp)
@@ -95,7 +101,7 @@ class Audit(object):
         return dataset
 
     @modify(to_list='datasets')
-    def add_datasets(self, datasets):
+    def add_datasets(self, datasets: list[Any] | Any) -> None:
         """
         Add DataSet instances to the Audit container.
 
@@ -129,7 +135,7 @@ class Audit(object):
         self.all_incl_vars = self._all_incl_vars()
         return None
 
-    def add_path(self, path):
+    def add_path(self, path: str) -> None:
         """
         Define the path attribute.
         """
@@ -217,7 +223,7 @@ class Audit(object):
     # validate
     # ------------------------------------------------------------------------
 
-    def validate_all(self, spss_limits=False):
+    def validate_all(self, spss_limits: bool = False) -> list[str]:
         """
         Runs validate for included DataSets and reports broken instance names.
 
@@ -243,7 +249,7 @@ class Audit(object):
     # mismatches
     # ------------------------------------------------------------------------
 
-    def mismatches(self, verbose=True):
+    def mismatches(self, verbose: bool = True) -> pd.DataFrame | None:
         """
         Reports variables that are not included in all DataSets.
 
