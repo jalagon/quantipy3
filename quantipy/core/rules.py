@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Rules module for quantipy data processing.
 
