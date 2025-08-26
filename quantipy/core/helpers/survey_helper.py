@@ -1055,18 +1055,19 @@ class SurveyHelper:
         else:
             # Cross-tabulation with potentially multiple variables
             
-            # Prepare row data
+            # Prepare row and column data for pd.crosstab
+            # For single variables, pass the Series directly with None for names (pandas will use .name)
+            # For multiple variables, pass as a list of Series with list of names
             if len(x_vars) == 1:
                 row_data = self.ds._data[x_vars[0]]
-                row_names = x_vars[0]
+                row_names = None  # Let pandas use the Series .name attribute
             else:
                 row_data = [self.ds._data[var] for var in x_vars]
                 row_names = x_vars
-            
-            # Prepare column data  
+                
             if len(y_vars) == 1:
                 col_data = self.ds._data[y_vars[0]]
-                col_names = y_vars[0]
+                col_names = None  # Let pandas use the Series .name attribute
             else:
                 col_data = [self.ds._data[var] for var in y_vars]
                 col_names = y_vars
