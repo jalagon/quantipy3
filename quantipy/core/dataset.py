@@ -6358,7 +6358,8 @@ class DataSet:
             ]
             replace_map = {v: i for i, v in enumerate(vals, start=1)}
             if replace_map:
-                self._data[name].replace(replace_map, inplace=True)
+                # Fix for pandas FutureWarning about chained assignment
+                self._data[name] = self._data[name].replace(replace_map)
         elif org_type == 'delimited set':
             if not len(self.codes(name)) == 1:
                 raise TypeError(msg.format(name, org_type))
