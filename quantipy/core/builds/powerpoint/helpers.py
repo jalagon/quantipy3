@@ -94,7 +94,7 @@ def DataFrame_from_ChartData(cd):
         idx = pd.Index(tuples)
     cols = pd.Index([series.name for series in cd])
     data = list(zip(*[
-        [value if value is not None else np.NaN for value in series.values]
+        [value if value is not None else np.nan for value in series.values]
         for series in cd
     ], strict=False))
 
@@ -198,12 +198,12 @@ def example_dataframe(hierarchical):
     data = [
         (4, 8, 1, 5),
         (4, 7, 2, 3),
-        (4, 6, np.NaN, 2),
-        (4, 5, 4, np.NaN),
+        (4, 6, np.nan, 2),
+        (4, 5, 4, np.nan),
         (4, 4, 5, 7),
-        (4, np.NaN, 6, 1),
+        (4, np.nan, 6, 1),
         (4, 2, 7, 4),
-        (np.NaN, 1, 8, 3)
+        (np.nan, 1, 8, 3)
     ]
 
     df = pd.DataFrame.from_records(data, index=idx, columns=cols)

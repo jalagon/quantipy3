@@ -1070,7 +1070,7 @@ class Stack(defaultdict):
                 axis=1,
             )
 
-        description.replace("|||||", np.NaN, inplace=True)
+        description.replace("|||||", np.nan, inplace=True)
         if query is not None:
             description = description.query(query)
         if index is not None or columns is not None:

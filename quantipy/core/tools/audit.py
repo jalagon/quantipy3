@@ -512,7 +512,7 @@ class Audit(object):
                 all_df.append(pd.DataFrame([header], index=[v]))
         if all_df:
             all_df = pd.concat(all_df, axis=0)
-            return all_df.replace(np.NaN, '')
+            return all_df.replace(np.nan, '')
         else:
             print('No varied types detected in included DataSets.')
 
@@ -717,7 +717,7 @@ class Audit(object):
             if not all(cat == cats[0] for cat in cats):
                 all_df.append(pd.DataFrame([header], index=[v]))
         if all_df:
-            all_df = pd.concat(all_df, axis=0).replace(np.NaN, '')
+            all_df = pd.concat(all_df, axis=0).replace(np.nan, '')
             return all_df, all_df.index.tolist()
         else:
             print('No varied categories detected in included DataSets.')
@@ -759,7 +759,7 @@ class Audit(object):
                         for c, text in list(vobj1_dict.items()):
                             diff.append(self._compare_texts(tks, text,
                                                             vobj2_dict[c],
-                                                            strict) or np.NaN)
+                                                            strict) or np.nan)
                         index = pd.MultiIndex.from_tuples(
                             [(var, c) for c in list(vobj1_dict.keys())])
                         df = pd.DataFrame({'{},\n{}'.format(n1, n2): diff}, index=index)
@@ -772,7 +772,7 @@ class Audit(object):
                 df_var = pd.concat(df_var, axis=1)
                 all_df.append(df_var)
         if all_df:
-            all_df = pd.concat(all_df, axis=0).dropna(how='all').replace(np.NaN, '')
+            all_df = pd.concat(all_df, axis=0).dropna(how='all').replace(np.nan, '')
             if len(all_df) == 0:
                 print('No varied value labels detected in included DataSets.')
                 return None, []
@@ -942,7 +942,7 @@ class Audit(object):
             v_df = []
             for name in list(self.ds_alias.values()):
                 if a in self[name]:
-                    sources = [np.NaN if s in self[name].sources(a) else 'x'
+                    sources = [np.nan if s in self[name].sources(a) else 'x'
                                for s in total_ais[a]]
                     index = pd.MultiIndex.from_tuples([(a, i) for i in total_ais[a]])
                     df = pd.DataFrame(sources, index=index, columns=[name])
@@ -959,7 +959,7 @@ class Audit(object):
                 v_df = df.append(v_df)
             all_df.append(v_df)
         if all_df:
-            all_df = pd.concat(all_df, axis=0).dropna(how='all').replace(np.NaN, '')
+            all_df = pd.concat(all_df, axis=0).dropna(how='all').replace(np.nan, '')
             if len(all_df) == 0:
                 print('No varied items detected in included DataSets.')
                 return None, []
@@ -1000,9 +1000,9 @@ class Audit(object):
                             tobj1 = self[n1]._meta['columns'][s]['text']
                             tobj2 = self[n2]._meta['columns'][s]['text']
                             diff = self._compare_texts(
-                                tks, tobj1, tobj2, strict) or np.NaN
+                                tks, tobj1, tobj2, strict) or np.nan
                         else:
-                            diff = np.NaN
+                            diff = np.nan
                         index = pd.MultiIndex.from_tuples([(a, s)])
                         df = pd.DataFrame({'{},\n{}'.format(n1, n2): diff}, index=index)
                         s_df.append(df)
@@ -1015,7 +1015,7 @@ class Audit(object):
                     all_df.append(s_df)
 
         if all_df:
-            all_df = pd.concat(all_df, axis=0).dropna(how='all').replace(np.NaN, '')
+            all_df = pd.concat(all_df, axis=0).dropna(how='all').replace(np.nan, '')
             if len(all_df) == 0:
                 print('No varied item labels detected in included DataSets.')
                 return None, []

@@ -160,7 +160,7 @@ def extract_sav_meta(sav_file, name="", data=None, io_locale='en_US.UTF-8',
                     v.replace('.0', '') for v in x.tolist()
                     if v not in ['nan', 'None']]),
                     axis=1) + ';'
-                dls.replace({';': np.NaN}, inplace=True)
+                dls.replace({';': np.nan}, inplace=True)
                 # Get value object
                 values = meta['columns'][varNames[0]]['values']
 

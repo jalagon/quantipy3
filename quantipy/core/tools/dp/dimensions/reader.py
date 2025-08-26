@@ -206,7 +206,7 @@ def quantipy_clean(ddf: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
                                     convert_numeric=True
                                 )
                             ddf[n_tab][column] = num_col
-                    ddf[n_tab][column].replace(-1, np.NaN, inplace=True)
+                    ddf[n_tab][column].replace(-1, np.nan, inplace=True)
 
                 if 'date' in types_df.index:
                     columns = types_df.ix['date','column']
@@ -843,7 +843,7 @@ def mdd_to_quantipy(path_mdd, data, map_values=True):
                 array_set.append(f'columns@{full_name}')
 
                 if full_name not in data.columns:
-                    data[full_name] = np.NaN
+                    data[full_name] = np.nan
                     meta['columns'][full_name] = {
                         'name': full_name,
                         'values': f'lib@values@{k}',
@@ -883,7 +883,7 @@ def mdd_to_quantipy(path_mdd, data, map_values=True):
                     array_set.append(f'columns@{full_name}')
 
                     if full_name not in data.columns:
-                        data[full_name] = np.NaN
+                        data[full_name] = np.nan
                         meta['columns'][full_name] = {
                             'name': full_name,
                             'values': f'lib@values@{k}',

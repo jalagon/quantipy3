@@ -114,7 +114,7 @@ class DescriptiveStrategy(StatisticalStrategy):
             if not isinstance(only_type, list):
                 only_type = [only_type]
             types_df = types_df[only_type]
-            types_df = types_df.replace('', np.NaN).dropna(how='all')
+            types_df = types_df.replace('', np.nan).dropna(how='all')
         else:
             # Reorder columns logically
             column_order = [
@@ -123,7 +123,7 @@ class DescriptiveStrategy(StatisticalStrategy):
             ]
             existing_cols = [col for col in column_order if col in types_df.columns]
             types_df = types_df[existing_cols]
-            types_df = types_df.replace('', np.NaN).dropna(how='all')
+            types_df = types_df.replace('', np.nan).dropna(how='all')
 
         return types_df
 

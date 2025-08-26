@@ -2292,7 +2292,7 @@ class DataSet:
             if not isinstance(only_type, list):
                 only_type = [only_type]
             types = types[only_type]
-            types = types.replace('', np.NaN).dropna(how='all')
+            types = types.replace('', np.nan).dropna(how='all')
         else:
             types = types[
                 [
@@ -3040,16 +3040,16 @@ class DataSet:
 
     @classmethod
     def _remove_code(cls, x, code):
-        if x is np.NaN:
-            return np.NaN
+        if x is np.nan:
+            return np.nan
         if ';' in str(x):
             x = str(x).split(';')
             x = [y for y in x if y != str(code)]
             x = ';'.join(x)
             if x == '':
-                x = np.NaN
+                x = np.nan
         elif x == code:
-            x = np.NaN
+            x = np.nan
         return x
 
     @classmethod
@@ -5035,7 +5035,7 @@ class DataSet:
         if datafile_setname not in self._meta['sets']['data file']['items']:
             self._meta['sets']['data file']['items'].append(datafile_setname)
         if replace or name not in self._data.columns:
-            self._data[name] = '' if qtype == 'delimited set' else np.NaN
+            self._data[name] = '' if qtype == 'delimited set' else np.nan
         return
 
     def _add_array(self, name, qtype, label, items, categories, text_key):
@@ -5097,7 +5097,7 @@ class DataSet:
         Categorize an ``int``/``string``/``text`` variable to ``single``.
 
         The ``values`` object of the categorized variable is populated with the
-        unique values found in the originating variable (ignoring np.NaN /
+        unique values found in the originating variable (ignoring np.nan /
         empty row entries).
 
         Parameters
@@ -5384,13 +5384,13 @@ class DataSet:
             # handle the case data copy for columns (incl.slicing)
             if copy_data:
                 if slicer:
-                    self._data[copy_name] = np.NaN
+                    self._data[copy_name] = np.nan
                     take = self.take(slicer)
                     self[take, copy_name] = self._data[name].copy()
                 else:
                     self._data[copy_name] = self._data[name].copy()
             else:
-                self._data[copy_name] = np.NaN
+                self._data[copy_name] = np.nan
 
         # run the renaming for the copied variable
         self.rename_from_mapper(renames, keep_original=True, ignore_batch_props=True)
@@ -5575,7 +5575,7 @@ class DataSet:
                     if qtype == 'delimited set':
                         self[trans_item] = ''
                     else:
-                        self[trans_item] = np.NaN
+                        self[trans_item] = np.nan
                 if copy_data:
                     slicer = {reg_item_name: [reg_val_code]}
                     self.recode(trans_item, {new_val_code: slicer}, append=True)
@@ -5633,11 +5633,11 @@ class DataSet:
             If a logical statement is given here then it will be used as an
             implied intersection of all logical conditions given in the
             mapper.
-        initialize : str or np.NaN, default None
+        initialize : str or np.nan, default None
             If not None, a copy of the data named column will be used to
             populate the target column before the recode is performed.
             Alternatively, initialize can be used to populate the target
-            column with np.NaNs (overwriting whatever may be there) prior
+            column with np.nans (overwriting whatever may be there) prior
             to the recode.
         fillna : int, default=None
             If not None, the value passed to fillna will be used on the
@@ -5831,7 +5831,7 @@ class DataSet:
 
         for source, codes in list(replace_codes.items()):
             self[source].replace(codes, inplace=True)
-            self[source].replace(np.NaN, '', inplace=True)
+            self[source].replace(np.nan, '', inplace=True)
             for org, new in list(codes.items()):
                 mapped_codes[org].append(new)
 
@@ -6208,7 +6208,7 @@ class DataSet:
             self._meta['columns'][name]['type'] = 'float'
             if org_type == 'int':
                 self._data[name] = self._data[name].apply(
-                    lambda x: float(x) if not np.isnan(x) else np.NaN
+                    lambda x: float(x) if not np.isnan(x) else np.nan
                 )
             elif org_type == 'string':
                 self._data[name] = self._data[name].apply(lambda x: float(x))
@@ -6270,7 +6270,7 @@ class DataSet:
         if org_type == 'single':
             self._meta['columns'][name]['type'] = 'delimited set'
             self._data[name] = self._data[name].apply(
-                lambda x: str(int(x)) + ';' if not np.isnan(x) else np.NaN
+                lambda x: str(int(x)) + ';' if not np.isnan(x) else np.nan
             )
             return
         if org_type == 'string':
@@ -6351,7 +6351,7 @@ class DataSet:
             replace_map = {v: i for i, v in enumerate(vals, start=1)}
             self._data[name].replace(replace_map, inplace=True)
         elif org_type == 'string':
-            self[name] = self[name].replace('__NA__', np.NaN)
+            self[name] = self[name].replace('__NA__', np.nan)
             vals = sorted(self[name].dropna().unique().tolist())
             values_obj = [
                 self._value(i, text_key, str(v)) for i, v in enumerate(vals, start=1)
@@ -6363,7 +6363,7 @@ class DataSet:
             if not len(self.codes(name)) == 1:
                 raise TypeError(msg.format(name, org_type))
             self._data[name] = self._data[name].apply(
-                lambda x: int(x.replace(';', '')) if isinstance(x, str) else np.NaN
+                lambda x: int(x.replace(';', '')) if isinstance(x, str) else np.nan
             )
             values_obj = self._get_value_loc(name)
         self._meta['columns'][name]['type'] = 'single'
@@ -7043,7 +7043,7 @@ class DataSet:
             )
             self._meta['sets'][name]['items'].append(f'columns@{col}')
             self.set_variable_text(col, label, text_key)
-            self._data[col] = '' if source0['type'] == 'delimited set' else np.NaN
+            self._data[col] = '' if source0['type'] == 'delimited set' else np.nan
         if self._dimensions_comp and self._dimensions_comp != 'ignore':
             self.dimensionize()
 
@@ -8116,7 +8116,7 @@ class DataSet:
         cats = []
         valids = ['array', 'single', 'delimited set']
         for valid in valids:
-            cats.extend(d[valid].replace('', np.NaN).dropna().values.tolist())
+            cats.extend(d[valid].replace('', np.nan).dropna().values.tolist())
         for cat in cats:
             if cat not in ignore:
                 flags_code = []
@@ -8392,7 +8392,7 @@ class DataSet:
                     var_codes = self._get_valuemap(var, non_mapped='codes')
                     dummy_data.columns = [int(col) for col in dummy_data.columns]
                     dummy_data = dummy_data.reindex(columns=var_codes)
-                    dummy_data.replace(np.NaN, 0, inplace=True)
+                    dummy_data.replace(np.nan, 0, inplace=True)
                 if not self.meta:
                     dummy_data.sort_values(axis=1, inplace=True)
             else:  # single, int, float data
@@ -8400,7 +8400,7 @@ class DataSet:
                 if self.meta and not self._is_numeric(var):
                     var_codes = self._get_valuemap(var, non_mapped='codes')
                     dummy_data = dummy_data.reindex(columns=var_codes)
-                    dummy_data.replace(np.NaN, 0, inplace=True)
+                    dummy_data.replace(np.nan, 0, inplace=True)
                 dummy_data.rename(
                     columns={
                         col: int(col) if float(col).is_integer() else col

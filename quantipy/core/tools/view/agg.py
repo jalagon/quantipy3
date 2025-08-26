@@ -58,9 +58,9 @@ def describe(
             try:
                 stddev = math.sqrt(var)
                 if abs(stddev) == 0.00:
-                    stddev = np.NaN
+                    stddev = np.nan
             except (ValueError, TypeError, ZeroDivisionError):
-                stddev = np.NaN
+                stddev = np.nan
             desc_df['count'] = count
             desc_df['eff. count'] = eff_count
             desc_df['weights squared sum'] = w_squared_sum
@@ -540,9 +540,9 @@ def _df_to_value_matrix(data, x, y=None, limit_x=None, limit_y=None, weights=Non
     values = weights if weights else '@1'
     if y is not None:
         # two variable case, x and y specified
-        data.replace('', np.NaN, inplace=True)
+        data.replace('', np.nan, inplace=True)
         data.dropna(subset=[x, y], inplace=True)
-        # data = data.copy().replace('', np.NaN).dropna(subset=[x, y])
+        # data = data.copy().replace('', np.nan).dropna(subset=[x, y])
         wg_vec = data[values].values.reshape(len(data.index), 1)
         x_matrix, x_codes = _cat_to_dummies(data=data[x], limit_to=limit_x)
         y_matrix, y_codes = _cat_to_dummies(data=data[y], limit_to=limit_y)
@@ -552,8 +552,8 @@ def _df_to_value_matrix(data, x, y=None, limit_x=None, limit_y=None, weights=Non
             value_matrix = np.concatenate((wg_vec, x_matrix, y_matrix), axis=1)
     else:
         # single variable case, only x specified
-        # data = data.copy().replace('', np.NaN).dropna(subset=[x])
-        data.replace('', np.NaN, inplace=True)
+        # data = data.copy().replace('', np.nan).dropna(subset=[x])
+        data.replace('', np.nan, inplace=True)
         data.dropna(subset=[x], inplace=True)
         wg_vec = data[values].values.reshape(len(data.index), 1)
         x_matrix, x_codes = _cat_to_dummies(data[x], limit_to=limit_x)
@@ -651,7 +651,7 @@ def _limit_dummy_df(dummy_df, codes):
 
 def _df_to_num_matrix(data, x, y=None, exclude=None, rescale=None, weights=None):
     values = weights if weights else '@1'
-    data.replace('', np.NaN, inplace=True)
+    data.replace('', np.nan, inplace=True)
     if y == '@':
         y = None
     x_matrix = _cat_to_dummies(data=data[x], style='num', as_df=True)
@@ -754,8 +754,8 @@ def _dispersion_from_mat(num_matrix, x_def, y_def, measure='stddev', return_mean
     )
     wv_mask = np.nansum(num_matrix_no_w[:, 1 : len(x_def) + 1], axis=1) > 0
 
-    num_matrix[num_matrix == 0.0] = np.NaN
-    num_matrix_no_w[num_matrix_no_w == 0.0] = np.NaN
+    num_matrix[num_matrix == 0.0] = np.nan
+    num_matrix_no_w[num_matrix_no_w == 0.0] = np.nan
 
     if y_def is not None:
         ycodes = reversed(range(1, len(y_def) + 1))
@@ -1069,7 +1069,7 @@ def _deviations_from_mean(matrix, x_def, y_def, known_mean=None):
         matrix[:, 1 : 1 + len(x_def) * 2] / matrix[:, [0]]
     )
 
-    matrix_no_w[matrix_no_w == 0.0] = np.NaN
+    matrix_no_w[matrix_no_w == 0.0] = np.nan
 
     return np.nansum(matrix_no_w[:, 1 : len(x_def) + 1] - mean, axis=1)
 
@@ -1188,7 +1188,7 @@ def _corr(x_inputs, y_inputs):
 #     matrix=matrix.copy()
 
 #     valmask = np.nansum(matrix[:, 1:len(x_def)+1], axis=1) == 0.00
-#     matrix[valmask][:, [0]] = np.NaN
+#     matrix[valmask][:, [0]] = np.nan
 
 #     return matrix
 
@@ -1472,13 +1472,13 @@ def _cwi(default, threshold=5):
     c_col_n = freqs[-1, :-1]
     c_cell_n = freqs[:-1, :-1]
 
-    np.place(t_col_n, t_col_n == 0, np.NaN)
-    np.place(t_cell_n, t_cell_n == 0, np.NaN)
-    np.place(c_col_n, c_col_n == 0, np.NaN)
-    np.place(c_cell_n, c_cell_n == 0, np.NaN)
+    np.place(t_col_n, t_col_n == 0, np.nan)
+    np.place(t_cell_n, t_cell_n == 0, np.nan)
+    np.place(c_col_n, c_col_n == 0, np.nan)
+    np.place(c_cell_n, c_cell_n == 0, np.nan)
 
     cwi = (t_cell_n * c_col_n) / t_col_n
-    cwi[cwi < threshold] = np.NaN
+    cwi[cwi < threshold] = np.nan
 
     return pd.DataFrame(
         c_cell_n + cwi - cwi, index=idx_names[:-1], columns=col_names[:-1]
@@ -1588,7 +1588,7 @@ def _make_sigtest_df(sig_res):
         }
         res_collec.append(pd.DataFrame(row_res, index=[int(row)]))
 
-    sigtest = pd.concat(res_collec).replace('[-1]', np.NaN).sort_index()
+    sigtest = pd.concat(res_collec).replace('[-1]', np.nan).sort_index()
 
     return sigtest
 
@@ -1596,7 +1596,7 @@ def _make_sigtest_df(sig_res):
 def _overlap(mat, xdef, ydef):
     ''' '''
     mat = mat[:, [0]] * mat[:, len(xdef) + 1 :]
-    mat[mat == 0] = np.NaN
+    mat[mat == 0] = np.nan
 
     w_sum_sq_paired = np.hstack(
         [
@@ -1686,7 +1686,7 @@ def _calc_pooled_props_pairs(counts, bases):
 #         var = link.x if not link.x == '@' else link.y
 #         data = data[
 #             [weight, var]
-#             ].replace('', np.NaN).dropna(subset=([var]))
+#             ].replace('', np.nan).dropna(subset=([var]))
 #         xmat = _make_dummies(data[data.columns[1]],
 #                              limit_to=limit_to, exclude=exclude, rescale=rescale,
 #                              style=style, as_df=False)
@@ -1702,7 +1702,7 @@ def _calc_pooled_props_pairs(counts, bases):
 #     else:
 #         data = data[
 #             [weight, link.x, link.y]
-#             ].replace('', np.NaN).dropna(subset=([link.x, link.y]))
+#             ].replace('', np.nan).dropna(subset=([link.x, link.y]))
 #         if not data.columns.is_unique:
 #             data.columns = [weight, link.x, link.y + '_']
 #         xmat = _make_dummies(data[data.columns[1]],
@@ -1753,7 +1753,7 @@ def get_matrix(
     weight = weights if weights is not None else '@1'
     if link.x == '@' or link.y == '@':
         var = link.x if link.x != '@' else link.y
-        data = data[[weight, var]].replace('', np.NaN)
+        data = data[[weight, var]].replace('', np.nan)
         # data.dropna(inplace=True)
         wv = data[[weight]].values
         xm, xdef = _make_dummies(data[var])
@@ -1763,7 +1763,7 @@ def get_matrix(
         mat = _clean_matrix(mat, xdef, ydef)
 
     else:
-        data = data[[weight, link.x, link.y]].replace('', np.NaN)
+        data = data[[weight, link.x, link.y]].replace('', np.nan)
         # data.dropna(inplace=True)
         wv = data[[weight]].values
         if not data.columns.is_unique:
@@ -1957,12 +1957,12 @@ def missingfy_matrix(mat, xdef, codes, keep=False):
     if mis_ix is not None:
         mat = mat.copy()
         for ix in mis_ix:
-            np.place(mat[:, ix + 1], mat[:, ix + 1] > 0, np.NaN)
+            np.place(mat[:, ix + 1], mat[:, ix + 1] > 0, np.nan)
         if not keep:
             wv_mask = np.sum(mat[:, 1 : len(xdef) + 1], axis=1) > 0
         else:
             wv_mask = np.nansum(mat[:, 1 : len(xdef) + 1], axis=1) > 0
-        mat[~wv_mask, [0]] = np.NaN
+        mat[~wv_mask, [0]] = np.nan
 
     return mat
 
@@ -2143,7 +2143,7 @@ def _dispersion(mat, xdef, ydef, measure='sd', return_mean=False):
     mat = _unweight_matrix(mat, xdef)
     mat = _factorize_matrix(mat, xdef)
     mat = _reduce_xsect(mat, xdef)
-    np.place(mat[:, 1], mat[:, 1] == 0, np.NaN)
+    np.place(mat[:, 1], mat[:, 1] == 0, np.nan)
     ysects = _get_ysect(mat, ydef)
 
     var = np.array(

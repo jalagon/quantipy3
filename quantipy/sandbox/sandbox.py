@@ -1177,7 +1177,7 @@ class ChainManager(object):
                                               else x
                                     )
                             x, y = _get_axis_vars(df)
-                            df.replace('-', np.NaN, inplace=True)
+                            df.replace('-', np.nan, inplace=True)
                             relabel_axes(df, meta, sigtested, labels=paint)
                             colbase_l = -2 if sigtested else -1
                             for base in ['Base', 'UnweightedBase']:
@@ -3164,7 +3164,7 @@ class Chain(object):
             value_df = df[[target_col]].copy()
             if not col == '@':
                 value_df.drop('@', axis=1, level=1, inplace=True)
-            values = value_df.replace(np.NaN, '-').values.tolist()
+            values = value_df.replace(np.nan, '-').values.tolist()
             r = replacement_map[col]
             new_values = []
             case = None
@@ -3191,7 +3191,7 @@ class Chain(object):
             all_dfs.append(part_df)
         letter_df = pd.concat(all_dfs, axis=1)
         # Clean it up
-        letter_df.replace('-', np.NaN, inplace=True)
+        letter_df.replace('-', np.nan, inplace=True)
         for signs in [('[', ''), (']', ''), (', ', '.')]:
             letter_df = letter_df.applymap(lambda x: x.replace(signs[0], signs[1])
                                            if isinstance(x, str) else x)
@@ -3890,7 +3890,7 @@ class Chain(object):
 #                         if len(df.columns.levels) > 2:
 #                             df.columns = df.columns.droplevel(0)
 #                         x, y = _get_axis_vars(df)
-#                         df.replace('-', np.NaN, inplace=True)
+#                         df.replace('-', np.nan, inplace=True)
 #                         relabel_axes(df, meta, labels=labels)
 #                         df = df.drop('Base', axis=1, level=1)
 #                         try:
@@ -4198,9 +4198,9 @@ class Quantity(object):
         valid_rows = self.idx_map[self.idx_map[:, 0] == 1][:, 1]
         filter_idx = np.in1d(valid_rows, qualified_rows)
         if keep_base:
-            filtered.matrix[~filter_idx, 1:, :] = np.NaN
+            filtered.matrix[~filter_idx, 1:, :] = np.nan
         else:
-            filtered.matrix[~filter_idx, :, :] = np.NaN
+            filtered.matrix[~filter_idx, :, :] = np.nan
         if not inplace:
             return filtered
 
@@ -4234,7 +4234,7 @@ class Quantity(object):
             Controls whether the passed codes are kept or erased from the
             Quantity matrix data entries.
         keep_base: bool, default True
-            Controls whether the weight vector is set to np.NaN alongside
+            Controls whether the weight vector is set to np.nan alongside
             the x-section rows or remains unmodified.
         indices: bool, default False
             If ``True``, the data matrix indicies of the corresponding codes
@@ -4267,7 +4267,7 @@ class Quantity(object):
             if mis_ix is not None:
                 for ix in mis_ix:
                     np.place(missingfied.matrix[:, ix],
-                             missingfied.matrix[:, ix] > 0, np.NaN)
+                             missingfied.matrix[:, ix] > 0, np.nan)
                 if not keep_base:
                     if axis == 'x':
                         self.miss_x = codes
@@ -4282,7 +4282,7 @@ class Quantity(object):
                         mask = np.nansum(np.sum(missingfied.matrix,
                                                 axis=1, keepdims=False),
                                          axis=1, keepdims=True) > 0
-                    missingfied.matrix[~mask] = np.NaN
+                    missingfied.matrix[~mask] = np.nan
                 if axis == 'y':
                     missingfied._switch_axes()
             if inplace:
@@ -4951,8 +4951,8 @@ class Quantity(object):
             factorized.weight()
         diff_sqrt = np.nansum(factorized.matrix[:, 1:], axis=1)
         disp = np.nansum(diff_sqrt/unbiased_n, axis=0, keepdims=True)
-        disp[disp <= 0] = np.NaN
-        disp[np.isinf(disp)] = np.NaN
+        disp[disp <= 0] = np.nan
+        disp[np.isinf(disp)] = np.nan
         if measure == 'sd':
             disp = np.sqrt(disp)
         elif measure == 'sem':
@@ -5239,7 +5239,7 @@ class Quantity(object):
                     res_codes = self._get_response_codes(section)
                     section_data.columns = [int(col) for col in section_data.columns]
                     section_data = section_data.reindex(columns=res_codes)
-                    section_data.replace(np.NaN, 0, inplace=True)
+                    section_data.replace(np.nan, 0, inplace=True)
                 if not self._uses_meta:
                     section_data.sort_index(axis=1, inplace=True)
             # i.e. Quantipy single-coded/numerical data
@@ -5248,7 +5248,7 @@ class Quantity(object):
                 if self._uses_meta and not self._is_raw_numeric(section):
                     res_codes = self._get_response_codes(section)
                     section_data = section_data.reindex(columns=res_codes)
-                    section_data.replace(np.NaN, 0, inplace=True)
+                    section_data.replace(np.nan, 0, inplace=True)
                 section_data.rename(
                     columns={
                         col: int(col)
@@ -5789,7 +5789,7 @@ class Test(object):
             ebases_pairs = [eb1 + eb2 for eb1, eb2
                             in combinations(self.ebases[0], 2)]
             dof = ebases_pairs - self.overlap - 2
-            dof[dof <= 1] = np.NaN
+            dof[dof <= 1] = np.nan
             return get_pval(dof, teststat)[1]
         elif self.mimic == 'askia':
             return abs(teststat)
@@ -5940,12 +5940,12 @@ class Test(object):
             t_cell_n = self.rbases[1:, :]
         else:
             t_cell_n = self.rbases[0]
-        np.place(t_col_n, t_col_n == 0, np.NaN)
-        np.place(t_cell_n, t_cell_n == 0, np.NaN)
-        np.place(c_col_n, c_col_n == 0, np.NaN)
-        np.place(c_cell_n, c_cell_n == 0, np.NaN)
+        np.place(t_col_n, t_col_n == 0, np.nan)
+        np.place(t_cell_n, t_cell_n == 0, np.nan)
+        np.place(c_col_n, c_col_n == 0, np.nan)
+        np.place(c_cell_n, c_cell_n == 0, np.nan)
         cwi = (t_cell_n * c_col_n) / t_col_n
-        cwi[cwi < threshold] = np.NaN
+        cwi[cwi < threshold] = np.nan
         if as_df:
             return pd.DataFrame(c_cell_n + cwi - cwi,
                                 index=self.xdef, columns=self.ydef)
@@ -5959,7 +5959,7 @@ class Test(object):
         m = np.nansum(m, 1) if self.test_total else np.nansum(m[:, 1:, 1:], 1)
         if not self.is_weighted:
             m /= m
-        m[m == 0] = np.NaN
+        m[m == 0] = np.nan
         col_pairs = list(combinations(list(range(0, m.shape[1])), 2))
         if self.parameters['use_ebase'] and self.is_weighted:
             # Overlap computation when effective base is being used
@@ -6019,13 +6019,13 @@ class Test(object):
         if self._flags_exist():
            test = self._apply_base_flags(test)
            test.replace('[]*', '*', inplace=True)
-        test.replace('[]', np.NaN, inplace=True)
+        test.replace('[]', np.nan, inplace=True)
         # removing test results on post-aggregation rows [calc()]
         if self.has_calc:
             if len(test.index) > 1:
-                test.iloc[-1:, :] = np.NaN
+                test.iloc[-1:, :] = np.nan
             else:
-                test.iloc[:, :] = np.NaN
+                test.iloc[:, :] = np.nan
         test.index, test.columns = self.multiindex[0], self.multiindex[1]
         return test
 
@@ -6035,14 +6035,14 @@ class Test(object):
         values = self.values
         if self.metric == 'proportions':
             if self.no_pairs or self.no_diffs:
-                values[:] = np.NaN
+                values[:] = np.nan
             if values.shape == (1, 1) or values.shape == (1, 0):
-                values = [np.NaN]
+                values = [np.nan]
         if self.metric == 'means':
             if self.no_pairs:
-                values = [np.NaN]
+                values = [np.nan]
             if self.no_diffs and not self.no_pairs:
-                values[:] = np.NaN
+                values[:] = np.nan
         return  pd.DataFrame(values,
                              index=self.multiindex[0],
                              columns=self.multiindex[1])
@@ -6084,7 +6084,7 @@ class Nest(object):
         if not self.name in self.data.columns:
             recode_map = {code: intersection(code_pair) for code, code_pair
                           in enumerate(interlocked, start=1)}
-            self.data[self.name] = np.NaN
+            self.data[self.name] = np.nan
             self.data[self.name] = recode(self.meta, self.data,
                                           target=self.name, mapper=recode_map)
         nest_info = {'variables': self.variables,
@@ -6189,7 +6189,7 @@ class Multivariate(object):
         for var in data.columns:
             if self.ds._has_missings(var):
                 drop = self.ds._get_missing_list(var, globally=False)
-                data[var].replace(drop, np.NaN, inplace=True)
+                data[var].replace(drop, np.nan, inplace=True)
         self._analysisdata = data
         return None
 
@@ -6350,8 +6350,8 @@ class Reductions(Multivariate):
             _dim = range(1, dim+1)
             chisq_stats = [chisq, 'sig: {}'.format(sig),
                            'dof: {}'.format((obs.shape[0] - 1)*(obs.shape[1] - 1))]
-            _chisq = ([np.NaN] * (dim-3)) + chisq_stats
-            _sig = ([np.NaN] * (dim-2)) + [chisq]
+            _chisq = ([np.nan] * (dim-3)) + chisq_stats
+            _sig = ([np.nan] * (dim-2)) + [chisq]
             _sv, _ev = sv[:dim, 0], ev[:dim, 0]
             _expl_inertia = 100 * (ev[:dim, 0] / inertia)
             _cumul_expl_inertia = np.cumsum(_expl_inertia)
@@ -6486,7 +6486,7 @@ class LinearModels(Multivariate):
                                if self._use_intercept else self.x,
                                columns = ['b']
                                if not standardize else ['beta'])
-        coef_df.replace(np.NaN, '', inplace=True)
+        coef_df.replace(np.nan, '', inplace=True)
         return coef_df
 
     def _betas(self):
@@ -6500,7 +6500,7 @@ class LinearModels(Multivariate):
         inv_predictors = np.linalg.inv(predictors)
         betas = inv_predictors.dot(y)
         if self._use_intercept:
-            betas = np.vstack([[np.NaN], betas])
+            betas = np.vstack([[np.nan], betas])
         return betas
 
     def _coefs(self):
@@ -6517,7 +6517,7 @@ class LinearModels(Multivariate):
         anova_df = pd.DataFrame(anova_stats,
                                 index=['total', 'model', 'residual'],
                                 columns=['sum of squares', 'dof', 'R', 'R^2'])
-        anova_df.replace(np.NaN, '', inplace=True)
+        anova_df.replace(np.nan, '', inplace=True)
         return anova_df
 
 
@@ -6531,7 +6531,7 @@ class LinearModels(Multivariate):
         rss = y.T.dot(np.dot(np.eye(hat.shape[0])-hat, y*w))[0]
         ess = tss-rss
         all_ss = np.vstack([tss, ess, rss])
-        rsq = np.vstack([[np.NaN], ess/tss, [np.NaN]])
+        rsq = np.vstack([[np.nan], ess/tss, [np.nan]])
         r = np.sqrt(rsq)
         all_rs = np.hstack([r, rsq])
         return all_ss, all_rs
@@ -6555,17 +6555,17 @@ class LinearModels(Multivariate):
         c_diags_df = pd.DataFrame(c_diags, index=coefs.index,
                                   columns=['se', 't-stat', 'p'])
         # modelfit: se, F-stat, ...
-        m_se = np.vstack([[np.NaN], np.sqrt(rss/self.dofs[-1]), [np.NaN]])
-        m_fstat = np.vstack([[np.NaN],
+        m_se = np.vstack([[np.nan], np.sqrt(rss/self.dofs[-1]), [np.nan]])
+        m_fstat = np.vstack([[np.nan],
                              (ess/self.dofs[1]) / (rss/self.dofs[-1]),
-                             [np.NaN]])
+                             [np.nan]])
         m_sigs = 1-fdist.cdf(m_fstat, self.dofs[1], self.dofs[-1])
         m_diags = np.round(np.hstack([m_se, m_fstat, m_sigs]), 6)
         m_diags_df = pd.DataFrame(m_diags, index=modelfit.index,
                                   columns=['se', 'F-stat', 'p'])
         # Put everything together
         parameter_results = pd.concat([coefs, betas, c_diags_df], axis=1)
-        fit_summary = pd.concat([modelfit, m_diags_df], axis=1).replace(np.NaN, '')
+        fit_summary = pd.concat([modelfit, m_diags_df], axis=1).replace(np.nan, '')
         return parameter_results, fit_summary
 
     def _lmg_models_per_var(self):
@@ -6593,7 +6593,7 @@ class LinearModels(Multivariate):
     def _rsq_lmg_subset(self, subset):
         self.set_model(self.y, subset, self.w)
         anova = self.get_modelfit()
-        return anova['R^2'].replace('', np.NaN).dropna().values[0]
+        return anova['R^2'].replace('', np.nan).dropna().values[0]
 
     def lmg(self, norm=True, plot=False):
         known_rsq = {}
@@ -6851,13 +6851,13 @@ class Relations(Multivariate):
                 raise ValueError('"sig" must be one of None, "flag" or "full".')
         sigtest = np.sqrt((ns-2)/(1-corr**2))*corr
         sigtest = pd.DataFrame(get_pval(ns-2, sigtest)[1], index=corr.index, columns=corr.columns)
-        sigtest.replace(np.NaN, 0, inplace=True)
+        sigtest.replace(np.nan, 0, inplace=True)
         sigtest_flags = sigtest.copy()[sigtest<0.05]
         sigtest_flags[sigtest_flags < 0.01] = 1
         sigtest_flags[(sigtest_flags != 1) & (~np.isnan(sigtest_flags))] = 2
         sigtest_flags.replace(1, '**', inplace=True)
         sigtest_flags.replace(2, '*', inplace=True)
-        sigtest_flags.replace(np.NaN, '', inplace=True)
+        sigtest_flags.replace(np.nan, '', inplace=True)
 
         collect = []
         corr_iter = np.round(corr.copy(), 4)
@@ -6895,7 +6895,7 @@ class Relations(Multivariate):
                 raise ValueError('"plot" must be one of None, "sig" or "full".')
             if plot == 'sig':
                 corr = corr[sigtest < 0.05]
-                center = np.mean(corr.replace(np.NaN, 0.0).values)
+                center = np.mean(corr.replace(np.nan, 0.0).values)
             else:
                 center = np.mean(corr.values)
 
@@ -7219,7 +7219,7 @@ class Stack(defaultdict):
                  pd.DataFrame(views_as_series.str.split('|').tolist(),
                               columns=parts)), axis=1)
 
-        description.replace('|||||', np.NaN, inplace=True)
+        description.replace('|||||', np.nan, inplace=True)
         if query is not None:
             description = description.query(query)
         if not index is None or not columns is None:

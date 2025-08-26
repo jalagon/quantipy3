@@ -111,7 +111,7 @@ def verify_dtypes_vs_meta(data: pd.DataFrame, meta: dict[str, Any]) -> pd.DataFr
     ).T
     df = pd.concat([var_types, dtypes.astype(str)], axis=1)
 
-    missing = df.loc[df['dtype'].isin([np.NaN])]['meta']
+    missing = df.loc[df['dtype'].isin([np.nan])]['meta']
     if missing.size > 0:
         print(
             '\nSome meta not paired to data columns was found (these may be special data types):\n',
@@ -138,7 +138,7 @@ def coerce_dtypes_from_meta(data, meta):
         if meta in ["int", "single"]:
             if dtype in ["object"]:
                 data[idx] = data[idx].convert_objects(convert_numeric=True)
-            data[idx] = data[idx].replace(np.NaN, 0).astype(int)
+            data[idx] = data[idx].replace(np.nan, 0).astype(int)
 
     return data
 
@@ -1457,9 +1457,9 @@ def describe(data, x, weights=None):
             try:
                 stddev = math.sqrt(var)
                 if abs(stddev) == 0.00:
-                    stddev = np.NaN
+                    stddev = np.nan
             except BaseException:
-                stddev = np.NaN
+                stddev = np.nan
             desc_df['Count'] = count
             desc_df['Eff. count'] = eff_count
             desc_df['Weights squared sum'] = w_squared_sum
@@ -1714,7 +1714,7 @@ def recode_into(data, col_from, col_to, assignment, multi=False):
     s = pd.Series()
     for group in assignment:
         for val in group[0]:
-            data[col_to] = np.where(data[col_from] == val, group[1], np.NaN)
+            data[col_to] = np.where(data[col_from] == val, group[1], np.nan)
             s = s.append(data[col_to].dropna())
     data[col_to] = s
     return data
@@ -2133,7 +2133,7 @@ def create_delimited_from_single(data, meta=None, mrs_spec=None):
 
         mrs_df = df[mrs_q]
         for col in mrs_df.columns:
-            mrs_df[col].replace(np.NaN, 0, inplace=True)
+            mrs_df[col].replace(np.nan, 0, inplace=True)
             mrs_df[col].replace(1, col.split('_')[1] + ';', inplace=True)
         mrs_df[mrs_name] = mrs_df.replace(0, '').sum(axis=1)
 
@@ -2424,7 +2424,7 @@ def df_to_value_matrix(data, x, y=None, limit_x=None, limit_y=None, weights=None
     values = weights if weights else '@1'
     if y is not None:
         # two variable case, x and y specified
-        data = data.copy().replace('', np.NaN).dropna(subset=[x, y])
+        data = data.copy().replace('', np.nan).dropna(subset=[x, y])
         wg_vec = data[values].values.reshape(len(data.index), 1)
         x_matrix, x_codes = cat_to_dummies(data=data[x], limit_to=limit_x)
         y_matrix, y_codes = cat_to_dummies(data=data[y], limit_to=limit_y)
@@ -2434,7 +2434,7 @@ def df_to_value_matrix(data, x, y=None, limit_x=None, limit_y=None, weights=None
             value_matrix = np.concatenate((wg_vec, x_matrix, y_matrix), axis=1)
     else:
         # single variable case, only x specified
-        data = data.copy().replace('', np.NaN).dropna(subset=[x])
+        data = data.copy().replace('', np.nan).dropna(subset=[x])
         wg_vec = data[values].values.reshape(len(data.index), 1)
         x_matrix, x_codes = cat_to_dummies(data[x], limit_to=limit_x)
         y_codes = None
@@ -3049,7 +3049,7 @@ def make_delimited_from_dichotmous(df, use_col_values=False):
         s = s.dropna().astype(int).astype(str)
         delimited = ';'.join(s.tolist()) + ';'
         if delimited == ";":
-            delimited = np.NaN
+            delimited = np.nan
         return delimited
 
     if use_col_values:
@@ -3059,7 +3059,7 @@ def make_delimited_from_dichotmous(df, use_col_values=False):
         for i, col in enumerate(df.columns, start=1):
             df[col] = df[col].replace(1, i)
 
-    delimited_series = df.replace(0, np.NaN).apply(make_delimited_from_series, axis=1)
+    delimited_series = df.replace(0, np.nan).apply(make_delimited_from_series, axis=1)
 
     return delimited_series
 

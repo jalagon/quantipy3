@@ -310,9 +310,9 @@ class Quantity:
         valid_rows = self.idx_map[self.idx_map[:, 0] == 1][:, 1]
         filter_idx = np.in1d(valid_rows, qualified_rows)
         if keep_base:
-            filtered.matrix[~filter_idx, 1:, :] = np.NaN
+            filtered.matrix[~filter_idx, 1:, :] = np.nan
         else:
-            filtered.matrix[~filter_idx, :, :] = np.NaN
+            filtered.matrix[~filter_idx, :, :] = np.nan
         if not inplace:
             return filtered
         return None
@@ -347,7 +347,7 @@ class Quantity:
             Controls whether the passed codes are kept or erased from the
             Quantity matrix data entries.
         keep_base: bool, default True
-            Controls whether the weight vector is set to np.NaN alongside
+            Controls whether the weight vector is set to np.nan alongside
             the x-section rows or remains unmodified.
         indices: bool, default False
             If ``True``, the data matrix indicies of the corresponding codes
@@ -376,7 +376,7 @@ class Quantity:
         if mis_ix is not None:
             for ix in mis_ix:
                 np.place(missingfied.matrix[:, ix],
-                         missingfied.matrix[:, ix] > 0, np.NaN)
+                         missingfied.matrix[:, ix] > 0, np.nan)
             if not keep_base:
                 if axis == 'x':
                     missingfied.miss_x = codes
@@ -392,7 +392,7 @@ class Quantity:
                                             axis=1, keepdims=False),
                                      axis=1, keepdims=True) > 0
                 mask = np.where(~mask)
-                missingfied.matrix[mask] = np.NaN
+                missingfied.matrix[mask] = np.nan
             if axis == 'y':
                 missingfied._switch_axes()
         if inplace:
@@ -1093,8 +1093,8 @@ class Quantity:
             factorized.weight()
         diff_sqrt = np.nansum(factorized.matrix[:, 1:], axis=1)
         disp = np.nansum(diff_sqrt/unbiased_n, axis=0, keepdims=True)
-        disp[disp <= 0] = np.NaN
-        disp[np.isinf(disp)] = np.NaN
+        disp[disp <= 0] = np.nan
+        disp[np.isinf(disp)] = np.nan
         if measure == 'sd':
             disp = np.sqrt(disp)
         elif measure == 'sem':
@@ -1938,7 +1938,7 @@ class Test:
             ebases_pairs = [eb1 + eb2 for eb1, eb2
                             in combinations(self.ebases[0], 2)]
             dof = ebases_pairs - self.overlap - 2
-            dof[dof <= 1] = np.NaN
+            dof[dof <= 1] = np.nan
             # Modern replacement for deprecated _ttest_finish
             # Calculate two-tailed p-values using t-distribution
             return 2 * (1 - t.cdf(np.abs(teststat), dof))
@@ -2087,12 +2087,12 @@ class Test:
         c_cell_n = self.values
         t_col_n = self.tbase
         t_cell_n = self.rbases[1:, :] if self.rbases.shape[1] > 1 else self.rbases[0]
-        np.place(np.array(t_col_n), t_col_n == 0, np.NaN)
-        np.place(t_cell_n, t_cell_n == 0, np.NaN)
-        np.place(c_col_n, c_col_n == 0, np.NaN)
-        np.place(c_cell_n, c_cell_n == 0, np.NaN)
+        np.place(np.array(t_col_n), t_col_n == 0, np.nan)
+        np.place(t_cell_n, t_cell_n == 0, np.nan)
+        np.place(c_col_n, c_col_n == 0, np.nan)
+        np.place(c_cell_n, c_cell_n == 0, np.nan)
         cwi = (t_cell_n * c_col_n) / t_col_n
-        cwi[cwi < threshold] = np.NaN
+        cwi[cwi < threshold] = np.nan
         if as_df:
             return pd.DataFrame(c_cell_n + cwi - cwi,
                                 index=self.xdef, columns=self.ydef)
@@ -2105,7 +2105,7 @@ class Test:
         m = np.nansum(m, 1) if self.test_total else np.nansum(m[:, 1:, 1:], 1)
         if not self.is_weighted:
             m /= m
-        m[m == 0] = np.NaN
+        m[m == 0] = np.nan
         col_pairs = list(combinations(list(range(m.shape[1])), 2))
         if self.parameters['use_ebase'] and self.is_weighted:
             # Overlap computation when effective base is being used
@@ -2177,13 +2177,13 @@ class Test:
         if self._flags_exist():
            test = self._apply_base_flags(test)
            test.replace('[]*', '*', inplace=True)
-        test.replace('[]', np.NaN, inplace=True)
+        test.replace('[]', np.nan, inplace=True)
         # removing test results on post-aggregation rows [calc()]
         if self.has_calc:
             if len(test.index) > 1:
-                test.iloc[-1:, :] = np.NaN
+                test.iloc[-1:, :] = np.nan
             else:
-                test.iloc[:, :] = np.NaN
+                test.iloc[:, :] = np.nan
         test.index, test.columns = self.multiindex[0], self.multiindex[1]
         return test
 
@@ -2193,16 +2193,16 @@ class Test:
         values = self.values
         if self.metric == 'proportions':
             if self.no_pairs or self.no_diffs:
-                values[:] = np.NaN
+                values[:] = np.nan
                 if self.test_total and not self.no_pairs:
                     values = values[:, 1:]
             if values.shape in ((1, 1), (1, 0)):
-                values = [np.NaN]
+                values = [np.nan]
         if self.metric == 'means':
             if self.no_pairs:
-                values = [np.NaN]
+                values = [np.nan]
             if self.no_diffs and not self.no_pairs:
-                values[:] = np.NaN
+                values[:] = np.nan
             if self.test_total and not self.no_pairs:
                 values = values[:, 1:]
         return  pd.DataFrame(values,
@@ -2250,7 +2250,7 @@ class Nest:
         if self.name not in self.data.columns:
             recode_map = {code: intersection(code_pair) for code, code_pair
                           in enumerate(interlocked, start=1)}
-            self.data[self.name] = np.NaN
+            self.data[self.name] = np.nan
             self.data[self.name] = recode(self.meta, self.data,
                                           target=self.name, mapper=recode_map)
         nest_info = {'variables': self.variables,

@@ -187,7 +187,7 @@ def verify_dtypes_vs_meta(data: pd.DataFrame, meta: dict[str, Any]) -> pd.DataFr
     ).T
     df = pd.concat([var_types, dtypes.astype(str)], axis=1)
 
-    missing = df.loc[df["dtype"].isin([np.NaN])]["meta"]
+    missing = df.loc[df["dtype"].isin([np.nan])]["meta"]
     if missing.size > 0:
         print(
             "\nSome meta not paired to data columns was found (these may be special data types):\n",
@@ -210,7 +210,7 @@ def coerce_dtypes_from_meta(data: pd.DataFrame, meta: dict[str, Any]) -> pd.Data
         if meta in ["int", "single"]:
             if dtype in ["object"]:
                 data[idx] = data[idx].convert_objects(convert_numeric=True)
-            data[idx] = data[idx].replace(np.NaN, 0).astype(int)
+            data[idx] = data[idx].replace(np.nan, 0).astype(int)
 
     return data
 

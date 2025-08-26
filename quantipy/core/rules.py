@@ -746,7 +746,7 @@ class Rules:
                 elif is_small:
                     value = value + '*'
                 elif len(value) == 0:
-                    value = np.NaN
+                    value = np.nan
 
                 return value
             return value

@@ -36,7 +36,7 @@ def recode_into(
     s = pd.Series()
     for group in assignment:
         for val in group[0]:
-            data[col_to] = np.where(data[col_from] == val, group[1], np.NaN)
+            data[col_to] = np.where(data[col_from] == val, group[1], np.nan)
             s = s.append(data[col_to].dropna())
     data[col_to] = s
     return data
@@ -340,7 +340,7 @@ def condense_dichotomous_set(df, values_from_labels=True, sniff_single=False,
 
     # Use NaNs to represent emtpy
     series.replace(
-        {';': np.NaN},
+        {';': np.nan},
         inplace=True
     )
 
@@ -718,7 +718,7 @@ def verify_test_results(df):
             elif is_small:
                 value = value + '*'
             elif len(value)==0:
-                value = np.NaN
+                value = np.nan
 
             return value
         return value
@@ -835,10 +835,10 @@ def join_delimited_set_series(ds1, ds2, append=True):
         df['joined'] = ds1 + ds2
     else:
         df['joined'] = ds1.copy()
-        ds2.replace('', np.NaN)
+        ds2.replace('', np.nan)
         df['joined'].update(ds2.dropna())
 
-    joined = df['joined'].replace('', np.NaN)
+    joined = df['joined'].replace('', np.nan)
     return joined
 
 def recode_from_index_mapper(meta, series, index_mapper, append):
@@ -959,11 +959,11 @@ def recode(meta, data, target, mapper, default=None, append=False,
         If a logical statement is given here then it will be used as an
         implied intersection of all logical conditions given in the
         mapper.
-    initialize : str or np.NaN, default=None
+    initialize : str or np.nan, default=None
         If not None, a copy of the data named column will be used to
         populate the target column before the recode is performed.
         Alternatively, initialize can be used to populate the target
-        column with np.NaNs (overwriting whatever may be there) prior
+        column with np.nans (overwriting whatever may be there) prior
         to the recode.
     fillna : int, default=None
         If not None, the value passed to fillna will be used on the
@@ -1017,7 +1017,7 @@ def recode(meta, data, target, mapper, default=None, append=False,
         elif not np.isnan(initialize):
             raise ValueError(
                 "The value for 'initialize' must either be"
-                " a string naming an existing column or np.NaN.")
+                " a string naming an existing column or np.nan.")
 
     # Resolve the logic to a mapper of {key: index}
     index_map = index_mapper(meta, data, mapper, default, intersect)
@@ -1029,13 +1029,13 @@ def recode(meta, data, target, mapper, default=None, append=False,
             series = data[initialize].copy()
         else:
             # Ignore existing series for target, start with NaNs
-            series = pd.Series(np.NaN, index=data.index, copy=True)
+            series = pd.Series(np.nan, index=data.index, copy=True)
     elif target in data.columns:
         # Start with existing target column
         series = data[target].copy()
     else:
         # Start with NaNs
-        series = pd.Series(np.NaN, index=data.index, copy=True)
+        series = pd.Series(np.nan, index=data.index, copy=True)
 
     # Name the recoded series
     series.name = target
@@ -1477,7 +1477,7 @@ def hmerge(dataset_left, dataset_right, on=None, left_on=None, right_on=None,
             if c not in codes:
                 codes.append(c)
         if not codes:
-            return np.NaN
+            return np.nan
         return ';'.join(sorted(codes)) + ';'
 
     if all(kwarg is None for kwarg in [on, left_on, right_on]):
@@ -1794,7 +1794,7 @@ def vmerge(dataset_left=None, dataset_right=None, datasets=None,
         if (meta_left['columns'].get(col, {}).get('type') == 'delimited set'
             and meta_right['columns'][col]['type'] != 'delimited set'):
             data_right[col] = data_right[col].apply(
-                lambda x: str(int(x)) + ';' if not np.isnan(x) else np.NaN)
+                lambda x: str(int(x)) + ';' if not np.isnan(x) else np.nan)
 
     vdata = pd.concat([
         data_left,

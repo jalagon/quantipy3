@@ -228,7 +228,7 @@ def delimited_from_dichotomous(meta, df, name, sniff_single=False):
     if sniff_single and df.shape[1]==1:
         # The set has only 1 possible response
         # Convert to single
-        series = df.iloc[:,0].replace(0, np.NaN)
+        series = df.iloc[:,0].replace(0, np.nan)
         # Replace data file set item
         old_set_item = f'columns@{series.name}'
         new_set_item = f'columns@{name}'
@@ -258,7 +258,7 @@ def delimited_from_dichotomous(meta, df, name, sniff_single=False):
             # Convert to categorical set
             df[v] = df[col].replace(1, v)
             del df[col]
-        series = df.sum(axis=1).replace(0, np.NaN)
+        series = df.sum(axis=1).replace(0, np.nan)
         # Rename the series
         series.name = name
         # Update type in meta
@@ -351,7 +351,7 @@ def condense_dichotomous_set(df, values_from_labels=True, sniff_single=False,
 
     # Use NaNs to represent emtpy
     series.replace(
-        {';': np.NaN},
+        {';': np.nan},
         inplace=True
     )
 

@@ -1424,7 +1424,7 @@ class _Box(object):
                 if group and dummy:
                     append(ndx + len(dummy_idx) + 1)
                 break
-        dummy_arr = np.array([[np.NaN for _ in range(len(values[0]))]])
+        dummy_arr = np.array([[np.nan for _ in range(len(values[0]))]])
         for idx in dummy_idx:
             try:
                 index = np.insert(index, idx, '')

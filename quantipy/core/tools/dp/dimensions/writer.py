@@ -311,7 +311,7 @@ def _paired_empty_csv(meta, data):
             items = [i['source'].split('@')[-1] for i in mask['items']]
             paired_cols.extend(items)
     empty_csv = empty_csv[paired_cols]
-    empty_csv[paired_cols] = np.NaN
+    empty_csv[paired_cols] = np.nan
     return empty_csv
 
 def _datastore_csv(meta, data, columns):
@@ -324,7 +324,7 @@ def _datastore_csv(meta, data, columns):
         if col_type in ['single', 'delimited set']:
             datastore[col] = convert_categorical(datastore[col])
         elif col_type == 'int':
-            datastore[col].replace(np.NaN, 'NULL', inplace=True)
+            datastore[col].replace(np.nan, 'NULL', inplace=True)
             try:
                 # Note:
                 #-------------------------------------------------------------
@@ -334,7 +334,7 @@ def _datastore_csv(meta, data, columns):
             except (ValueError, OverflowError):
                 pass
         elif col_type == 'float':
-            datastore[col].replace(np.NaN, 'NULL', inplace=True)
+            datastore[col].replace(np.nan, 'NULL', inplace=True)
         elif col_type == 'string':
             datastore[col] = replace_comma_in_string(datastore[col])
             datastore[col] = remove_newlines_in_string(datastore[col])
@@ -394,7 +394,7 @@ def convert_categorical(categorical):
                         '{}{}'.format(resp_prefix,
                                       int(x) if int(x) > -1 else
                                       f'minus{-1 * int(x)}')
-                        if not np.isnan(x) else np.NaN)
+                        if not np.isnan(x) else np.nan)
     else:
         cat = cat.apply(lambda x: str(x).split(';')[:-1])
         cat = cat.apply(lambda x: ['{}{}'.format(resp_prefix,

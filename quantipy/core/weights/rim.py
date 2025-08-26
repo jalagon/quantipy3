@@ -168,7 +168,7 @@ class Rim:
     def _compute(self) -> None:
         self._get_base_factors()
         self._df[self._weight_name()].replace(0.00, 1.00, inplace=True)
-        self._df[self._weight_name()].replace(-1.00, np.NaN, inplace=True)
+        self._df[self._weight_name()].replace(-1.00, np.nan, inplace=True)
         if list(self._group_targets.keys()):
             self._adjust_groups()
         if self.total > 0 and not list(self._group_targets.keys()):
@@ -226,9 +226,9 @@ class Rim:
 
     def _scale_total(self) -> None:
         weight_var = self._weight_name()
-        self._df[weight_var].replace(1.00, np.NaN, inplace=True)
+        self._df[weight_var].replace(1.00, np.nan, inplace=True)
         unw_total = len(self._df[weight_var].dropna().index)
-        self._df[weight_var].replace(np.NaN, 0.00, inplace=True)
+        self._df[weight_var].replace(np.nan, 0.00, inplace=True)
         scale_factor = float(unw_total) / float(self.total)
         self._df[weight_var] = self._df[weight_var] / scale_factor
         self._df[weight_var].replace(0.00, 1.00, inplace=True)
@@ -367,7 +367,7 @@ class Rim:
         columns = self._columns(add_columns=[key_column])
         columns.extend(all_filter_cols)
         df = df.copy()[columns]
-        df[self._weight_name()].replace(0, np.NaN, inplace=True)
+        df[self._weight_name()].replace(0, np.nan, inplace=True)
         df.dropna(subset=[self._weight_name()], inplace=True)
         return df
 
@@ -426,7 +426,7 @@ class Rim:
 
         some_nans = (
             '*** Warning: Scheme "{0}", group "{1}" ***\n'
-            'np.NaN found in weight variables:\n{2}\n'
+            'np.nan found in weight variables:\n{2}\n'
             'Please check if weighted results are acceptable!\n'
         )
 
