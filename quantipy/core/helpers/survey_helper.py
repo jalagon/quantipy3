@@ -108,6 +108,136 @@ class SurveyHelper:
         helper._setup_dataset(df, name)
         return helper
     
+    @classmethod
+    def from_quantipy(cls, path_meta: str, path_data: str, name: str | None = None) -> 'SurveyHelper':
+        """
+        Create a SurveyHelper by loading quantipy format files.
+        
+        Parameters:
+        -----------
+        path_meta : str
+            Path to the quantipy metadata JSON file
+        path_data : str
+            Path to the quantipy data CSV/pickle file
+        name : str, optional
+            Dataset name (defaults to filename without extension)
+            
+        Returns:
+        --------
+        SurveyHelper
+            Initialized helper with loaded quantipy data
+            
+        Examples:
+        ---------
+        >>> helper = SurveyHelper.from_quantipy('survey_meta.json', 'survey_data.csv')
+        """
+        if name is None:
+            import os
+            name = os.path.splitext(os.path.basename(path_meta))[0]
+        
+        print(f"Loading quantipy files: {path_meta}, {path_data}")
+        
+        # Create helper with empty dataset
+        helper = cls(name=name)
+        
+        # Use quantipy's native loading
+        from quantipy.core.dataset import DataSet
+        helper.ds = DataSet(name)
+        helper.ds.read_quantipy(path_meta, path_data)
+        helper.df = helper.ds._data.copy()
+        
+        # Extract any existing categorical labels
+        helper._extract_all_labels()
+        
+        print(f"Loaded {len(helper.df)} rows × {len(helper.df.columns)} columns")
+        return helper
+    
+    @classmethod 
+    def from_spss(cls, path: str, name: str | None = None) -> 'SurveyHelper':
+        """
+        Create a SurveyHelper by loading an SPSS .sav file.
+        
+        Parameters:
+        -----------
+        path : str
+            Path to the SPSS .sav file
+        name : str, optional
+            Dataset name (defaults to filename without extension)
+            
+        Returns:
+        --------
+        SurveyHelper
+            Initialized helper with loaded SPSS data
+            
+        Examples:
+        ---------
+        >>> helper = SurveyHelper.from_spss('survey.sav')
+        """
+        if name is None:
+            import os
+            name = os.path.splitext(os.path.basename(path))[0]
+        
+        print(f"Loading SPSS file: {path}")
+        
+        # Create helper with empty dataset
+        helper = cls(name=name)
+        
+        # Use quantipy's native SPSS loading
+        from quantipy.core.dataset import DataSet
+        helper.ds = DataSet(name)
+        helper.ds.read_spss(path)
+        helper.df = helper.ds._data.copy()
+        
+        # Extract categorical labels from SPSS metadata
+        helper._extract_all_labels()
+        
+        print(f"Loaded {len(helper.df)} rows × {len(helper.df.columns)} columns")
+        return helper
+    
+    @classmethod
+    def from_dimensions(cls, path_meta: str, path_data: str, name: str | None = None) -> 'SurveyHelper':
+        """
+        Create a SurveyHelper by loading Dimensions MDD/DDF files.
+        
+        Parameters:
+        -----------
+        path_meta : str
+            Path to the Dimensions .mdd metadata file
+        path_data : str
+            Path to the Dimensions .ddf data file  
+        name : str, optional
+            Dataset name (defaults to filename without extension)
+            
+        Returns:
+        --------
+        SurveyHelper
+            Initialized helper with loaded Dimensions data
+            
+        Examples:
+        ---------
+        >>> helper = SurveyHelper.from_dimensions('survey.mdd', 'survey.ddf')
+        """
+        if name is None:
+            import os
+            name = os.path.splitext(os.path.basename(path_meta))[0]
+        
+        print(f"Loading Dimensions files: {path_meta}, {path_data}")
+        
+        # Create helper with empty dataset
+        helper = cls(name=name)
+        
+        # Use quantipy's native Dimensions loading
+        from quantipy.core.dataset import DataSet
+        helper.ds = DataSet(name)
+        helper.ds.read_dimensions(path_meta, path_data)
+        helper.df = helper.ds._data.copy()
+        
+        # Extract categorical labels from Dimensions metadata
+        helper._extract_all_labels()
+        
+        print(f"Loaded {len(helper.df)} rows × {len(helper.df.columns)} columns")
+        return helper
+    
     def load_csv(self, csv_path: str, name: str | None = None, encoding: str = 'utf-8', **kwargs) -> 'SurveyHelper':
         """
         Load data from a CSV file into this helper instance.
@@ -332,7 +462,25 @@ class SurveyHelper:
         except Exception as e:
             print(f"Could not extract labels for {col}: {e}")
     
-    def crosstab(self, x: str, y: str = "@", pct: bool = False, pct_type: str = "total", margins: bool = False) -> pd.DataFrame:
+    def _extract_all_labels(self) -> None:
+        """
+        Extract value labels for all categorical columns from quantipy metadata.
+        
+        This method is called when loading data from quantipy native formats
+        that already have metadata with categorical definitions.
+        """
+        if self.ds is None or self.ds._meta is None:
+            return
+            
+        columns_meta = self.ds._meta.get('columns', {})
+        for col_name, col_info in columns_meta.items():
+            if col_info.get('type') == 'single' and 'values' in col_info:
+                try:
+                    self._extract_labels(col_name)
+                except Exception as e:
+                    print(f"Could not extract labels for {col_name}: {e}")
+    
+    def crosstab(self, x: str | list[str], y: str | list[str] = "@", pct: bool = False, pct_type: str = "total", margins: bool = False) -> pd.DataFrame:
         """
         Create a crosstab using pandas after Quantipy conversion.
         
@@ -341,10 +489,10 @@ class SurveyHelper:
         
         Parameters:
         -----------
-        x : str
-            Column name for rows (e.g., 'gender')
-        y : str  
-            Column name for columns, or "@" for simple frequency table
+        x : str or list[str]
+            Column name(s) for rows (e.g., 'gender' or ['gender', 'age'])
+        y : str or list[str]
+            Column name(s) for columns, or "@" for simple frequency table
         pct : bool
             If True, show percentages instead of counts
         pct_type : str
@@ -365,35 +513,61 @@ class SurveyHelper:
         >>> # Simple frequency table
         >>> helper.crosstab('gender', pct=True)
         
-        >>> # Cross-tabulation with column percentages
+        >>> # Simple cross-tabulation with column percentages
         >>> helper.crosstab('gender', 'age_group', pct=True, pct_type='column')
         
-        >>> # With row totals
-        >>> helper.crosstab('gender', 'age_group', margins=True)
+        >>> # Nested rows: gender and age by satisfaction
+        >>> helper.crosstab(['gender', 'age_group'], 'satisfaction', pct=True)
+        
+        >>> # Nested columns: gender by age and satisfaction  
+        >>> helper.crosstab('gender', ['age_group', 'satisfaction'])
+        
+        >>> # Both nested: gender+age by satisfaction+region
+        >>> helper.crosstab(['gender', 'age'], ['satisfaction', 'region'])
         """
         if self.ds is None:
             print("No data loaded. Use load_csv() first.")
             return pd.DataFrame()
-            
-        # Ensure columns are categorical
-        if x not in self.value_labels:
-            self.categorize([x])
-        if y != "@" and y not in self.value_labels:
-            self.categorize([y])
         
-        # Get the data - ensure we're getting the actual column
-        if x not in self.ds._data.columns:
-            print(f"Error: Column '{x}' not found in data")
-            return pd.DataFrame()
-            
-        x_data = self.ds._data[x]
+        # Convert to lists for consistent handling
+        x_vars = [x] if isinstance(x, str) else x
+        y_vars = [y] if isinstance(y, str) else y if y != "@" else ["@"]
         
-        if y == "@":
+        # Ensure all columns are categorical
+        all_vars = x_vars + ([var for var in y_vars if var != "@"])
+        for var in all_vars:
+            if var not in self.value_labels:
+                self.categorize([var])
+        
+        # Check all columns exist
+        for var in all_vars:
+            if var != "@" and var not in self.ds._data.columns:
+                print(f"Error: Column '{var}' not found in data")
+                return pd.DataFrame()
+        
+        # Handle single vs multiple variables
+        if len(x_vars) == 1:
+            x_data = self.ds._data[x_vars[0]]
+        else:
+            # Create multi-index for rows
+            x_data = pd.MultiIndex.from_arrays(
+                [self.ds._data[var] for var in x_vars], 
+                names=x_vars
+            )
+        
+        if y_vars == ["@"]:
             # Simple frequency table
-            counts = x_data.value_counts().sort_index()
+            if len(x_vars) == 1:
+                counts = x_data.value_counts().sort_index()
+            else:
+                # Multi-variable frequency - use Series with MultiIndex
+                temp_df = pd.DataFrame(index=range(len(self.ds._data)))
+                for i, var in enumerate(x_vars):
+                    temp_df[var] = self.ds._data[var]
+                counts = temp_df.groupby(x_vars).size().sort_index()
             
             if len(counts) == 0:
-                print(f"WARNING: No data found for column '{x}'")
+                print(f"WARNING: No data found for variables: {x_vars}")
                 return pd.DataFrame()
             
             if pct:
@@ -403,19 +577,41 @@ class SurveyHelper:
             else:
                 result = counts.to_frame(name='Count')
             
-            # Apply labels
-            if x in self.value_labels and self.value_labels[x]:
-                x_labels = self.value_labels[x]
+            # Apply labels for multi-index
+            if len(x_vars) == 1 and x_vars[0] in self.value_labels:
+                x_labels = self.value_labels[x_vars[0]]
                 result.index = result.index.map(lambda i: x_labels.get(i, str(i)))
-            result.index.name = x
+                result.index.name = x_vars[0]
+            elif len(x_vars) > 1:
+                # Apply labels to each level of multi-index
+                new_index = result.index
+                for level, var in enumerate(x_vars):
+                    if var in self.value_labels:
+                        labels = self.value_labels[var]
+                        new_index = new_index.set_levels(
+                            new_index.levels[level].map(lambda i: labels.get(i, str(i))), 
+                            level=level
+                        )
+                result.index = new_index
                 
         else:
-            # Cross-tabulation
-            if y not in self.ds._data.columns:
-                print(f"Error: Column '{y}' not found in data")
-                return pd.DataFrame()
-                
-            y_data = self.ds._data[y]
+            # Cross-tabulation with potentially multiple variables
+            
+            # Prepare row data
+            if len(x_vars) == 1:
+                row_data = self.ds._data[x_vars[0]]
+                row_names = x_vars[0]
+            else:
+                row_data = [self.ds._data[var] for var in x_vars]
+                row_names = x_vars
+            
+            # Prepare column data  
+            if len(y_vars) == 1:
+                col_data = self.ds._data[y_vars[0]]
+                col_names = y_vars[0]
+            else:
+                col_data = [self.ds._data[var] for var in y_vars]
+                col_names = y_vars
             
             if pct:
                 # Determine normalization type
@@ -426,19 +622,48 @@ class SurveyHelper:
                 else:  # "total" or any other value
                     normalize = "all"
                 
-                result = pd.crosstab(x_data, y_data, normalize=normalize, margins=margins) * 100
+                result = pd.crosstab(
+                    row_data, col_data, 
+                    rownames=row_names, colnames=col_names,
+                    normalize=normalize, margins=margins
+                ) * 100
             else:
-                result = pd.crosstab(x_data, y_data, margins=margins)
+                result = pd.crosstab(
+                    row_data, col_data,
+                    rownames=row_names, colnames=col_names, 
+                    margins=margins
+                )
             
-            # Replace codes with labels
-            if x in self.value_labels and self.value_labels[x]:
-                x_labels = self.value_labels[x]
+            # Apply labels to index (rows)
+            if len(x_vars) == 1 and x_vars[0] in self.value_labels:
+                x_labels = self.value_labels[x_vars[0]]
                 result.index = result.index.map(lambda i: x_labels.get(i, str(i)))
-                result.index.name = x
+            elif len(x_vars) > 1 and hasattr(result.index, 'levels'):
+                # Multi-index rows
+                new_index = result.index
+                for level, var in enumerate(x_vars):
+                    if var in self.value_labels:
+                        labels = self.value_labels[var]
+                        new_index = new_index.set_levels(
+                            new_index.levels[level].map(lambda i: labels.get(i, str(i))), 
+                            level=level
+                        )
+                result.index = new_index
                 
-            if y in self.value_labels and self.value_labels[y]:
-                y_labels = self.value_labels[y]
+            # Apply labels to columns
+            if len(y_vars) == 1 and y_vars[0] in self.value_labels:
+                y_labels = self.value_labels[y_vars[0]]
                 result.columns = result.columns.map(lambda i: y_labels.get(i, str(i)))
-                result.columns.name = y
+            elif len(y_vars) > 1 and hasattr(result.columns, 'levels'):
+                # Multi-index columns
+                new_columns = result.columns
+                for level, var in enumerate(y_vars):
+                    if var in self.value_labels:
+                        labels = self.value_labels[var]
+                        new_columns = new_columns.set_levels(
+                            new_columns.levels[level].map(lambda i: labels.get(i, str(i))), 
+                            level=level
+                        )
+                result.columns = new_columns
             
         return result
