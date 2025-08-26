@@ -238,6 +238,223 @@ class SurveyHelper:
         print(f"Loaded {len(helper.df)} rows × {len(helper.df.columns)} columns")
         return helper
     
+    @classmethod
+    def from_csv(cls, csv_path: str, name: str | None = None, encoding: str = 'utf-8', 
+                 auto_categorize: bool = True, categorical_threshold: int = 20,
+                 **kwargs) -> 'SurveyHelper':
+        """
+        Create a SurveyHelper by loading a CSV file with automatic type inference.
+        
+        This method loads a CSV file and automatically:
+        - Uses the first row as variable names (column headers)
+        - Infers variable types from the data (numeric, categorical, text)
+        - Optionally converts variables with few unique values to categorical
+        - Creates a quantipy DataSet with inferred metadata
+        
+        Parameters:
+        -----------
+        csv_path : str
+            Path to the CSV file
+        name : str, optional
+            Dataset name (defaults to filename without extension)
+        encoding : str
+            File encoding (default: 'utf-8')
+        auto_categorize : bool
+            Whether to automatically convert variables with few unique values to categorical
+        categorical_threshold : int
+            Maximum number of unique values for auto-categorization (default: 20)
+        **kwargs : dict
+            Additional arguments passed to pd.read_csv()
+            
+        Returns:
+        --------
+        SurveyHelper
+            Initialized helper with loaded and typed CSV data
+            
+        Examples:
+        ---------
+        >>> # Load CSV with automatic type inference
+        >>> helper = SurveyHelper.from_csv('survey.csv')
+        
+        >>> # Load with custom settings
+        >>> helper = SurveyHelper.from_csv('data.csv', auto_categorize=False, 
+        ...                               categorical_threshold=10)
+        
+        >>> # Load with pandas options
+        >>> helper = SurveyHelper.from_csv('data.csv', sep=';', decimal=',')
+        """
+        import os
+        import pandas as pd
+        
+        if name is None:
+            name = os.path.splitext(os.path.basename(csv_path))[0]
+        
+        print(f"Loading CSV file: {csv_path}")
+        
+        # Load CSV with first row as headers
+        try:
+            df = pd.read_csv(csv_path, encoding=encoding, **kwargs)
+        except UnicodeDecodeError:
+            print(f"Encoding error with {encoding}, trying 'latin1'...")
+            df = pd.read_csv(csv_path, encoding='latin1', **kwargs)
+        
+        print(f"Loaded {len(df)} rows × {len(df.columns)} columns")
+        
+        # Infer and convert data types
+        df = cls._infer_and_convert_types(df, auto_categorize, categorical_threshold)
+        
+        # Create helper instance
+        helper = cls(df=df, name=name)
+        
+        # If auto_categorize is enabled, extract labels for categorical variables
+        if auto_categorize:
+            helper._infer_categorical_labels()
+        
+        print(f"Type inference complete - {helper._get_type_summary()}")
+        return helper
+    
+    @staticmethod
+    def _infer_and_convert_types(df: pd.DataFrame, auto_categorize: bool = True, 
+                                categorical_threshold: int = 20) -> pd.DataFrame:
+        """
+        Infer and convert data types for CSV data.
+        
+        Parameters:
+        -----------
+        df : pd.DataFrame
+            Input DataFrame with raw CSV data
+        auto_categorize : bool
+            Whether to convert variables with few unique values to categorical
+        categorical_threshold : int
+            Maximum unique values for auto-categorization
+            
+        Returns:
+        --------
+        pd.DataFrame
+            DataFrame with inferred and converted types
+        """
+        import pandas as pd
+        import numpy as np
+        
+        df_typed = df.copy()
+        
+        for col in df_typed.columns:
+            series = df_typed[col]
+            
+            # Skip if column is entirely NaN
+            if series.isna().all():
+                continue
+            
+            # Try to convert to numeric first
+            numeric_series = pd.to_numeric(series, errors='coerce')
+            
+            # If most values converted successfully, it's numeric
+            if numeric_series.notna().sum() / len(series) > 0.8:  # 80% success rate
+                df_typed[col] = numeric_series
+                
+                # Check if it should be integer (no decimal places)
+                # Only check is_integer() for float values, not already int values
+                non_null_values = numeric_series.dropna()
+                if len(non_null_values) > 0:
+                    # If all values are already integers or float values that are whole numbers
+                    if (non_null_values.apply(lambda x: isinstance(x, (int, np.integer)) or 
+                                              (isinstance(x, (float, np.floating)) and x.is_integer())).all()):
+                        df_typed[col] = df_typed[col].astype('Int64')  # Nullable integer
+                continue
+            
+            # Check for date/datetime patterns
+            try:
+                datetime_series = pd.to_datetime(series, errors='coerce')
+                if datetime_series.notna().sum() / len(series) > 0.8:  # 80% success rate
+                    df_typed[col] = datetime_series
+                    continue
+            except:
+                pass
+            
+            # For string/object columns, check if should be categorical
+            if auto_categorize:
+                unique_values = series.dropna().nunique()
+                total_values = len(series.dropna())
+                
+                # Convert to categorical if:
+                # 1. Few unique values (below threshold)
+                # 2. High repetition (unique values < 50% of total)
+                if (unique_values <= categorical_threshold or 
+                    (total_values > 0 and unique_values / total_values < 0.5)):
+                    df_typed[col] = df_typed[col].astype('category')
+                    continue
+            
+            # Keep as string/object for text data
+            df_typed[col] = df_typed[col].astype('string')
+        
+        return df_typed
+    
+    def _infer_categorical_labels(self) -> None:
+        """
+        Infer and store categorical labels from categorical columns.
+        Creates value labels dictionary for categorical variables.
+        """
+        import pandas as pd
+        
+        if self.df is None:
+            return
+        
+        for col in self.df.columns:
+            if pd.api.types.is_categorical_dtype(self.df[col]):
+                # Get unique categories and create numeric mapping
+                categories = self.df[col].cat.categories.tolist()
+                
+                # Create numeric codes (1-based to match survey conventions)
+                value_labels = {i + 1: str(cat) for i, cat in enumerate(categories)}
+                self.value_labels[col] = value_labels
+                
+                # Convert categorical to numeric codes + 1 (1-based indexing)
+                self.df[col] = self.df[col].cat.codes + 1
+                # Replace -1 (pandas missing category code) with NaN
+                self.df[col] = self.df[col].replace(0, pd.NA)
+    
+    def _get_type_summary(self) -> str:
+        """
+        Get a summary of inferred data types.
+        
+        Returns:
+        --------
+        str
+            Summary string of data types
+        """
+        if self.df is None:
+            return "No data loaded"
+        
+        type_counts = {}
+        for col in self.df.columns:
+            dtype_str = str(self.df[col].dtype)
+            if dtype_str.startswith('int'):
+                type_key = 'integer'
+            elif dtype_str.startswith('float'):
+                type_key = 'numeric'
+            elif dtype_str.startswith('datetime'):
+                type_key = 'datetime'
+            elif dtype_str == 'category':
+                type_key = 'categorical'
+            elif dtype_str == 'string':
+                type_key = 'text'
+            else:
+                type_key = 'other'
+            
+            type_counts[type_key] = type_counts.get(type_key, 0) + 1
+        
+        # Add categorical from value_labels (for converted categoricals)
+        if hasattr(self, 'value_labels') and self.value_labels:
+            categorical_from_labels = len(self.value_labels)
+            if categorical_from_labels > 0:
+                type_counts['categorical'] = type_counts.get('categorical', 0) + categorical_from_labels
+        
+        summary_parts = []
+        for type_name, count in type_counts.items():
+            summary_parts.append(f"{count} {type_name}")
+        
+        return ", ".join(summary_parts)
+    
     def load_csv(self, csv_path: str, name: str | None = None, encoding: str = 'utf-8', **kwargs) -> 'SurveyHelper':
         """
         Load data from a CSV file into this helper instance.
