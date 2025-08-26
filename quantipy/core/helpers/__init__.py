@@ -7,3 +7,6 @@ used throughout the quantipy library.
 
 from .functions import *
 from .constants import *
+from .survey_helper import SurveyHelper
+
+__all__ = ['SurveyHelper']

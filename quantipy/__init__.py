@@ -13,6 +13,7 @@ from quantipy.core.view_generators.view_mapper import ViewMapper
 from quantipy.core.view_generators.view_maps import QuantipyViews
 from quantipy.core.view_generators.view_specs import (net, calc, ViewManager)
 from quantipy.core.helpers.functions import parrot
+from quantipy.core.helpers.survey_helper import SurveyHelper
 import quantipy.core.helpers.functions as helpers
 import quantipy.core.tools.dp as dp
 import quantipy.core.tools.view as v
