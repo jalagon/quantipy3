@@ -241,15 +241,17 @@ class SurveyHelper:
     @classmethod
     def from_csv(cls, csv_path: str, name: str | None = None, encoding: str = 'utf-8', 
                  auto_categorize: bool = True, categorical_threshold: int = 20,
+                 delimited_delimiter: str = ';', quantipy_native: bool = True,
                  **kwargs) -> 'SurveyHelper':
         """
-        Create a SurveyHelper by loading a CSV file with automatic type inference.
+        Create a SurveyHelper by loading a CSV file with intelligent quantipy-native type inference.
         
         This method loads a CSV file and automatically:
         - Uses the first row as variable names (column headers)
-        - Infers variable types from the data (numeric, categorical, text)
-        - Optionally converts variables with few unique values to categorical
-        - Creates a quantipy DataSet with inferred metadata
+        - Infers quantipy variable types (single, delimited set, int, float, string, date)
+        - Detects delimited sets (multiple choice) with preserved order of mention
+        - Creates proper quantipy metadata with value labels
+        - Generates a fully compatible quantipy DataSet
         
         Parameters:
         -----------
@@ -260,9 +262,13 @@ class SurveyHelper:
         encoding : str
             File encoding (default: 'utf-8')
         auto_categorize : bool
-            Whether to automatically convert variables with few unique values to categorical
+            Whether to automatically detect single choice variables (default: True)
         categorical_threshold : int
-            Maximum number of unique values for auto-categorization (default: 20)
+            Maximum unique values for single choice auto-detection (default: 20)
+        delimited_delimiter : str
+            Delimiter for multiple choice detection (default: ';' - semicolon)
+        quantipy_native : bool
+            Create quantipy metadata structure vs pandas categorical (default: True)
         **kwargs : dict
             Additional arguments passed to pd.read_csv()
             
@@ -273,15 +279,20 @@ class SurveyHelper:
             
         Examples:
         ---------
-        >>> # Load CSV with automatic type inference
+        >>> # Load CSV with full quantipy intelligence
         >>> helper = SurveyHelper.from_csv('survey.csv')
         
-        >>> # Load with custom settings
-        >>> helper = SurveyHelper.from_csv('data.csv', auto_categorize=False, 
-        ...                               categorical_threshold=10)
+        >>> # Detect multiple choice with custom delimiter
+        >>> helper = SurveyHelper.from_csv('data.csv', delimited_delimiter=',')
         
-        >>> # Load with pandas options
+        >>> # Disable auto-categorization for pure data types
+        >>> helper = SurveyHelper.from_csv('data.csv', auto_categorize=False)
+        
+        >>> # European CSV format with quantipy intelligence
         >>> helper = SurveyHelper.from_csv('data.csv', sep=';', decimal=',')
+        
+        >>> # Then use with full quantipy functionality
+        >>> crosstab = helper.crosstab('q1', 'gender')  # Uses proper quantipy metadata
         """
         import os
         import pandas as pd
@@ -300,17 +311,21 @@ class SurveyHelper:
         
         print(f"Loaded {len(df)} rows × {len(df.columns)} columns")
         
-        # Infer and convert data types
-        df = cls._infer_and_convert_types(df, auto_categorize, categorical_threshold)
+        # Enhanced quantipy-native type inference
+        if quantipy_native:
+            df, quantipy_meta = cls._infer_quantipy_types(
+                df, auto_categorize, categorical_threshold, delimited_delimiter
+            )
+            # Create helper with quantipy DataSet integration
+            helper = cls._create_with_quantipy_meta(df, name, quantipy_meta)
+        else:
+            # Legacy pandas-style processing 
+            df = cls._infer_and_convert_types(df, auto_categorize, categorical_threshold)
+            helper = cls(df=df, name=name)
+            if auto_categorize:
+                helper._infer_categorical_labels()
         
-        # Create helper instance
-        helper = cls(df=df, name=name)
-        
-        # If auto_categorize is enabled, extract labels for categorical variables
-        if auto_categorize:
-            helper._infer_categorical_labels()
-        
-        print(f"Type inference complete - {helper._get_type_summary()}")
+        print(f"Type inference complete - {helper._get_quantipy_type_summary()}")
         return helper
     
     @staticmethod
@@ -451,6 +466,232 @@ class SurveyHelper:
         
         summary_parts = []
         for type_name, count in type_counts.items():
+            summary_parts.append(f"{count} {type_name}")
+        
+        return ", ".join(summary_parts)
+    
+    @staticmethod
+    def _infer_quantipy_types(df: pd.DataFrame, auto_categorize: bool = True,
+                             categorical_threshold: int = 20, 
+                             delimited_delimiter: str = ';') -> tuple[pd.DataFrame, dict]:
+        """
+        Infer quantipy-native variable types and create proper metadata structure.
+        
+        Returns:
+        --------
+        tuple[pd.DataFrame, dict]
+            Processed DataFrame and quantipy metadata dictionary
+        """
+        import pandas as pd
+        import numpy as np
+        from collections import OrderedDict
+        
+        df_processed = df.copy()
+        quantipy_meta = {
+            'columns': OrderedDict(),
+            'info': {'dataset': {'name': 'CSV Import'}},
+            'lib': {'default text': 'en-GB', 'values': {}},
+            'sets': {},
+            'type': 'pandas.DataFrame'
+        }
+        
+        for col in df_processed.columns:
+            series = df_processed[col]
+            col_meta = {
+                'name': col,
+                'text': {'en-GB': col},  # Use column name as label
+                'parent': {}
+            }
+            
+            # Detect delimited sets (multiple choice) - highest priority
+            if series.dtype == 'object' and delimited_delimiter:
+                delimited_detected = SurveyHelper._detect_delimited_set(series, delimited_delimiter)
+                if delimited_detected:
+                    unique_values, value_labels = delimited_detected
+                    col_meta['type'] = 'delimited set'
+                    col_meta['values'] = [
+                        {'text': {'en-GB': label}, 'value': value}
+                        for value, label in value_labels.items()
+                    ]
+                    # Keep delimited data as string for quantipy
+                    df_processed[col] = df_processed[col].astype('string')
+                    quantipy_meta['columns'][col] = col_meta
+                    continue
+            
+            # Try numeric conversion
+            numeric_series = pd.to_numeric(series, errors='coerce')
+            numeric_success_rate = numeric_series.notna().sum() / len(series) if len(series) > 0 else 0
+            
+            if numeric_success_rate > 0.8:  # 80% success threshold
+                df_processed[col] = numeric_series
+                
+                # Check if should be integer
+                non_null_values = numeric_series.dropna()
+                if len(non_null_values) > 0:
+                    is_integer = (non_null_values.apply(lambda x: isinstance(x, (int, np.integer)) or 
+                                                       (isinstance(x, (float, np.floating)) and x.is_integer())).all())
+                    if is_integer:
+                        col_meta['type'] = 'int'
+                        df_processed[col] = df_processed[col].astype('Int64')  # Nullable integer
+                    else:
+                        col_meta['type'] = 'float'
+                else:
+                    col_meta['type'] = 'int'  # Default for empty numeric
+                quantipy_meta['columns'][col] = col_meta
+                continue
+            
+            # Try datetime conversion
+            try:
+                datetime_series = pd.to_datetime(series, errors='coerce')
+                datetime_success_rate = datetime_series.notna().sum() / len(series) if len(series) > 0 else 0
+                if datetime_success_rate > 0.8:
+                    df_processed[col] = datetime_series
+                    col_meta['type'] = 'date'
+                    quantipy_meta['columns'][col] = col_meta
+                    continue
+            except:
+                pass
+            
+            # Check for single choice (categorical) if auto_categorize enabled
+            if auto_categorize:
+                unique_values = series.dropna().nunique()
+                total_values = len(series.dropna())
+                
+                if (unique_values <= categorical_threshold or 
+                    (total_values > 0 and unique_values / total_values < 0.5)):
+                    
+                    # Create single choice quantipy metadata
+                    col_meta['type'] = 'single'
+                    unique_vals = series.dropna().unique()
+                    
+                    # Create value labels (1-based indexing)
+                    value_labels = []
+                    for i, val in enumerate(sorted(unique_vals), 1):
+                        value_labels.append({
+                            'text': {'en-GB': str(val)},
+                            'value': i
+                        })
+                    
+                    col_meta['values'] = value_labels
+                    
+                    # Convert data to numeric codes (1-based)
+                    value_map = {val: i for i, val in enumerate(sorted(unique_vals), 1)}
+                    df_processed[col] = df_processed[col].map(value_map).astype('Int64')
+                    
+                    quantipy_meta['columns'][col] = col_meta
+                    continue
+            
+            # Default to string type
+            col_meta['type'] = 'string'
+            df_processed[col] = df_processed[col].astype('string')
+            quantipy_meta['columns'][col] = col_meta
+        
+        return df_processed, quantipy_meta
+    
+    @staticmethod
+    def _detect_delimited_set(series: pd.Series, delimiter: str) -> tuple[set, dict] | None:
+        """
+        Detect if a series contains delimited set data (multiple choice).
+        
+        Returns:
+        --------
+        tuple[set, dict] | None
+            (unique_values_set, value_labels_dict) if delimited set detected, None otherwise
+        """
+        # Check for delimiter presence in non-null values
+        non_null = series.dropna()
+        if len(non_null) == 0:
+            return None
+        
+        # Count how many values contain the delimiter
+        delimiter_count = non_null.str.contains(delimiter, regex=False, na=False).sum()
+        delimiter_ratio = delimiter_count / len(non_null)
+        
+        # If at least 20% of values contain delimiter, likely a delimited set
+        if delimiter_ratio >= 0.2:
+            all_values = set()
+            
+            # Extract all unique values from delimited strings
+            for val in non_null:
+                if pd.notna(val) and delimiter in str(val):
+                    # Split and clean (remove empty strings and whitespace)
+                    parts = [p.strip() for p in str(val).split(delimiter) if p.strip()]
+                    for part in parts:
+                        # Try to convert to int if possible, otherwise keep as string
+                        try:
+                            all_values.add(int(part))
+                        except ValueError:
+                            all_values.add(part)
+            
+            if all_values:
+                # Create value labels - use the values themselves as labels if they're strings
+                # or generic labels if they're numbers
+                value_labels = {}
+                for val in sorted(all_values):
+                    if isinstance(val, (int, float)):
+                        value_labels[val] = f"Option {val}"
+                    else:
+                        value_labels[val] = str(val)
+                
+                return all_values, value_labels
+        
+        return None
+    
+    @classmethod
+    def _create_with_quantipy_meta(cls, df: pd.DataFrame, name: str, 
+                                  quantipy_meta: dict) -> 'SurveyHelper':
+        """
+        Create SurveyHelper with quantipy DataSet integration.
+        """
+        helper = cls(name=name)
+        
+        # Create quantipy DataSet with proper metadata
+        from quantipy.core.dataset import DataSet
+        helper.ds = DataSet(name)
+        helper.ds._data = df
+        helper.ds._meta = quantipy_meta
+        helper.df = df.copy()
+        
+        # Extract value labels for display purposes
+        helper._extract_quantipy_labels()
+        
+        return helper
+    
+    def _extract_quantipy_labels(self) -> None:
+        """Extract value labels from quantipy metadata structure."""
+        if not hasattr(self, 'ds') or not self.ds or not hasattr(self.ds, '_meta'):
+            return
+        
+        for col, col_meta in self.ds._meta.get('columns', {}).items():
+            if col_meta.get('type') == 'single' and 'values' in col_meta:
+                # Extract labels from quantipy values structure
+                labels = {}
+                for value_item in col_meta['values']:
+                    value = value_item['value']
+                    text = value_item['text'].get('en-GB', str(value))
+                    labels[value] = text
+                self.value_labels[col] = labels
+            elif col_meta.get('type') == 'delimited set' and 'values' in col_meta:
+                # Extract labels for delimited sets too
+                labels = {}
+                for value_item in col_meta['values']:
+                    value = value_item['value']
+                    text = value_item['text'].get('en-GB', str(value))
+                    labels[value] = text
+                self.value_labels[col] = labels
+    
+    def _get_quantipy_type_summary(self) -> str:
+        """Get summary of quantipy variable types."""
+        if not hasattr(self, 'ds') or not self.ds or not hasattr(self.ds, '_meta'):
+            return self._get_type_summary()  # Fallback to pandas summary
+        
+        type_counts = {}
+        for col_meta in self.ds._meta.get('columns', {}).values():
+            qtype = col_meta.get('type', 'unknown')
+            type_counts[qtype] = type_counts.get(qtype, 0) + 1
+        
+        summary_parts = []
+        for type_name, count in sorted(type_counts.items()):
             summary_parts.append(f"{count} {type_name}")
         
         return ", ".join(summary_parts)
