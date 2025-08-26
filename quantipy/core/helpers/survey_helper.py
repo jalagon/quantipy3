@@ -938,7 +938,9 @@ class SurveyHelper:
                 except Exception as e:
                     print(f"Could not extract labels for {col_name}: {e}")
     
-    def crosstab(self, x: str | list[str], y: str | list[str] = "@", pct: bool = False, pct_type: str = "total", margins: bool = False) -> pd.DataFrame:
+    def crosstab(self, x: str | list[str], y: str | list[str] = "@", pct: bool = False, pct_type: str = "total", 
+                 margins: bool = False, show_base: bool = False, show_total: bool = True,
+                 sort_rows: str = None, sort_columns: str = None) -> pd.DataFrame:
         """
         Create a crosstab using pandas after Quantipy conversion.
         
@@ -959,7 +961,17 @@ class SurveyHelper:
             - "column" or "col": column percentages (each column sums to 100%)
             - "row": row percentages (each row sums to 100%)
         margins : bool
-            If True, add row and column totals
+            If True, add row and column totals (pandas default margins)
+        show_base : bool
+            If True, add a "Base" row showing unweighted sample sizes (as first row)
+        show_total : bool
+            If True, add a "Total" column (default True for survey analysis, as first column)
+        sort_rows : str
+            Sort rows by values: 'ascending', 'descending', or None (default)
+            Sorts based on Total column if present, otherwise first column
+        sort_columns : str  
+            Sort columns by values: 'ascending', 'descending', or None (default)
+            Sorts based on Base row if present, otherwise first row
         
         Returns:
         --------
@@ -968,14 +980,20 @@ class SurveyHelper:
             
         Examples:
         ---------
-        >>> # Simple frequency table
-        >>> helper.crosstab('gender', pct=True)
+        >>> # Simple frequency table with Total column
+        >>> helper.crosstab('gender', pct=True, show_total=True)
         
-        >>> # Simple cross-tabulation with column percentages
-        >>> helper.crosstab('gender', 'age_group', pct=True, pct_type='column')
+        >>> # Cross-tabulation with column percentages, Total column, and Base row
+        >>> helper.crosstab('gender', 'age_group', pct=True, pct_type='column', 
+        ...                 show_total=True, show_base=True)
         
-        >>> # Nested rows: gender and age by satisfaction
-        >>> helper.crosstab(['gender', 'age_group'], 'satisfaction', pct=True)
+        >>> # Nested variables with survey features
+        >>> helper.crosstab(['gender', 'age_group'], 'satisfaction', pct=True,
+        ...                 show_total=True, show_base=True)
+        
+        >>> # Full survey table with margins, Total, and Base
+        >>> helper.crosstab('gender', 'age_group', pct=True, pct_type='column',
+        ...                 margins=True, show_total=True, show_base=True)
         
         >>> # Nested columns: gender by age and satisfaction  
         >>> helper.crosstab('gender', ['age_group', 'satisfaction'])
@@ -1124,5 +1142,131 @@ class SurveyHelper:
                             level=level
                         )
                 result.columns = new_columns
+        
+        # Add Total column if requested
+        if show_total and y_vars != ["@"]:
+            if pct and pct_type.lower() in ["row"]:
+                # For row percentages, Total column should be 100%
+                result['Total'] = 100.0
+            elif pct and pct_type.lower() in ["column", "col"]:
+                # For column percentages, Total column should show row totals (counts)
+                # Need to recalculate the original counts
+                if len(x_vars) == 1 and len(y_vars) == 1:
+                    # Simple case: recalculate row totals from original data
+                    row_totals = self.ds._data.groupby(x_vars[0]).size()
+                    if x_vars[0] in self.value_labels:
+                        x_labels = self.value_labels[x_vars[0]]
+                        row_totals.index = row_totals.index.map(lambda i: x_labels.get(i, str(i)))
+                    result['Total'] = row_totals
+                else:
+                    # Complex case: sum the percentages (may not be perfect but reasonable)
+                    result['Total'] = result.sum(axis=1)
+            else:
+                # For counts or total percentages, sum across columns
+                result['Total'] = result.sum(axis=1)
+        
+        # Add Base row if requested  
+        if show_base:
+            # Calculate base counts for each column
+            if y_vars == ["@"]:
+                # For frequency tables, base is total count
+                base_count = len(self.ds._data)
+                base_row = pd.Series([base_count], index=['Base'], name='Base')
+                result = pd.concat([result, base_row.to_frame().T])
+            else:
+                # For crosstabs, calculate base for each column
+                if len(y_vars) == 1:
+                    # Single column variable
+                    base_counts = self.ds._data.groupby(y_vars[0]).size()
+                    if y_vars[0] in self.value_labels:
+                        y_labels = self.value_labels[y_vars[0]]
+                        base_counts.index = base_counts.index.map(lambda i: y_labels.get(i, str(i)))
+                    base_counts.name = 'Base'
+                    
+                    # Add Total column to base if show_total is True
+                    if show_total:
+                        base_counts['Total'] = base_counts.sum()
+                        
+                    result = pd.concat([result, base_counts.to_frame().T])
+                else:
+                    # Multiple column variables - create base for each combination
+                    col_data = [self.ds._data[var] for var in y_vars]
+                    if len(col_data) == 1:
+                        base_counts = col_data[0].value_counts().sort_index()
+                    else:
+                        # Multi-index: count combinations
+                        base_df = pd.DataFrame({var: self.ds._data[var] for var in y_vars})
+                        base_counts = base_df.groupby(y_vars).size()
+                    
+                    base_counts.name = 'Base'
+                    
+                    # Add Total column to base if show_total is True
+                    if show_total:
+                        base_counts = pd.concat([base_counts, pd.Series([base_counts.sum()], index=['Total'])])
+                        
+                    result = pd.concat([result, base_counts.to_frame().T])
             
+        # Reorder columns to put Total first if it exists
+        if show_total and 'Total' in result.columns:
+            cols = result.columns.tolist()
+            cols.remove('Total')
+            cols = ['Total'] + cols
+            result = result[cols]
+        
+        # Reorder rows to put Base first if it exists
+        if show_base and 'Base' in result.index:
+            # Store the base row
+            base_row = result.loc[['Base']]
+            # Remove base from result
+            result_without_base = result.drop('Base')
+            # Concatenate with Base first
+            result = pd.concat([base_row, result_without_base])
+        
+        # Apply sorting if requested
+        if sort_rows:
+            # Determine which column to sort by
+            sort_col = 'Total' if 'Total' in result.columns else result.columns[0]
+            
+            # Exclude Base row from sorting if present
+            if 'Base' in result.index:
+                base_row = result.loc[['Base']]
+                data_rows = result.drop('Base')
+            else:
+                base_row = None
+                data_rows = result
+            
+            # Sort the data rows
+            ascending = (sort_rows == 'ascending')
+            data_rows = data_rows.sort_values(by=sort_col, ascending=ascending)
+            
+            # Recombine with Base row first if present
+            if base_row is not None:
+                result = pd.concat([base_row, data_rows])
+            else:
+                result = data_rows
+        
+        if sort_columns and y_vars != ["@"]:
+            # Determine which row to sort by
+            sort_row = 'Base' if 'Base' in result.index else result.index[0]
+            
+            # Get column values for sorting (excluding Total)
+            if 'Total' in result.columns:
+                total_col = result[['Total']]
+                data_cols = result.drop('Total', axis=1)
+            else:
+                total_col = None
+                data_cols = result
+            
+            # Sort the data columns
+            ascending = (sort_columns == 'ascending')
+            sort_values = data_cols.loc[sort_row]
+            sorted_cols = sort_values.sort_values(ascending=ascending).index.tolist()
+            data_cols = data_cols[sorted_cols]
+            
+            # Recombine with Total column first if present
+            if total_col is not None:
+                result = pd.concat([total_col, data_cols], axis=1)
+            else:
+                result = data_cols
+        
         return result
